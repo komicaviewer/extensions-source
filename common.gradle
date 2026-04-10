@@ -1,0 +1,45 @@
+apply plugin: 'com.android.application'
+apply plugin: 'kotlin-android'
+
+assert extName != null : "extName is not set in build.gradle.kts"
+assert extClass != null : "extClass is not set in build.gradle.kts"
+assert extVersionCode != null : "extVersionCode is not set in build.gradle.kts"
+
+android {
+    compileSdk 34
+    namespace "tw.kevinzhang.extension.${project.name.replace('-', '_')}"
+
+    defaultConfig {
+        applicationId "tw.kevinzhang.extension.${project.name.replace('-', '_')}"
+        minSdk 21
+        targetSdk 34
+        versionCode extVersionCode
+        versionName extVersionName ?: "1.0"
+
+        manifestPlaceholders = [
+            extClass: extClass,
+            extName : extName,
+        ]
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+}
+
+dependencies {
+    // extension-api from NewsHub via JitPack
+    compileOnly 'com.github.twkevinzhang.NewsHub:extension-api:main-SNAPSHOT'
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    implementation 'com.squareup.okhttp3:logging-interceptor:4.12.0'
+}

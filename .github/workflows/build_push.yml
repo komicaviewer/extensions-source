@@ -1,0 +1,83 @@
+name: Build & Publish Extensions
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Decode signing key
+        run: |
+          echo "${{ secrets.SIGNING_KEY }}" | base64 --decode > keystore.jks
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+
+      - name: Build all extensions
+        run: |
+          # Collect all extension module paths
+          MODULES=$(find src -maxdepth 1 -mindepth 1 -type d -exec test -f {}/build.gradle.kts \; -print | sed 's|src/|:src:|' | tr '\n' ' ')
+          ./gradlew $MODULES assembleRelease \
+            -Pandroid.injected.signing.store.file=$PWD/keystore.jks \
+            -Pandroid.injected.signing.store.password=${{ secrets.KEY_STORE_PASSWORD }} \
+            -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
+            -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
+        env:
+          KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+
+      - name: Collect APKs
+        run: |
+          mkdir -p output/apk
+          find . -name "*.apk" -path "*/release/*" | while read apk; do
+            # Use the applicationId as the APK filename
+            cp "$apk" "output/apk/$(basename $(dirname $(dirname $apk))).apk"
+          done
+
+      - name: Upload APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: extensions-apk
+          path: output/apk/
+          retention-days: 1
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download APKs
+        uses: actions/download-artifact@v4
+        with:
+          name: extensions-apk
+          path: apks/
+
+      - name: Checkout extensions repo
+        uses: actions/checkout@v4
+        with:
+          repository: komicaviewer/extensions
+          token: ${{ secrets.EXTENSIONS_REPO_TOKEN }}
+          path: extensions-repo
+
+      - name: Generate index.json and publish
+        run: |
+          python3 scripts/generate_index.py apks/ extensions-repo/
+          cd extensions-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --staged --quiet || git commit -m "chore: update extensions index"
+          git push
