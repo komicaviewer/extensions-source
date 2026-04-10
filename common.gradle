@@ -22,9 +22,21 @@ android {
         ]
     }
 
+    signingConfigs {
+        release {
+            storeFile = file("${rootProject.projectDir}/keystore.jks")
+            storePassword = System.getenv("KEY_STORE_PASSWORD") ?: ""
+            keyAlias = System.getenv("KEY_ALIAS") ?: ""
+            keyPassword = System.getenv("KEY_PASSWORD") ?: ""
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
+            if (new File("${rootProject.projectDir}/keystore.jks").exists()) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 

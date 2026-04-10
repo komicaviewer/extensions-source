@@ -20,32 +20,39 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Decode signing key
+      - name: Install Android build-tools
         run: |
-          echo "${{ secrets.SIGNING_KEY }}" | base64 --decode > keystore.jks
+          yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "build-tools;34.0.0" > /dev/null 2>&1 || true
+          echo "AAPT=$ANDROID_SDK_ROOT/build-tools/34.0.0/aapt" >> $GITHUB_ENV
+
+      - name: Decode signing keystore
+        run: echo "${{ secrets.SIGNING_KEY }}" | base64 --decode > keystore.jks
         env:
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
 
       - name: Build all extensions
         run: |
-          # Collect all extension module paths
-          MODULES=$(find src -maxdepth 1 -mindepth 1 -type d -exec test -f {}/build.gradle.kts \; -print | sed 's|src/|:src:|' | tr '\n' ' ')
-          ./gradlew $MODULES assembleRelease \
-            -Pandroid.injected.signing.store.file=$PWD/keystore.jks \
-            -Pandroid.injected.signing.store.password=${{ secrets.KEY_STORE_PASSWORD }} \
-            -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
-            -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
+          MODULES=$(find src -maxdepth 1 -mindepth 1 -type d | while read d; do
+            [ -f "$d/build.gradle.kts" ] && echo ":src:$(basename $d)"
+          done | tr '\n' ' ')
+          echo "Building modules: $MODULES"
+          ./gradlew $MODULES assembleRelease
         env:
           KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
-      - name: Collect APKs
+      - name: Collect and rename APKs by applicationId
         run: |
           mkdir -p output/apk
           find . -name "*.apk" -path "*/release/*" | while read apk; do
-            # Use the applicationId as the APK filename
-            cp "$apk" "output/apk/$(basename $(dirname $(dirname $apk))).apk"
+            pkg=$($AAPT dump badging "$apk" 2>/dev/null | grep "^package:" | sed "s/.*name='\([^']*\)'.*/\1/")
+            if [ -n "$pkg" ]; then
+              cp "$apk" "output/apk/${pkg}.apk"
+              echo "Collected: ${pkg}.apk"
+            else
+              echo "WARNING: Could not get packageName from $apk, skipping"
+            fi
           done
 
       - name: Upload APK artifacts
@@ -59,11 +66,21 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Download APKs
+      - name: Checkout extensions-source (for scripts)
+        uses: actions/checkout@v4
+        with:
+          path: extensions-source
+
+      - name: Download APK artifacts
         uses: actions/download-artifact@v4
         with:
           name: extensions-apk
           path: apks/
+
+      - name: Install Android build-tools
+        run: |
+          yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "build-tools;34.0.0" > /dev/null 2>&1 || true
+          echo "AAPT=$ANDROID_SDK_ROOT/build-tools/34.0.0/aapt" >> $GITHUB_ENV
 
       - name: Checkout extensions repo
         uses: actions/checkout@v4
@@ -74,10 +91,12 @@ jobs:
 
       - name: Generate index.json and publish
         run: |
-          python3 scripts/generate_index.py apks/ extensions-repo/
+          python3 extensions-source/scripts/generate_index.py apks/ extensions-repo/
           cd extensions-repo
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -A
-          git diff --staged --quiet || git commit -m "chore: update extensions index"
+          git diff --staged --quiet || git commit -m "chore: update extensions index [skip ci]"
           git push
+        env:
+          AAPT: ${{ env.AAPT }}
