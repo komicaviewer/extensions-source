@@ -25,10 +25,33 @@ jobs:
           yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "build-tools;34.0.0" > /dev/null 2>&1 || true
           echo "AAPT=$ANDROID_SDK_ROOT/build-tools/34.0.0/aapt" >> $GITHUB_ENV
 
-      - name: Decode signing keystore
-        run: echo "${{ secrets.SIGNING_KEY }}" | base64 --decode > keystore.jks
+      - name: Setup signing keystore
+        run: |
+          if [ -n "${SIGNING_KEY}" ]; then
+            echo "${SIGNING_KEY}" | base64 --decode > keystore.jks
+            echo "KEY_STORE_PASSWORD=${KEY_STORE_PASSWORD_INPUT}" >> $GITHUB_ENV
+            echo "KEY_ALIAS=${KEY_ALIAS_INPUT}" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=${KEY_PASSWORD_INPUT}" >> $GITHUB_ENV
+          else
+            echo "No SIGNING_KEY secret found, generating debug keystore"
+            keytool -genkeypair -v \
+              -keystore keystore.jks \
+              -storepass android \
+              -alias key0 \
+              -keypass android \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Debug,O=Debug,C=US" 2>/dev/null
+            echo "KEY_STORE_PASSWORD=android" >> $GITHUB_ENV
+            echo "KEY_ALIAS=key0" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=android" >> $GITHUB_ENV
+          fi
         env:
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          KEY_STORE_PASSWORD_INPUT: ${{ secrets.KEY_STORE_PASSWORD }}
+          KEY_ALIAS_INPUT: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD_INPUT: ${{ secrets.KEY_PASSWORD }}
 
       - name: Build all extensions
         run: |
@@ -37,10 +60,6 @@ jobs:
           done | tr '\n' ' ')
           echo "Building tasks: $TASKS"
           ./gradlew $TASKS
-        env:
-          KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
       - name: Collect and rename APKs by applicationId
         run: |
