@@ -61,16 +61,21 @@ jobs:
           echo "Building tasks: $TASKS"
           ./gradlew $TASKS
 
-      - name: Collect and rename APKs by applicationId
+      - name: Collect and rename APKs
         run: |
           mkdir -p output/apk
           find . -name "*.apk" -path "*/release/*" | while read apk; do
-            pkg=$($AAPT dump badging "$apk" 2>/dev/null | grep "^package:" | sed "s/.*name='\([^']*\)'.*/\1/")
-            if [ -n "$pkg" ]; then
-              cp "$apk" "output/apk/${pkg}.apk"
-              echo "Collected: ${pkg}.apk"
+            # Extract module name from path: ./src/<module>/build/...
+            module=$(echo "$apk" | sed 's|.*/src/\([^/]*\)/build/.*|\1|')
+            # Extract versionName with anchored regex (avoids matching compileSdkVersionCodename)
+            version=$($AAPT dump badging "$apk" 2>/dev/null | grep "^package:" | \
+              sed "s/^package: name='[^']*' versionCode='[0-9]*' versionName='\([^']*\)'.*/\1/")
+            if [ -n "$module" ] && [ -n "$version" ]; then
+              apk_name="newshub-${module}-v${version}.apk"
+              cp "$apk" "output/apk/${apk_name}"
+              echo "Collected: ${apk_name}"
             else
-              echo "WARNING: Could not get packageName from $apk, skipping"
+              echo "WARNING: module='${module}' version='${version}' from ${apk}, skipping"
             fi
           done
 
@@ -110,7 +115,7 @@ jobs:
 
       - name: Generate index.json and publish
         run: |
-          python3 extensions-source/scripts/generate_index.py apks/ extensions-repo/
+          python3 extensions-source/scripts/generate_index.py apks/ extensions-repo/ extensions-source/
           cd extensions-repo
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"

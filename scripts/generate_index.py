@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """
 Reads APKs from <apk_dir>, extracts metadata using aapt,
-generates index.json, and copies APKs to <output_dir>/apk/.
+generates index.json and index.min.json, and copies APKs to <output_dir>/apk/.
 
-Usage: generate_index.py <apk_dir> <output_dir>
+Usage: generate_index.py <apk_dir> <output_dir> [source_dir]
+  source_dir: optional path to extensions-source repo root, used to read
+              AndroidManifest.xml metadata when aapt cannot extract it.
 Requires: aapt in PATH or AAPT env var pointing to the binary.
 """
 import json
@@ -13,6 +15,7 @@ import shutil
 import hashlib
 import subprocess
 import sys
+import xml.etree.ElementTree as ET
 
 
 def sha256_file(path: str) -> str:
@@ -55,6 +58,7 @@ def parse_apk(apk_path: str, aapt: str) -> dict:
 def _parse_badging(output: str) -> dict:
     meta = {}
     for line in output.splitlines():
+        # Anchored regex: avoids matching compileSdkVersionCodename at end of line
         m = re.match(r"package: name='([^']+)' versionCode='(\d+)' versionName='([^']*)'", line)
         if m:
             meta["pkg"] = m.group(1)
@@ -65,25 +69,82 @@ def _parse_badging(output: str) -> dict:
         if m and "name" not in meta:
             meta["name"] = m.group(1)
 
+        # aapt dump badging does not normally output application meta-data,
+        # but handle it if present (some aapt versions do)
         m = re.match(r"meta-data: name='([^']+)' value='([^']*)'", line)
         if m:
             k, v = m.group(1), m.group(2)
-            if k == "newshub.extension.name":        meta["name"] = v
-            elif k == "newshub.extension.source_id":       meta["source_id"] = v
-            elif k == "newshub.extension.source_name":     meta["source_name"] = v
-            elif k == "newshub.extension.source_lang":     meta["source_lang"] = v
+            if k == "newshub.extension.name":            meta["name"] = v
+            elif k == "newshub.extension.source_id":     meta["source_id"] = v
+            elif k == "newshub.extension.source_name":   meta["source_name"] = v
+            elif k == "newshub.extension.source_lang":   meta["source_lang"] = v
             elif k == "newshub.extension.source_base_url": meta["source_base_url"] = v
     return meta
 
 
+def read_source_manifest(source_dir: str, module: str) -> dict:
+    """
+    Read extension metadata from the source AndroidManifest.xml.
+    Falls back to build.gradle.kts for placeholder values (extName, extClass).
+    """
+    manifest_path = os.path.join(source_dir, "src", module, "src", "main", "AndroidManifest.xml")
+    gradle_path = os.path.join(source_dir, "src", module, "build.gradle.kts")
+
+    if not os.path.exists(manifest_path):
+        print(f"  Source manifest not found: {manifest_path}")
+        return {}
+
+    # Read placeholder values from build.gradle.kts
+    ext_name = module
+    if os.path.exists(gradle_path):
+        with open(gradle_path, encoding="utf-8") as f:
+            content = f.read()
+        m = re.search(r'set\s*\(\s*"extName"\s*,\s*"([^"]+)"\s*\)', content)
+        if m:
+            ext_name = m.group(1)
+
+    ns = "http://schemas.android.com/apk/res/android"
+    try:
+        tree = ET.parse(manifest_path)
+        root = tree.getroot()
+    except ET.ParseError as e:
+        print(f"  XML parse error: {e}")
+        return {}
+
+    meta = {}
+    for elem in root.iter("meta-data"):
+        name = elem.get(f"{{{ns}}}name") or elem.get("android:name", "")
+        value = elem.get(f"{{{ns}}}value") or elem.get("android:value", "")
+        # Resolve manifest placeholders
+        value = value.replace("${extName}", ext_name)
+        if name == "newshub.extension.name":            meta["name"] = value
+        elif name == "newshub.extension.source_id":     meta["source_id"] = value
+        elif name == "newshub.extension.source_name":   meta["source_name"] = value
+        elif name == "newshub.extension.source_lang":   meta["source_lang"] = value
+        elif name == "newshub.extension.source_base_url": meta["source_base_url"] = value
+
+    return meta
+
+
+def module_from_apk_name(apk_file: str) -> str:
+    """Extract module name from newshub-<module>-v<version>.apk filename."""
+    m = re.match(r"newshub-([a-z0-9_-]+)-v[\d.]+\.apk", apk_file)
+    return m.group(1) if m else ""
+
+
 def main():
     if len(sys.argv) < 3:
-        print(f"Usage: {sys.argv[0]} <apk_dir> <output_dir>")
+        print(f"Usage: {sys.argv[0]} <apk_dir> <output_dir> [source_dir]")
         sys.exit(1)
 
-    apk_dir, output_dir = sys.argv[1], sys.argv[2]
+    apk_dir = sys.argv[1]
+    output_dir = sys.argv[2]
+    source_dir = sys.argv[3] if len(sys.argv) >= 4 else None
+
     aapt = find_aapt()
     print(f"Using aapt: {aapt}")
+    if source_dir:
+        print(f"Using source_dir: {source_dir}")
 
     os.makedirs(os.path.join(output_dir, "apk"), exist_ok=True)
     os.makedirs(os.path.join(output_dir, "icon"), exist_ok=True)
@@ -97,8 +158,19 @@ def main():
 
         meta = parse_apk(apk_path, aapt)
         if not meta.get("pkg"):
-            print("  WARNING: no pkg, skipping")
+            print("  WARNING: no pkg from aapt, skipping")
             continue
+
+        # Supplement missing metadata from source AndroidManifest.xml
+        if source_dir and not meta.get("source_id"):
+            module = module_from_apk_name(apk_file)
+            if module:
+                src_meta = read_source_manifest(source_dir, module)
+                for k, v in src_meta.items():
+                    if not meta.get(k):
+                        meta[k] = v
+                if src_meta:
+                    print(f"  Loaded metadata from source manifest (module={module})")
 
         sha = sha256_file(apk_path)
         shutil.copy2(apk_path, os.path.join(output_dir, "apk", apk_file))
@@ -144,6 +216,12 @@ def main():
     with open(index_path, "w", encoding="utf-8") as f:
         json.dump(merged, f, ensure_ascii=False, indent=2)
     print(f"\nWritten index.json: {len(merged)} extensions ({len(extensions)} updated)")
+
+    # Also write index.min.json (minified, same content)
+    min_path = os.path.join(output_dir, "index.min.json")
+    with open(min_path, "w", encoding="utf-8") as f:
+        json.dump(merged, f, ensure_ascii=False, separators=(",", ":"))
+    print(f"Written index.min.json")
 
 
 if __name__ == "__main__":
