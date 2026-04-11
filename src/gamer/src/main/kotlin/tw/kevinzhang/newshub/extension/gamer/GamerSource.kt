@@ -1,4 +1,4 @@
-package tw.kevinzhang.extension.gamer
+package tw.kevinzhang.newshub.extension.gamer
 
 import android.util.Log
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -26,7 +26,7 @@ private const val TAG = "GamerSource"
 class GamerSource : Source {
     private val gamerApi = GamerApi(OkHttpClient())
 
-    override val id = "tw.kevinzhang.gamer"
+    override val id = "tw.kevinzhang.newshub.extension.gamer"
     override val name = "Gamer 巴哈姆特"
     override val language = "zh-TW"
     override val version = 1
