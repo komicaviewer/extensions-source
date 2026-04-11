@@ -7,10 +7,10 @@ assert extVersionCode != null : "extVersionCode is not set in build.gradle.kts"
 
 android {
     compileSdk 34
-    namespace "tw.kevinzhang.extension.${project.name.replace('-', '_')}"
+    namespace "tw.kevinzhang.newshub.extension.${project.name.replace('-', '_')}"
 
     defaultConfig {
-        applicationId "tw.kevinzhang.extension.${project.name.replace('-', '_')}"
+        applicationId "tw.kevinzhang.newshub.extension.${project.name.replace('-', '_')}"
         minSdk 21
         targetSdk 34
         versionCode extVersionCode
