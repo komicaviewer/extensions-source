@@ -32,11 +32,11 @@ jobs:
 
       - name: Build all extensions
         run: |
-          MODULES=$(find src -maxdepth 1 -mindepth 1 -type d | while read d; do
-            [ -f "$d/build.gradle.kts" ] && echo ":src:$(basename $d)"
+          TASKS=$(find src -maxdepth 1 -mindepth 1 -type d | while read d; do
+            [ -f "$d/build.gradle.kts" ] && echo ":src:$(basename $d):assembleRelease"
           done | tr '\n' ' ')
-          echo "Building modules: $MODULES"
-          ./gradlew $MODULES assembleRelease
+          echo "Building tasks: $TASKS"
+          ./gradlew $TASKS
         env:
           KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
