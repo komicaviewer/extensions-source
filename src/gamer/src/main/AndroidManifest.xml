@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <application android:icon="@mipmap/ic_launcher" android:label="${extName}">
+    <application android:label="${extName}">
         <meta-data android:name="newshub.extension" android:value="true" />
         <meta-data android:name="newshub.extension.source_class" android:value="${extClass}" />
         <meta-data android:name="newshub.extension.name" android:value="${extName}" />
@@ -8,5 +8,11 @@
         <meta-data android:name="newshub.extension.source_name" android:value="Gamer 巴哈姆特" />
         <meta-data android:name="newshub.extension.source_lang" android:value="zh-TW" />
         <meta-data android:name="newshub.extension.source_base_url" android:value="https://forum.gamer.com.tw" />
+
+        <!-- Login Activity — started by NewsHub via fixed naming convention when needsLogin=true -->
+        <activity
+            android:name=".LoginActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.Material.Light.NoActionBar" />
     </application>
 </manifest>
