@@ -16,6 +16,8 @@ import tw.kevinzhang.gamer_api.model.GParagraph
 import tw.kevinzhang.gamer_api.model.GQuote
 import tw.kevinzhang.gamer_api.model.GReplyTo
 import tw.kevinzhang.gamer_api.model.GText
+import tw.kevinzhang.gamer_api.model.GVideoInfo
+import tw.kevinzhang.gamer_api.model.GVideoSite
 
 class GamerSource : Source {
     private var gamerApi = GamerApi(OkHttpClient())
@@ -120,5 +122,12 @@ private fun GParagraph.toExtParagraph(): tw.kevinzhang.extension_api.model.Parag
     is GText    -> tw.kevinzhang.extension_api.model.Paragraph.Text(content)
     is GImageInfo -> tw.kevinzhang.extension_api.model.Paragraph.ImageInfo(thumb, raw)
     is GLink    -> tw.kevinzhang.extension_api.model.Paragraph.Link(content)
+    is GVideoInfo -> tw.kevinzhang.extension_api.model.Paragraph.VideoInfo(
+        url = url,
+        site = when (site) {
+            GVideoSite.YOUTUBE -> tw.kevinzhang.extension_api.model.Paragraph.VideoInfo.Site.YOUTUBE
+            GVideoSite.OTHER   -> tw.kevinzhang.extension_api.model.Paragraph.VideoInfo.Site.OTHER
+        }
+    )
     else        -> throw IllegalArgumentException("Unknown GParagraph: $this")
 }

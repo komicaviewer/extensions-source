@@ -12,6 +12,8 @@ import tw.kevinzhang.gamer_api.model.GParagraph
 import tw.kevinzhang.gamer_api.model.GPost
 import tw.kevinzhang.gamer_api.model.GPostBuilder
 import tw.kevinzhang.gamer_api.model.GText
+import tw.kevinzhang.gamer_api.model.GVideoInfo
+import tw.kevinzhang.gamer_api.model.GVideoSite
 import tw.kevinzhang.gamer_api.model.trim
 import java.text.ParseException
 import java.text.SimpleDateFormat
@@ -88,6 +90,12 @@ class PostParser(
                     list.add(GLink(child.ownText()))
                 } else if (child.tagName() == "br") {
                     list.add(GText(""))
+                } else if (child.tagName() == "iframe") {
+                    val dataSrc = child.attr("data-src")
+                    val videoId = extractYouTubeVideoId(dataSrc)
+                    if (videoId != null) {
+                        list.add(GVideoInfo("https://www.youtube.com/watch?v=$videoId", GVideoSite.YOUTUBE))
+                    }
                 }
             }
         }
@@ -123,6 +131,9 @@ class PostParser(
     private fun setCommentsUrl(bsn: String, postId: String) {
         builder.setCommentsUrl("https://forum.gamer.com.tw/ajax/moreCommend.php?bsn=$bsn&snB=$postId")
     }
+
+    private fun extractYouTubeVideoId(embedUrl: String): String? =
+        Regex("""/embed/([A-Za-z0-9_-]+)""").find(embedUrl)?.groupValues?.get(1)
 
     fun List<Node>.flatDiv(): List<Node> {
         return this.flatMap {

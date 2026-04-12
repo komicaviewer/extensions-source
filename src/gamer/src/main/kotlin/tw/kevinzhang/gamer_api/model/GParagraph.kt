@@ -27,6 +27,15 @@ data class GLink(
     override val content: String,
 ): GParagraph
 
+enum class GVideoSite { YOUTUBE, OTHER }
+
+data class GVideoInfo(
+    val url: String,
+    val site: GVideoSite,
+): GParagraph {
+    override val content = url
+}
+
 fun List<GParagraph>.trim(): List<GParagraph> {
     val first = this.indexOfFirst { it.content.trim().isNotBlank() }
     val last = this.indexOfLast { it.content.trim().isNotBlank() }
