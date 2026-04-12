@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
-    <application android:label="${extName}">
+    <application android:label="${extName}" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round">
         <meta-data android:name="newshub.extension" android:value="true" />
         <meta-data android:name="newshub.extension.source_class" android:value="${extClass}" />
         <meta-data android:name="newshub.extension.name" android:value="${extName}" />
