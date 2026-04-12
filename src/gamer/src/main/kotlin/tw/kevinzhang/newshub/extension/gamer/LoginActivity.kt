@@ -25,6 +25,7 @@ class LoginActivity : Activity() {
         webView = WebView(this).apply {
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
+            settings.cacheMode = android.webkit.WebSettings.LOAD_NO_CACHE
             webViewClient = object : WebViewClient() {
                 override fun onPageFinished(view: WebView, url: String) {
                     val currentHost = runCatching { url.toHttpUrl().host }.getOrNull() ?: return
