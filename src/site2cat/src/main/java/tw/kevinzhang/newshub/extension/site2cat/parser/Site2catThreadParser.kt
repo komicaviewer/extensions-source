@@ -1,4 +1,4 @@
-package tw.kevinzhang.komica_api.parser.site2cat
+package tw.kevinzhang.newshub.extension.site2cat.parser
 
 import org.jsoup.nodes.Element
 import tw.kevinzhang.komica_api.model.KPost
@@ -37,4 +37,3 @@ class Site2catThreadParser(
         return posts
     }
 }
-

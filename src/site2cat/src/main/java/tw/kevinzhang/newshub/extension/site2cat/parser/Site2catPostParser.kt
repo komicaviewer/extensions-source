@@ -1,4 +1,4 @@
-package tw.kevinzhang.komica_api.parser.site2cat
+package tw.kevinzhang.newshub.extension.site2cat.parser
 
 import okhttp3.HttpUrl
 import okhttp3.Request
