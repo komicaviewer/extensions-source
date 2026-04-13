@@ -15,11 +15,11 @@ class GetThreadTest {
     @Test
     fun `invoke returns posts for a valid thread request`() = runTest {
         val req = RequestBuilderImpl()
-            .setUrl("https://forum.gamer.com.tw/C.php?bsn=60076&snA=1".toHttpUrl())
+            .setUrl("https://forum.gamer.com.tw/C.php?bsn=74604&snA=2618".toHttpUrl())
             .build()
 
         val result = getThread.invoke(req)
-
+        println("result[0].content ${result[0].content}")
         assertTrue(result.isNotEmpty())
     }
 }

@@ -16,9 +16,13 @@ dependencyResolutionManagement {
 
 rootProject.name = "extensions-source"
 
-// Dynamically include all extension modules under src/
+// komica-common is a shared Android library, not an APK extension
+include(":src:komica-common")
+project(":src:komica-common").projectDir = File(rootDir, "src/komica-common")
+
+// Dynamically include all APK extension modules under src/ (excludes komica-common)
 File(rootDir, "src").takeIf { it.isDirectory }?.listFiles()
-    ?.filter { it.isDirectory && File(it, "build.gradle.kts").exists() }
+    ?.filter { it.isDirectory && File(it, "build.gradle.kts").exists() && it.name != "komica-common" }
     ?.forEach { dir ->
         val moduleName = ":src:${dir.name}"
         include(moduleName)
