@@ -17,7 +17,7 @@ import tw.kevinzhang.komica_api.request.sora.SoraThreadSummariesRequestBuilder
 import tw.kevinzhang.komica_api.request.sora.SoraThreadSummariesRequestParser
 import tw.kevinzhang.newshub.extension.sora.parser.SoraPostHeadParser
 
-class SoraFactory : KomicaFactory {
+object SoraFactory : KomicaFactory {
     override fun createUrlParser(): UrlParser = SoraUrlParser()
 
     override fun createThreadParser(urlParser: UrlParser): Parser<List<KPost>> =

@@ -17,7 +17,9 @@ import tw.kevinzhang.newshub.extension.komica2.parser.Komica2PostHeadParser
 import tw.kevinzhang.newshub.extension.komica2.request.Komica2ThreadRequestBuilder
 import tw.kevinzhang.newshub.extension.komica2.request.Komica2ThreadSummariesRequestBuilder
 
-class Komica2Factory : KomicaFactory {
+object Komica2Factory : KomicaFactory {
+    // SoraKomica2 boards use the Sora URL scheme and Sora-format parsers;
+    // only PostHeadParser and request builders are komica2-specific.
     override fun createUrlParser(): UrlParser = SoraUrlParser()
 
     override fun createThreadParser(urlParser: UrlParser): Parser<List<KPost>> =

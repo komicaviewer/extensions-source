@@ -23,10 +23,10 @@ class Site2catSource : Source {
     override val alwaysUseRawImage = true
     override val needsLogin = false
 
-    private var api = KomicaApi(OkHttpClient(), Site2catFactory())
+    private var api = KomicaApi(OkHttpClient(), Site2catFactory)
 
     override fun onAttach(client: OkHttpClient) {
-        api = KomicaApi(client, Site2catFactory())
+        api = KomicaApi(client, Site2catFactory)
     }
 
     override suspend fun getBoards(): List<ExtBoard> =

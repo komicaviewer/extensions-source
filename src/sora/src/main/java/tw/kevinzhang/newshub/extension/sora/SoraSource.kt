@@ -22,10 +22,10 @@ class SoraSource : Source {
     override val alwaysUseRawImage = true
     override val needsLogin = false
 
-    private var api = KomicaApi(OkHttpClient())
+    private var api = KomicaApi(OkHttpClient(), SoraFactory)
 
     override fun onAttach(client: OkHttpClient) {
-        api = KomicaApi(client)
+        api = KomicaApi(client, SoraFactory)
     }
 
     override suspend fun getBoards(): List<ExtBoard> =

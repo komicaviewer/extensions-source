@@ -14,7 +14,7 @@ import tw.kevinzhang.newshub.extension.site2cat.parser.Site2catThreadParser
 import tw.kevinzhang.newshub.extension.site2cat.parser.Site2catThreadSummariesParser
 import tw.kevinzhang.newshub.extension.site2cat.parser.Site2catUrlParser
 
-class Site2catFactory : KomicaFactory {
+object Site2catFactory : KomicaFactory {
     override fun createUrlParser(): UrlParser = Site2catUrlParser()
 
     override fun createThreadParser(urlParser: UrlParser): Parser<List<KPost>> =
