@@ -22,11 +22,13 @@ class GetThread(
         factory.createThreadParser(urlParser).parse(response.body!!, req)
     }
 
-    suspend fun withFillReplyTo(req: Request): List<KPost> = withContext(Dispatchers.IO) {
+    suspend fun withFillReplyTo(req: Request): List<KPost> {
         val urlParser = factory.createUrlParser()
-        val headPostId = urlParser.parseHeadPostId(req.url)!!
+        val headPostId = requireNotNull(urlParser.parseHeadPostId(req.url)) {
+            "No head post ID found in URL: ${req.url}"
+        }
         val origin = invoke(req)
-        origin.map { p ->
+        return origin.map { p ->
             if (p.replyTo().isEmpty()) {
                 val originContent = p.content
                 p.copy(content = listOf(KReplyTo(headPostId)).plus(originContent))
