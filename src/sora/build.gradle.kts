@@ -7,5 +7,5 @@ ext {
 apply(from = "$rootDir/common.gradle")
 
 dependencies {
-    implementation(project(":src:komica-common"))
+    "implementation"(project(":src:komica-common"))
 }
