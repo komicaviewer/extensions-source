@@ -6,7 +6,6 @@ import tw.kevinzhang.extension_api.Source
 import tw.kevinzhang.extension_api.model.Post
 import tw.kevinzhang.extension_api.model.Thread
 import tw.kevinzhang.extension_api.model.ThreadSummary
-import tw.kevinzhang.extensions_builtin.toExtParagraph
 import tw.kevinzhang.komica_api.KomicaApi
 import tw.kevinzhang.komica_api.model.KBoard
 import tw.kevinzhang.komica_api.model.KImageInfo

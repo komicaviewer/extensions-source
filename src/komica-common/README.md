@@ -18,7 +18,6 @@ graph TD
     sora --> komica-common
     _2cat --> komica-common
     komica2 --> komica-common
-    komica-common --> extension-api
     sora --> extension-api
     _2cat --> extension-api
     komica2 --> extension-api

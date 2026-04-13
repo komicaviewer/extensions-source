@@ -1,4 +1,4 @@
-package tw.kevinzhang.extensions_builtin
+package tw.kevinzhang.newshub.extension._2cat
 
 import tw.kevinzhang.komica_api.model.KImageInfo
 import tw.kevinzhang.komica_api.model.KLink
