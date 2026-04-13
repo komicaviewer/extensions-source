@@ -1,4 +1,4 @@
-package tw.kevinzhang.komica_api.parser.sora_komica2
+package tw.kevinzhang.newshub.extension.komica2.parser
 
 import okhttp3.HttpUrl
 import org.jsoup.nodes.Element
@@ -9,15 +9,15 @@ import java.util.logging.Logger
 
 private val logger = Logger.getLogger("Komica2PostHeadParser")
 
-class SoraKomica2PostHeadParser : PostHeadParser {
+class Komica2PostHeadParser : PostHeadParser {
     override fun parseTitle(source: Element, url: HttpUrl): String? {
         val titleE = source.selectFirst("span.title")
         return titleE?.text()
     }
 
-    override fun parseCreatedAt(element: Element, url: HttpUrl): Long {
+    override fun parseCreatedAt(source: Element, url: HttpUrl): Long? {
         return try {
-            val nameSpan = element.selectFirst("span.name")
+            val nameSpan = source.selectFirst("span.name")
                 ?: throw IllegalArgumentException("找不到 span.name")
 
             // 尋找包含日期時間和 ID 的文字節點

@@ -22,10 +22,10 @@ class Komica2Source : Source {
     override val alwaysUseRawImage = true
     override val needsLogin = false
 
-    private var api = KomicaApi(OkHttpClient())
+    private var api = KomicaApi(OkHttpClient(), Komica2Factory())
 
     override fun onAttach(client: OkHttpClient) {
-        api = KomicaApi(client)
+        api = KomicaApi(client, Komica2Factory())
     }
 
     override suspend fun getBoards(): List<ExtBoard> =
