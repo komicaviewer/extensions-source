@@ -9,7 +9,7 @@ import tw.kevinzhang.extension_api.model.ThreadSummary
 import tw.kevinzhang.komica_api.KomicaApi
 import tw.kevinzhang.komica_api.model.KImageInfo
 import tw.kevinzhang.komica_api.model.Komica2
-import tw.kevinzhang.komica_api.request._2cat._2catRequestBuilder
+import tw.kevinzhang.komica_api.request.site2cat.Site2catRequestBuilder
 import tw.kevinzhang.extension_api.model.Board as ExtBoard
 
 class Komica2Source : Source {
@@ -39,10 +39,10 @@ class Komica2Source : Source {
             .build()
         return api.getThread(req).map { kPost ->
             val boardUrl =
-                _2catRequestBuilder().setUrl(board.url.toHttpUrl()).setPage(null)
+                Site2catRequestBuilder().setUrl(board.url.toHttpUrl()).setPage(null)
                     .build().url.toString()
             val postUrl =
-                _2catRequestBuilder().setUrl(kPost.url.toHttpUrl()).setPage(null)
+                Site2catRequestBuilder().setUrl(kPost.url.toHttpUrl()).setPage(null)
                     .build().url.toString()
             ThreadSummary(
                 sourceId = id,

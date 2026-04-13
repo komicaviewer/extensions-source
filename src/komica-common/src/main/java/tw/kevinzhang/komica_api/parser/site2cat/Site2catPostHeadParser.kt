@@ -1,4 +1,4 @@
-package tw.kevinzhang.komica_api.parser._2cat
+package tw.kevinzhang.komica_api.parser.site2cat
 
 import okhttp3.HttpUrl
 import org.jsoup.nodes.Element
@@ -11,7 +11,7 @@ import java.util.logging.Logger
 
 private val logger = Logger.getLogger("_2catPostHeadParser")
 
-class _2catPostHeadParser(
+class Site2catPostHeadParser(
     private val urlParser: UrlParser,
 ): PostHeadParser {
     override fun parseTitle(source: Element, url: HttpUrl): String? {

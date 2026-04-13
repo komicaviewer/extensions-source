@@ -1,4 +1,4 @@
-package tw.kevinzhang.komica_api.request._2cat
+package tw.kevinzhang.komica_api.request.site2cat
 
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -9,25 +9,25 @@ import tw.kevinzhang.komica_api.request.ThreadRequestBuilder
 import tw.kevinzhang.komica_api.request.ThreadSummariesRequestBuilder
 import tw.kevinzhang.komica_api.toKBoard
 
-class _2catRequestBuilder : ThreadSummariesRequestBuilder, ThreadRequestBuilder {
+class Site2catRequestBuilder : ThreadSummariesRequestBuilder, ThreadRequestBuilder {
     private lateinit var builder: HttpUrl.Builder
 
-    override fun setUrl(url: HttpUrl): _2catRequestBuilder {
+    override fun setUrl(url: HttpUrl): Site2catRequestBuilder {
         this.builder = url.newBuilder()
         return this
     }
 
-    fun setBoard(board: KBoard): _2catRequestBuilder {
+    fun setBoard(board: KBoard): Site2catRequestBuilder {
         setUrl(board.url.toHttpUrl())
         return this
     }
 
-    fun setRes(res: String?): _2catRequestBuilder {
+    fun setRes(res: String?): Site2catRequestBuilder {
         return if (res == null) removeQuery("res")
         else addQuery("res", res)
     }
 
-    private fun addQuery(queryName: String, value: String): _2catRequestBuilder {
+    private fun addQuery(queryName: String, value: String): Site2catRequestBuilder {
         if (hasQuery(queryName))
             removeQuery(queryName)
         builder = builder.addQueryParameter(queryName, value)
@@ -38,18 +38,18 @@ class _2catRequestBuilder : ThreadSummariesRequestBuilder, ThreadRequestBuilder 
         return builder.build().queryParameter(queryName).isNullOrBlank().not()
     }
 
-    private fun removeQuery(queryName: String): _2catRequestBuilder {
+    private fun removeQuery(queryName: String): Site2catRequestBuilder {
         if (hasQuery(queryName))
             builder = builder.removeAllQueryParameters(queryName)
         return this
     }
 
-    fun setFragment(reply: String?): _2catRequestBuilder {
+    fun setFragment(reply: String?): Site2catRequestBuilder {
         return if (reply == null) removeFragment()
         else addFragment(reply)
     }
 
-    private fun addFragment(value: String): _2catRequestBuilder {
+    private fun addFragment(value: String): Site2catRequestBuilder {
         if (hasFragment())
             removeFragment()
         builder = builder.fragment(value)
@@ -60,13 +60,13 @@ class _2catRequestBuilder : ThreadSummariesRequestBuilder, ThreadRequestBuilder 
         return builder.build().fragment.isNullOrBlank().not()
     }
 
-    private fun removeFragment(): _2catRequestBuilder {
+    private fun removeFragment(): Site2catRequestBuilder {
         if (hasFragment())
             builder = builder.fragment(null)
         return this
     }
 
-    override fun setPage(page: Int?): _2catRequestBuilder {
+    override fun setPage(page: Int?): Site2catRequestBuilder {
         builder = builder
             .apply {
                 if (page.isZeroOrNull()) {

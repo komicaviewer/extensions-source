@@ -1,4 +1,4 @@
-package tw.kevinzhang.komica_api.parser._2cat
+package tw.kevinzhang.komica_api.parser.site2cat
 
 import okhttp3.Request
 import okhttp3.ResponseBody
@@ -6,12 +6,12 @@ import org.jsoup.Jsoup
 import tw.kevinzhang.komica_api.model.KPost
 import tw.kevinzhang.komica_api.parser.Parser
 import tw.kevinzhang.komica_api.parser.sora.SoraThreadSummariesParser.Companion.parseReplyCount
-import tw.kevinzhang.komica_api.request._2cat._2catRequestBuilder
+import tw.kevinzhang.komica_api.request.site2cat.Site2catRequestBuilder
 import tw.kevinzhang.komica_api.toResponseBody
 
-class _2catThreadSummariesParser(
+class Site2catThreadSummariesParser(
     private val postParser: Parser<KPost>,
-    private val threadRequestBuilder: _2catRequestBuilder,
+    private val threadRequestBuilder: Site2catRequestBuilder,
 ): Parser<List<KPost>> {
     override fun parse(res: ResponseBody, req: Request): List<KPost> {
         val source = Jsoup.parse(res.string())

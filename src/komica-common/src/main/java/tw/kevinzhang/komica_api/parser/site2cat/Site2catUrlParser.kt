@@ -1,9 +1,9 @@
-package tw.kevinzhang.komica_api.parser._2cat
+package tw.kevinzhang.komica_api.parser.site2cat
 
 import okhttp3.HttpUrl
 import tw.kevinzhang.komica_api.parser.UrlParser
 
-class _2catUrlParser: UrlParser {
+class Site2catUrlParser: UrlParser {
     override fun parseBoardId(url: HttpUrl): String? {
         return url.pathSegments[0]
     }

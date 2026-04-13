@@ -1,18 +1,18 @@
-package tw.kevinzhang.komica_api.parser._2cat
+package tw.kevinzhang.komica_api.parser.site2cat
 
 import org.jsoup.nodes.Element
 import tw.kevinzhang.komica_api.model.KPost
 import tw.kevinzhang.komica_api.parser.Parser
-import tw.kevinzhang.komica_api.request._2cat._2catRequestBuilder
+import tw.kevinzhang.komica_api.request.site2cat.Site2catRequestBuilder
 import tw.kevinzhang.komica_api.toResponseBody
 import okhttp3.HttpUrl
 import okhttp3.Request
 import okhttp3.ResponseBody
 import org.jsoup.Jsoup
 
-class _2catThreadParser(
+class Site2catThreadParser(
     private val postParser: Parser<KPost>,
-    private val postRequestBuilder: _2catRequestBuilder,
+    private val postRequestBuilder: Site2catRequestBuilder,
 ): Parser<List<KPost>> {
     override fun parse(res: ResponseBody, req: Request): List<KPost> {
         val source = Jsoup.parse(res.string())

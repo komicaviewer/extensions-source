@@ -3,7 +3,7 @@ package tw.kevinzhang.komica_api.interactor
 import tw.kevinzhang.komica_api.model.KBoard
 import tw.kevinzhang.komica_api.request.ThreadRequestBuilder
 import tw.kevinzhang.komica_api.request.ThreadSummariesRequestBuilder
-import tw.kevinzhang.komica_api.request._2cat._2catRequestBuilder
+import tw.kevinzhang.komica_api.request.site2cat.Site2catRequestBuilder
 import tw.kevinzhang.komica_api.request.sora.SoraThreadRequestBuilder
 import tw.kevinzhang.komica_api.request.sora.SoraThreadSummariesRequestBuilder
 import tw.kevinzhang.komica_api.request.sora_komica2.SoraKomica2ThreadRequestBuilder
@@ -17,7 +17,7 @@ class GetRequestBuilder {
             is KBoard._2catSora ->
                 SoraThreadSummariesRequestBuilder().setBoard(board)
             is KBoard._2cat ->
-                _2catRequestBuilder().setBoard(board)
+                Site2catRequestBuilder().setBoard(board)
             is KBoard.SoraKomica2 ->
                 SoraKomica2ThreadSummariesRequestBuilder().setBoard(board)
             else ->
@@ -32,7 +32,7 @@ class GetRequestBuilder {
             is KBoard._2catSora ->
                 SoraThreadRequestBuilder().setBoard(board)
             is KBoard._2cat ->
-                _2catRequestBuilder().setBoard(board)
+                Site2catRequestBuilder().setBoard(board)
             is KBoard.SoraKomica2 ->
                 SoraKomica2ThreadRequestBuilder().setBoard(board)
             else ->

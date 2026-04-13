@@ -2,7 +2,7 @@ package tw.kevinzhang.komica_api.interactor
 
 import tw.kevinzhang.komica_api.model.KBoard
 import tw.kevinzhang.komica_api.parser.UrlParser
-import tw.kevinzhang.komica_api.parser._2cat._2catUrlParser
+import tw.kevinzhang.komica_api.parser.site2cat.Site2catUrlParser
 import tw.kevinzhang.komica_api.parser.sora.SoraUrlParser
 
 class GetUrlParser {
@@ -13,7 +13,7 @@ class GetUrlParser {
             is KBoard._2catSora ->
                 SoraUrlParser()
             is KBoard._2cat ->
-                _2catUrlParser()
+                Site2catUrlParser()
             is KBoard.SoraKomica2 ->
                 SoraUrlParser()
             else ->

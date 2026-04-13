@@ -1,4 +1,4 @@
-package tw.kevinzhang.newshub.extension._2cat
+package tw.kevinzhang.newshub.extension.site2cat
 
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
@@ -10,11 +10,11 @@ import tw.kevinzhang.komica_api.KomicaApi
 import tw.kevinzhang.komica_api.model.KBoard
 import tw.kevinzhang.komica_api.model.KImageInfo
 import tw.kevinzhang.komica_api.model.boards
-import tw.kevinzhang.komica_api.request._2cat._2catRequestBuilder
+import tw.kevinzhang.komica_api.request.site2cat.Site2catRequestBuilder
 import tw.kevinzhang.extension_api.model.Board as ExtBoard
 
-class _2catSource : Source {
-    override val id = "tw.kevinzhang.2cat"
+class Site2catSource : Source {
+    override val id = "tw.kevinzhang.site2cat"
     override val name = "2cat"
     override val language = "zh-TW"
     override val version = 1
@@ -41,10 +41,10 @@ class _2catSource : Source {
             .build()
         return api.getThread(req).map { kPost ->
             val boardUrl =
-                _2catRequestBuilder().setUrl(board.url.toHttpUrl()).setPage(null)
+                Site2catRequestBuilder().setUrl(board.url.toHttpUrl()).setPage(null)
                     .build().url.toString()
             val postUrl =
-                _2catRequestBuilder().setUrl(kPost.url.toHttpUrl()).setPage(null)
+                Site2catRequestBuilder().setUrl(kPost.url.toHttpUrl()).setPage(null)
                     .build().url.toString()
             ThreadSummary(
                 sourceId = id,

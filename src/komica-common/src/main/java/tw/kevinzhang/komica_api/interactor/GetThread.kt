@@ -10,15 +10,15 @@ import tw.kevinzhang.komica_api.model.KBoard
 import tw.kevinzhang.komica_api.model.KPost
 import tw.kevinzhang.komica_api.model.KReplyTo
 import tw.kevinzhang.komica_api.model.replyTo
-import tw.kevinzhang.komica_api.parser._2cat._2catPostHeadParser
-import tw.kevinzhang.komica_api.parser._2cat._2catPostParser
-import tw.kevinzhang.komica_api.parser._2cat._2catThreadParser
-import tw.kevinzhang.komica_api.parser._2cat._2catUrlParser
+import tw.kevinzhang.komica_api.parser.site2cat.Site2catPostHeadParser
+import tw.kevinzhang.komica_api.parser.site2cat.Site2catPostParser
+import tw.kevinzhang.komica_api.parser.site2cat.Site2catThreadParser
+import tw.kevinzhang.komica_api.parser.site2cat.Site2catUrlParser
 import tw.kevinzhang.komica_api.parser.sora.SoraPostHeadParser
 import tw.kevinzhang.komica_api.parser.sora.SoraPostParser
 import tw.kevinzhang.komica_api.parser.sora.SoraThreadParser
 import tw.kevinzhang.komica_api.parser.sora_komica2.SoraKomica2PostHeadParser
-import tw.kevinzhang.komica_api.request._2cat._2catRequestBuilder
+import tw.kevinzhang.komica_api.request.site2cat.Site2catRequestBuilder
 import tw.kevinzhang.komica_api.request.sora.SoraThreadRequestBuilder
 import tw.kevinzhang.komica_api.request.sora.SoraThreadRequestParser
 import tw.kevinzhang.komica_api.request.sora_komica2.SoraKomica2ThreadRequestBuilder
@@ -47,7 +47,7 @@ class GetThread(
                     SoraThreadRequestBuilder()
                 )
             is KBoard._2cat ->
-                _2catThreadParser(_2catPostParser(urlParser, _2catPostHeadParser(_2catUrlParser())), _2catRequestBuilder())
+                Site2catThreadParser(Site2catPostParser(urlParser, Site2catPostHeadParser(Site2catUrlParser())), Site2catRequestBuilder())
             is KBoard.SoraKomica2 ->
                 SoraThreadParser(
                     SoraPostParser(urlParser, SoraKomica2PostHeadParser()),

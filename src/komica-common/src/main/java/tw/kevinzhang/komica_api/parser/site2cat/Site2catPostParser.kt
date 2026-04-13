@@ -1,4 +1,4 @@
-package tw.kevinzhang.komica_api.parser._2cat
+package tw.kevinzhang.komica_api.parser.site2cat
 
 import okhttp3.HttpUrl
 import okhttp3.Request
@@ -18,7 +18,7 @@ import tw.kevinzhang.komica_api.parser.PostHeadParser
 import tw.kevinzhang.komica_api.parser.UrlParser
 import java.util.regex.Pattern
 
-class _2catPostParser(
+class Site2catPostParser(
     private val urlParser: UrlParser,
     private val postHeadParser: PostHeadParser,
 ): Parser<KPost> {

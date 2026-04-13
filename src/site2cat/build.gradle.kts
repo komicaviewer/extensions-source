@@ -1,6 +1,6 @@
 ext {
     set("extName", "NewsHub: 2cat")
-    set("extClass", "._2catSource")
+    set("extClass", ".Site2catSource")
     set("extVersionCode", 1)
     set("extVersionName", "0.0.1")
 }
