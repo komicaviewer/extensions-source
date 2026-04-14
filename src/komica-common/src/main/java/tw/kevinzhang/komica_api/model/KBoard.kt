@@ -130,18 +130,18 @@ sealed class KBoard(val name: String, val url: String) {
         object 人工智慧 : _2cat("人工智慧", "https://www.gomiga.org/ai")
     }
 
-    sealed class SoraKomica2(name: String, url: String) : KBoard(name, url) {
-        object 二次裡A避難版 : SoraKomica2("二次裡A避難版", "https://2cat.uk/~chatura/pixmicat.php")
-        object 三次裡避難版 : SoraKomica2("三次裡避難版", "https://2cat.uk/~realura/pixmicat.php")
-        object 高解析裡 : SoraKomica2("高解析裡", "https://2cat.org/hiso")
+    sealed class Komica2Sora(name: String, url: String) : KBoard(name, url) {
+        object 二次裡A避難版 : Komica2Sora("二次裡A避難版", "https://2cat.uk/~chatura/pixmicat.php")
+        object 三次裡避難版 : Komica2Sora("三次裡避難版", "https://2cat.uk/~realura/pixmicat.php")
+        object 高解析裡 : Komica2Sora("高解析裡", "https://2cat.org/hiso")
     }
 
-    sealed class _2catKomica2(name: String, url: String) : KBoard(name, url) {
-        object GIF裏 : _2catKomica2("GIF裏", "https://2cat.org/~gifura/pixmicat.php")
-        object 玩具裏 : _2catKomica2("玩具裏", "https://2cat.org/~toy/pixmicat.php")
-        object 裏知識 : _2catKomica2("裏知識", "https://2cat.org/~know/pixmicat.php")
-        object 偽娘裏 : _2catKomica2("偽娘裏", "https://2cat.org/~futa/pixmicat.php")
-        object 東方裏避難版 : _2catKomica2("東方裏避難版", "https://2cat.org/touhoux/pixmicat.php")
+    sealed class Komica2Site2cat(name: String, url: String) : KBoard(name, url) {
+        object GIF裏 : Komica2Site2cat("GIF裏", "https://2cat.org/~gifura/pixmicat.php")
+        object 玩具裏 : Komica2Site2cat("玩具裏", "https://2cat.org/~toy/pixmicat.php")
+        object 裏知識 : Komica2Site2cat("裏知識", "https://2cat.org/~know/pixmicat.php")
+        object 偽娘裏 : Komica2Site2cat("偽娘裏", "https://2cat.org/~futa/pixmicat.php")
+        object 東方裏避難版 : Komica2Site2cat("東方裏避難版", "https://2cat.org/touhoux/pixmicat.php")
     }
 
     // TODO: 以下尚未實現 Parser
@@ -317,9 +317,9 @@ fun 本地版() =
     )
 
 fun Komica2() = listOf(
-    KBoard.SoraKomica2.二次裡A避難版,
-    KBoard.SoraKomica2.三次裡避難版,
-    KBoard.SoraKomica2.高解析裡,
+    KBoard.Komica2Sora.二次裡A避難版,
+    KBoard.Komica2Sora.三次裡避難版,
+    KBoard.Komica2Sora.高解析裡,
 //    KBoard._2catKomica2.GIF裏,
 //    KBoard._2catKomica2.玩具裏,
 //    KBoard._2catKomica2.裏知識,
