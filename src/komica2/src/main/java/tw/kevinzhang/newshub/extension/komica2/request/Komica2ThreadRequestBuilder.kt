@@ -1,7 +1,8 @@
 package tw.kevinzhang.newshub.extension.komica2.request
 
 import okhttp3.Request
-import tw.kevinzhang.komica_api.request.sora.SoraThreadRequestBuilder
+import tw.kevinzhang.newshub.extension.sora.request.SoraThreadRequestBuilder
+
 
 class Komica2ThreadRequestBuilder : SoraThreadRequestBuilder() {
     override fun build(): Request {

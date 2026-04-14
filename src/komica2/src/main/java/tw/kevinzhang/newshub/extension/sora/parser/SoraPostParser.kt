@@ -1,4 +1,4 @@
-package tw.kevinzhang.komica_api.parser.sora
+package tw.kevinzhang.newshub.extension.sora.parser
 
 import okhttp3.HttpUrl
 import okhttp3.Request
@@ -6,8 +6,6 @@ import okhttp3.ResponseBody
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import org.jsoup.nodes.TextNode
-import tw.kevinzhang.komica_api.isImageUrl
-import tw.kevinzhang.komica_api.isVideoUrl
 import tw.kevinzhang.komica_api.model.KImageInfo
 import tw.kevinzhang.komica_api.model.KLink
 import tw.kevinzhang.komica_api.model.KParagraph
@@ -17,7 +15,6 @@ import tw.kevinzhang.komica_api.model.KQuote
 import tw.kevinzhang.komica_api.model.KReplyTo
 import tw.kevinzhang.komica_api.model.KText
 import tw.kevinzhang.komica_api.model.KVideoInfo
-import tw.kevinzhang.komica_api.normalizeUrl
 import tw.kevinzhang.komica_api.parser.Parser
 import tw.kevinzhang.komica_api.parser.PostHeadParser
 import tw.kevinzhang.komica_api.parser.UrlParser
@@ -112,4 +109,41 @@ class SoraPostParser(
 
         }
     }
+}
+
+
+/**
+ * 如果找不到thread標籤，就是2cat.komica.org，要用 [installThreadTag] 改成標準綜合版樣式
+ */
+fun Element.installThreadTag(): Element {
+    if (this.selectFirst("div.thread") != null) return this
+
+    //將thread加入threads中，變成標準綜合版樣式
+    var thread = this.appendElement("div").addClass("thread")
+    for (div in this.children()) {
+        thread.appendChild(div)
+        if (div.tagName() == "hr") {
+            this.appendChild(thread)
+            thread = this.appendElement("div").addClass("thread")
+        }
+    }
+    return this
+}
+
+fun String.normalizeUrl(): String {
+    return when {
+        startsWith("//") -> "https:$this"
+        startsWith("http://") || startsWith("https://") -> this
+        else -> this
+    }
+}
+
+fun String.isImageUrl(): Boolean {
+    val imageExtensions = listOf(".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp")
+    return imageExtensions.any { lowercase().contains(it) }
+}
+
+fun String.isVideoUrl(): Boolean {
+    val videoExtensions = listOf(".webm")
+    return videoExtensions.any { lowercase().contains(it) }
 }

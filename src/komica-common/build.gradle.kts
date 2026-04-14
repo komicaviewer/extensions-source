@@ -21,6 +21,7 @@ android {
 }
 
 dependencies {
+    compileOnly("com.github.twkevinzhang.NewsHub:extension-api:d1709d89e6")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
     implementation("org.jsoup:jsoup:1.17.2")

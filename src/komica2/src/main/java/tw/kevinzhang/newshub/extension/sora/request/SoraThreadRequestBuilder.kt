@@ -1,12 +1,12 @@
-package tw.kevinzhang.komica_api.request.sora
+package tw.kevinzhang.newshub.extension.sora.request
 
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
-import tw.kevinzhang.komica_api.addFilename
-import tw.kevinzhang.komica_api.isFile
 import tw.kevinzhang.komica_api.model.KBoard
 import tw.kevinzhang.komica_api.request.ThreadRequestBuilder
+import tw.kevinzhang.newshub.extension.sora.addFilename
+import tw.kevinzhang.newshub.extension.sora.isFile
 
 open class SoraThreadRequestBuilder : ThreadRequestBuilder {
     private lateinit var builder: HttpUrl.Builder

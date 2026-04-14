@@ -2,14 +2,16 @@ package tw.kevinzhang.newshub.extension.sora
 
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
+import ru.gildor.coroutines.okhttp.await
 import tw.kevinzhang.extension_api.Source
 import tw.kevinzhang.extension_api.model.Post
 import tw.kevinzhang.extension_api.model.Thread
 import tw.kevinzhang.extension_api.model.ThreadSummary
-import tw.kevinzhang.komica_api.KomicaApi
+import tw.kevinzhang.komica_api.HttpException
 import tw.kevinzhang.komica_api.model.KBoard
 import tw.kevinzhang.komica_api.model.KImageInfo
 import tw.kevinzhang.komica_api.model.boards
+import tw.kevinzhang.komica_api.model.toExtParagraph
 import tw.kevinzhang.extension_api.model.Board as ExtBoard
 
 class SoraSource : Source {
@@ -21,11 +23,10 @@ class SoraSource : Source {
     override val supportsCommentPagination = false
     override val alwaysUseRawImage = true
     override val needsLogin = false
-
-    private var api = KomicaApi(OkHttpClient(), SoraFactory)
+    private lateinit var client: OkHttpClient
 
     override fun onAttach(client: OkHttpClient) {
-        api = KomicaApi(client, SoraFactory)
+        this.client = client
     }
 
     override suspend fun getBoards(): List<ExtBoard> =
@@ -35,10 +36,16 @@ class SoraSource : Source {
 
     override suspend fun getThreadSummaries(board: ExtBoard, page: Int): List<ThreadSummary> {
         val kBoard = boards().first { it.url == board.url }
-        val req = api.getThreadSummariesRequestBuilder(kBoard)
+        val req = SoraFactory().createThreadSummariesRequestBuilder(kBoard)
             .setPage(page)
             .build()
-        return api.getThread(req).map { kPost ->
+
+        val response = client.newCall(req).await()
+        if (!response.isSuccessful) throw HttpException(response.code, req.url.toString())
+        val urlParser = SoraFactory().createUrlParser()
+        val thread = SoraFactory().createThreadSummariesParser(urlParser).parse(response.body!!, req)
+
+        return thread.map { kPost ->
             ThreadSummary(
                 sourceId = id,
                 boardUrl = board.url,
@@ -58,15 +65,20 @@ class SoraSource : Source {
 
     override suspend fun getThread(summary: ThreadSummary): Thread {
         val kBoard = boards().first { it.url == summary.boardUrl }
-        val req = api.getThreadRequestBuilder(kBoard)
+        val req = SoraFactory().createThreadRequestBuilder(kBoard)
             .setUrl(summary.id.toHttpUrl())
             .build()
-        val posts = api.getThread(req)
+
+        val response = client.newCall(req).await()
+        if (!response.isSuccessful) throw HttpException(response.code, req.url.toString())
+        val urlParser = SoraFactory().createUrlParser()
+        val thread = SoraFactory().createThreadParser(urlParser).parse(response.body!!, req)
+
         return Thread(
             id = summary.id,
             url = getWebUrl(summary),
             title = summary.title,
-            posts = posts.map { kPost ->
+            posts = thread.map { kPost ->
                 Post(
                     id = kPost.id,
                     author = kPost.poster,

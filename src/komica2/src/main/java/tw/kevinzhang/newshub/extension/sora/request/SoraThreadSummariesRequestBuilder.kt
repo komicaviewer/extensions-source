@@ -1,11 +1,11 @@
-package tw.kevinzhang.komica_api.request.sora
+package tw.kevinzhang.newshub.extension.sora.request
 
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
-import tw.kevinzhang.komica_api.isZeroOrNull
 import tw.kevinzhang.komica_api.model.KBoard
 import tw.kevinzhang.komica_api.request.ThreadSummariesRequestBuilder
+import tw.kevinzhang.newshub.extension.sora.isZeroOrNull
 
 open class SoraThreadSummariesRequestBuilder : ThreadSummariesRequestBuilder {
     private lateinit var builder: HttpUrl.Builder

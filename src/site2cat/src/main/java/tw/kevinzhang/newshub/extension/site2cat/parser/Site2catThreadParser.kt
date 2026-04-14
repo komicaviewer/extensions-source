@@ -3,12 +3,12 @@ package tw.kevinzhang.newshub.extension.site2cat.parser
 import org.jsoup.nodes.Element
 import tw.kevinzhang.komica_api.model.KPost
 import tw.kevinzhang.komica_api.parser.Parser
-import tw.kevinzhang.komica_api.request.site2cat.Site2catRequestBuilder
-import tw.kevinzhang.komica_api.toResponseBody
+import tw.kevinzhang.newshub.extension.site2cat.request.Site2catRequestBuilder
 import okhttp3.HttpUrl
 import okhttp3.Request
 import okhttp3.ResponseBody
 import org.jsoup.Jsoup
+import tw.kevinzhang.newshub.extension.site2cat.toResponseBody
 
 class Site2catThreadParser(
     private val postParser: Parser<KPost>,

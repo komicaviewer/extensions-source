@@ -1,8 +1,8 @@
-package tw.kevinzhang.komica_api.request.sora
+package tw.kevinzhang.newshub.extension.sora.request
 
 import okhttp3.HttpUrl
 import okhttp3.Request
-import tw.kevinzhang.komica_api.removeFilename
+import tw.kevinzhang.newshub.extension.sora.removeFilename
 
 class SoraThreadSummariesRequestParser {
     private lateinit var req: Request

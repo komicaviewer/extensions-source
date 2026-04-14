@@ -1,4 +1,4 @@
-package tw.kevinzhang.komica_api.parser.sora
+package tw.kevinzhang.newshub.extension.sora.parser
 
 import okhttp3.HttpUrl
 import tw.kevinzhang.komica_api.parser.UrlParser

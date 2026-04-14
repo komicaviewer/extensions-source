@@ -6,7 +6,7 @@ import org.jsoup.nodes.Node
 import org.jsoup.nodes.TextNode
 import tw.kevinzhang.komica_api.parser.PostHeadParser
 import tw.kevinzhang.komica_api.parser.UrlParser
-import tw.kevinzhang.komica_api.toTimestamp
+import tw.kevinzhang.newshub.extension.site2cat.toTimestamp
 import java.util.logging.Logger
 
 private val logger = Logger.getLogger("_2catPostHeadParser")

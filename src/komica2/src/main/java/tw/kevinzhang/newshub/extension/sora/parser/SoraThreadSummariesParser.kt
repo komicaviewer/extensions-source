@@ -1,15 +1,14 @@
-package tw.kevinzhang.komica_api.parser.sora
+package tw.kevinzhang.newshub.extension.sora.parser
 
 import okhttp3.Request
 import okhttp3.ResponseBody
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
-import tw.kevinzhang.komica_api.installThreadTag
 import tw.kevinzhang.komica_api.model.KPost
 import tw.kevinzhang.komica_api.parser.Parser
-import tw.kevinzhang.komica_api.request.sora.SoraThreadRequestBuilder
-import tw.kevinzhang.komica_api.request.sora.SoraThreadSummariesRequestParser
-import tw.kevinzhang.komica_api.toResponseBody
+import tw.kevinzhang.newshub.extension.sora.request.SoraThreadRequestBuilder
+import tw.kevinzhang.newshub.extension.sora.request.SoraThreadSummariesRequestParser
+import tw.kevinzhang.newshub.extension.sora.toResponseBody
 
 class SoraThreadSummariesParser(
     private val postParser: Parser<KPost>,

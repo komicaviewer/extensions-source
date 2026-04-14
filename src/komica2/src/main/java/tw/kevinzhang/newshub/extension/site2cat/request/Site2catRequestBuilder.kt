@@ -1,13 +1,14 @@
-package tw.kevinzhang.komica_api.request.site2cat
+package tw.kevinzhang.newshub.extension.site2cat.request
 
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
-import tw.kevinzhang.komica_api.isZeroOrNull
+import tw.kevinzhang.newshub.extension.sora.isZeroOrNull
 import tw.kevinzhang.komica_api.model.KBoard
+import tw.kevinzhang.komica_api.model.boards
 import tw.kevinzhang.komica_api.request.ThreadRequestBuilder
 import tw.kevinzhang.komica_api.request.ThreadSummariesRequestBuilder
-import tw.kevinzhang.komica_api.toKBoard
+import tw.kevinzhang.newshub.extension.sora.toKBoard
 
 class Site2catRequestBuilder : ThreadSummariesRequestBuilder, ThreadRequestBuilder {
     private lateinit var builder: HttpUrl.Builder
