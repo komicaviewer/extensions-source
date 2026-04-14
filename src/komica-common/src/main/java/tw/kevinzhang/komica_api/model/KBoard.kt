@@ -11,33 +11,52 @@ sealed class KBoard(val name: String, val url: String) {
         object 特攝 : Sora("特攝", "https://gaia.komica1.org/13/pixmicat.php")
         object 蘿蔔 : Sora("蘿蔔", "https://gaia.komica1.org/15/pixmicat.php")
         object 軍武 : Sora("軍武", "https://gaia.komica1.org/17/pixmicat.php")
+        object 新番實況 : Sora("新番實況", "https://gaia.komica1.org/78/pixmicat.php")
+        object 新番捏他 : Sora("新番捏他", "https://gaia.komica1.org/79/pixmicat.php")
+        object 螢幕攝 :
+            Sora("螢幕攝", "https://pixmicat.alica.idv.tw/screenshot/index.php/pixmicat.php")
 
         // 連線二板
         object 生活消費 :
             Sora("生活消費", "http://gzone-anime.info/UnitedSites/shopping/pixmicat.php")
-
         object 藝術 : Sora("藝術", "http://gzone-anime.info/UnitedSites/art/pixmicat.php")
         object 旅遊 : Sora("旅遊", "https://travel.voidfactory.com/pixmicat.php")
         object 圖書 : Sora("圖書", "http://gzone-anime.info/UnitedSites/books/pixmicat.php")
         object 鋼普拉 : Sora("鋼普拉", "https://iris.komica1.org/61/pixmicat.php")
+        object 故事接龍 : Sora("故事接龍", "https://storysol.boguspix.com/pixmicat.php")
 
         // 影音
         object Vtuber : Sora("Vtuber", "https://gaia.komica1.org/74/pixmicat.php")
 
         // 遊戲
         object 獨立遊戲 : Sora("獨立遊戲", "https://komica.dbfoxtw.me/indiegame/pixmicat.php")
+        object 遊戲設計 :
+            Sora("遊戲設計", "https://komica.dbfoxtw.me/gameprogramming/pixmicat.php")
 
         // 遊戲作品
         object 艦隊收藏 : Sora("艦隊收藏", "http://acgspace.wsfun.com/kancolle/pixmicat.php")
+        object GTA : Sora("GTA", "https://fenrisulfr.org/gta/pixmicat.php")
+        object `World-of-Tanks` :
+            Sora("World of Tanks", "https://fenrisulfr.org/wot/pixmicat.php")
+        object 戰地風雲 : Sora("戰地風雲", "https://fenrisulfr.org/battlefield/pixmicat.php")
+        object 戰爭雷霆 : Sora("戰爭雷霆", "https://fenrisulfr.org/war_thunder/pixmicat.php")
+        object 戰機世界 : Sora("戰機世界", "https://fenrisulfr.org/wowp/pixmicat.php")
+        object 戰艦世界 : Sora("戰艦世界", "https://fenrisulfr.org/wows/pixmicat.php")
+
+        // 動漫作品
+        object Homestuck :
+            Sora("Homestuck", "https://komica.dbfoxtw.me/homestuck/pixmicat.php")
 
         // 製作公司
         object `TYPE-MOON` :
             Sora("TYPE-MOON", "http://gzone-anime.info/UnitedSites/TypeMoon/pixmicat.php")
+        object KOEI : Sora("KOEI", "https://www.karlsland.net/koei/pixmicat.php")
 
         // 專題板
         object 御姊 : Sora("御姊", "https://sister.boguspix.com/pixmicat.php")
         object 機娘 : Sora("機娘", "https://msgirls.boguspix.com/pixmicat.php")
         object 人外 : Sora("人外", "https://komica.dbfoxtw.me/jingai/pixmicat.php")
+        object 巫女 : Sora("巫女", "https://pixmicat.alica.idv.tw/miko/pixmicat.php")
 
         // 本地版
         object 男性角色 : Sora("男性角色", "https://gaia.komica1.org/38/pixmicat.php")
@@ -46,44 +65,6 @@ sealed class KBoard(val name: String, val url: String) {
         object 小說 : Sora("小說", "https://iris.komica1.org/35/pixmicat.php")
         object `奇幻-科幻` : Sora("奇幻/科幻", "https://gaia.komica1.org/60/pixmicat.php")
         object 四格 : Sora("四格", "https://gaia.komica1.org/42/pixmicat.php")
-    }
-
-    sealed class _2catSora(name: String, url: String) : KBoard(name, url) {
-        // 連線板
-        object 新番實況 : _2catSora("新番實況", "https://gaia.komica1.org/78/pixmicat.php")
-        object 新番捏他 : _2catSora("新番捏他", "https://gaia.komica1.org/79/pixmicat.php")
-        object 螢幕攝 :
-            _2catSora("螢幕攝", "https://pixmicat.alica.idv.tw/screenshot/index.php/pixmicat.php")
-
-        object 車 : _2catSora("車", "https://www.gomiga.org/car/pixmicat.php")
-        object 萌 : _2catSora("萌", "https://2cat.komica1.org/~kirur/img2/pixmicat.php")
-
-        // 連線二板
-        object 故事接龍 : _2catSora("故事接龍", "https://storysol.boguspix.com/pixmicat.php")
-
-        // 遊戲
-        object 遊戲設計 :
-            _2catSora("遊戲設計", "https://komica.dbfoxtw.me/gameprogramming/pixmicat.php")
-
-        // 遊戲作品
-        object GTA : _2catSora("GTA", "https://fenrisulfr.org/gta/pixmicat.php")
-        object `World-of-Tanks` :
-            _2catSora("World of Tanks", "https://fenrisulfr.org/wot/pixmicat.php")
-
-        object 戰地風雲 : _2catSora("戰地風雲", "https://fenrisulfr.org/battlefield/pixmicat.php")
-        object 戰爭雷霆 : _2catSora("戰爭雷霆", "https://fenrisulfr.org/war_thunder/pixmicat.php")
-        object 戰機世界 : _2catSora("戰機世界", "https://fenrisulfr.org/wowp/pixmicat.php")
-        object 戰艦世界 : _2catSora("戰艦世界", "https://fenrisulfr.org/wows/pixmicat.php")
-
-        // 動漫作品
-        object Homestuck :
-            _2catSora("Homestuck", "https://komica.dbfoxtw.me/homestuck/pixmicat.php")
-
-        // 製作公司
-        object KOEI : _2catSora("KOEI", "https://www.karlsland.net/koei/pixmicat.php")
-
-        // 專題板
-        object 巫女 : _2catSora("巫女", "https://pixmicat.alica.idv.tw/miko/pixmicat.php")
     }
 
     sealed class _2cat(name: String, url: String) : KBoard(name, url) {
@@ -193,11 +174,9 @@ fun 連線版() =
         KBoard.Sora.特攝,
         KBoard.Sora.蘿蔔,
         KBoard.Sora.軍武,
-        KBoard._2catSora.新番實況,
-        KBoard._2catSora.新番捏他,
-        KBoard._2catSora.螢幕攝,
-        KBoard._2catSora.車,
-        KBoard._2catSora.萌,
+        KBoard.Sora.新番實況,
+        KBoard.Sora.新番捏他,
+        KBoard.Sora.螢幕攝,
         KBoard.影視,
         KBoard.祭典,
         KBoard.COSPLAY,
@@ -210,7 +189,7 @@ fun 連線二版() =
         KBoard.Sora.旅遊,
         KBoard.Sora.圖書,
         KBoard.Sora.鋼普拉,
-        KBoard._2catSora.故事接龍,
+        KBoard.Sora.故事接龍,
         KBoard._2cat.職業相談,
         KBoard._2cat.理財,
         KBoard._2cat.法律,
@@ -233,7 +212,7 @@ fun 影音() =
 fun 遊戲() =
     listOf(
         KBoard.Sora.獨立遊戲,
-        KBoard._2catSora.遊戲設計,
+        KBoard.Sora.遊戲設計,
         KBoard._2cat.`手機-平板遊戲`,
         KBoard._2cat.體感遊戲,
         KBoard._2cat.女性向遊戲,
@@ -245,12 +224,12 @@ fun 遊戲() =
 fun 遊戲作品() =
     listOf(
         KBoard.Sora.艦隊收藏,
-        KBoard._2catSora.GTA,
-        KBoard._2catSora.`World-of-Tanks`,
-        KBoard._2catSora.戰地風雲,
-        KBoard._2catSora.戰爭雷霆,
-        KBoard._2catSora.戰機世界,
-        KBoard._2catSora.戰艦世界,
+        KBoard.Sora.GTA,
+        KBoard.Sora.`World-of-Tanks`,
+        KBoard.Sora.戰地風雲,
+        KBoard.Sora.戰爭雷霆,
+        KBoard.Sora.戰機世界,
+        KBoard.Sora.戰艦世界,
         KBoard._2cat.碧藍幻想,
         KBoard._2cat.`Azur-Lane`,
         KBoard.Dota2,
@@ -261,21 +240,21 @@ fun 遊戲作品() =
 
 fun 動漫作品() =
     listOf(
-        KBoard._2catSora.Homestuck,
+        KBoard.Sora.Homestuck,
         KBoard._2cat.東方,
         KBoard._2cat.龍騎士07,
         KBoard._2cat.涼宮,
         KBoard.`Strike-Witches`,
     )
 
-fun 製作公司() = listOf(KBoard.Sora.`TYPE-MOON`, KBoard._2catSora.KOEI)
+fun 製作公司() = listOf(KBoard.Sora.`TYPE-MOON`, KBoard.Sora.KOEI)
 
 fun 專題版() =
     listOf(
         KBoard.Sora.御姊,
         KBoard.Sora.機娘,
         KBoard.Sora.人外,
-        KBoard._2catSora.巫女,
+        KBoard.Sora.巫女,
         KBoard.獸,
     )
 
@@ -329,11 +308,11 @@ fun Komica2() = listOf(
 
 fun top50boards() = listOf(
     KBoard.Sora.綜合,
-    KBoard._2catSora.新番捏他,
+    KBoard.Sora.新番捏他,
     KBoard.Sora.四格,
     KBoard.Sora.女性角色,
     KBoard.Sora.男性角色,
-    KBoard._2catSora.新番實況,
+    KBoard.Sora.新番實況,
     KBoard.Sora.歡樂惡搞,
     KBoard.Sora.GIF,
     KBoard.Sora.政治,
@@ -355,7 +334,6 @@ fun top50boards() = listOf(
     KBoard.少女前線,
     KBoard._2cat.網頁遊戲,
     KBoard.Sora.艦隊收藏,
-    KBoard._2catSora.車,
     KBoard.祭典,
     )
 

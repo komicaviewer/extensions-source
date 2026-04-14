@@ -31,7 +31,7 @@ class SoraSource : Source {
 
     override suspend fun getBoards(): List<ExtBoard> =
         boards()
-            .filter { it is KBoard.Sora || it is KBoard._2catSora }
+            .filterIsInstance<KBoard.Sora>()
             .map { kBoard -> ExtBoard(sourceId = id, url = kBoard.url, name = kBoard.name) }
 
     override suspend fun getThreadSummaries(board: ExtBoard, page: Int): List<ThreadSummary> {
