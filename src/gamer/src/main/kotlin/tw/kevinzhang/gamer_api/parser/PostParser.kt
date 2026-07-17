@@ -15,6 +15,7 @@ import tw.kevinzhang.gamer_api.model.GText
 import tw.kevinzhang.gamer_api.model.GVideoInfo
 import tw.kevinzhang.gamer_api.model.GVideoSite
 import tw.kevinzhang.gamer_api.model.trim
+import java.net.URI
 import java.text.ParseException
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -25,7 +26,7 @@ class PostParser(
     private var builder = GPostBuilder()
 
     override fun parse(body: ResponseBody, req: Request): GPost {
-        val source = Jsoup.parse(body.string())
+        val source = Jsoup.parse(body.string(), req.url.toString())
         val postId = urlParser.parseSn(req.url)!!
         val bsn = urlParser.parseBsn(req.url)!!
         setTitle(source)
@@ -83,9 +84,9 @@ class PostParser(
                 list.add(GText(content))
             }
             if (child is Element) {
-                if (child.`is`("a.photoswipe-image")) {
-                    val href = child.attr("href")
-                    list.add(GImageInfo(href, href))
+                val imageInfo = child.toImageInfo()
+                if (imageInfo != null) {
+                    list.add(imageInfo)
                 } else if (child.`is`("a[href^=\"http://\"], a[href^=\"https://\"]")) {
                     list.add(GLink(child.ownText()))
                 } else if (child.tagName() == "br") {
@@ -104,14 +105,82 @@ class PostParser(
 
     private fun setRawHtml(source: Element) {
         val content = source.selectFirst("div.c-article__content") ?: return
-        // Bahamut uses LazyLoad.js: server HTML has src="" and data-src="<real-url>".
-        // JS fills src at runtime, but WebView runs with javaScriptEnabled=false,
-        // so we normalize here before the fragment reaches the WebView.
-        content.select("img[data-src]").forEach { img ->
-            img.attr("src", img.attr("data-src"))
+        // Bahamut uses LazyLoad.js. The host renders this fragment with JavaScript disabled,
+        // so copy lazy-load attributes to native image attributes and make URLs absolute.
+        content.select("img").forEach { img ->
+            val dataSrcset = img.attr("data-srcset").takeIf(String::isNotBlank)
+            val srcset = dataSrcset ?: img.attr("srcset").takeIf(String::isNotBlank)
+            if (srcset != null) {
+                img.attr("srcset", normalizeSrcset(srcset, img.baseUri()))
+            }
+
+            val src = img.attr("data-src").takeIf(String::isNotBlank)
+                ?: srcset?.bestSrcsetUrl()
+                ?: img.attr("src").takeIf(String::isNotBlank)
+            if (src != null) {
+                img.attr("src", resolveUrl(src, img.baseUri()))
+            }
+        }
+        content.select("source[srcset], source[data-srcset]").forEach { sourceElement ->
+            val srcset = sourceElement.attr("data-srcset").takeIf(String::isNotBlank)
+                ?: sourceElement.attr("srcset")
+            sourceElement.attr("srcset", normalizeSrcset(srcset, sourceElement.baseUri()))
+        }
+        content.select("a[href]").forEach { anchor ->
+            anchor.attr("href", resolveUrl(anchor.attr("href"), anchor.baseUri()))
         }
         builder.setRawHtml(content.html())
     }
+
+    private fun Element.toImageInfo(): GImageInfo? {
+        val image = if (tagName() == "img") this else selectFirst("img") ?: return null
+        val imageUrl = image.preferredImageUrl() ?: return null
+        val photoAnchor = image.closest("a.photoswipe-image")
+        val rawUrl = photoAnchor
+            ?.attr("href")
+            ?.takeIf(String::isNotBlank)
+            ?.let { resolveUrl(it, photoAnchor.baseUri()) }
+            ?: imageUrl
+        return GImageInfo(thumb = imageUrl, raw = rawUrl)
+    }
+
+    private fun Element.preferredImageUrl(): String? {
+        val srcset = attr("data-srcset").takeIf(String::isNotBlank)
+            ?: attr("srcset").takeIf(String::isNotBlank)
+        val src = attr("data-src").takeIf(String::isNotBlank)
+            ?: srcset?.bestSrcsetUrl()
+            ?: attr("src").takeIf(String::isNotBlank)
+        return src?.let { resolveUrl(it, baseUri()) }
+    }
+
+    private fun String.bestSrcsetUrl(): String? =
+        split(',')
+            .asSequence()
+            .map(String::trim)
+            .filter(String::isNotBlank)
+            .map { it.substringBefore(' ') }
+            .lastOrNull()
+
+    private fun normalizeSrcset(srcset: String, baseUri: String): String =
+        srcset.split(',').joinToString(", ") { candidate ->
+            val trimmed = candidate.trim()
+            val url = trimmed.substringBefore(' ')
+            val descriptor = trimmed.substringAfter(' ', missingDelimiterValue = "")
+            buildString {
+                append(resolveUrl(url, baseUri))
+                if (descriptor.isNotBlank()) {
+                    append(' ')
+                    append(descriptor)
+                }
+            }
+        }
+
+    private fun resolveUrl(url: String, baseUri: String): String =
+        try {
+            URI(baseUri).resolve(url).toString()
+        } catch (_: IllegalArgumentException) {
+            url
+        }
 
     private fun setLike(source: Element) {
         val string = source.selectFirst("div.gp a.count.tippy-gpbp-list").ownText()
