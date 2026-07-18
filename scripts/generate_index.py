@@ -18,16 +18,6 @@ import sys
 import xml.etree.ElementTree as ET
 
 
-# A renamed extension gets a new Android package ID.  Keep the retired package
-# out of the marketplace index once its replacement is published; APK files
-# are intentionally left untouched for users who still have the old package.
-RETIRED_PACKAGE_IDS = {
-    "tw.kevinzhang.newshub.extension.twocat": {
-        "tw.kevinzhang.newshub.extension.site2cat",
-    },
-}
-
-
 def sha256_file(path: str) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as f:
@@ -143,17 +133,13 @@ def module_from_apk_name(apk_file: str) -> str:
 
 
 def merge_extensions(existing: list[dict], extensions: list[dict]) -> list[dict]:
-    """Upsert generated extensions and retire replacements from the index."""
+    """Upsert generated extensions by package ID."""
     new_pkgs = {extension["pkg"] for extension in extensions}
-    retired_pkgs = set().union(
-        *(RETIRED_PACKAGE_IDS.get(pkg, set()) for pkg in new_pkgs)
-    )
     return sorted(
         [
             extension
             for extension in existing
             if extension["pkg"] not in new_pkgs
-            and extension["pkg"] not in retired_pkgs
         ] + extensions,
         key=lambda extension: extension["pkg"],
     )

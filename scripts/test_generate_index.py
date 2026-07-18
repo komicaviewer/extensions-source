@@ -4,29 +4,23 @@ import unittest
 from generate_index import merge_extensions
 
 
-LEGACY_PACKAGE = "tw.kevinzhang.newshub.extension.site2cat"
-TWOCAT_PACKAGE = "tw.kevinzhang.newshub.extension.twocat"
-
-
 class MergeExtensionsTest(unittest.TestCase):
-    def test_twocat_retires_site2cat_index_entry_without_touching_apk_files(self):
+    def test_upsert_replaces_matching_package_and_keeps_other_packages(self):
         existing = [
-            {"pkg": LEGACY_PACKAGE, "apkName": "newshub-site2cat-v0.0.1.apk"},
-            {"pkg": "tw.kevinzhang.newshub.extension.gamer", "apkName": "gamer.apk"},
+            {"pkg": "tw.kevinzhang.newshub.extension.gamer", "versionCode": 1},
+            {"pkg": "tw.kevinzhang.newshub.extension.twocat", "versionCode": 1},
         ]
-        generated = [{"pkg": TWOCAT_PACKAGE, "apkName": "newshub-twocat-v0.0.2.apk"}]
-
-        merged = merge_extensions(existing, generated)
+        generated = [
+            {"pkg": "tw.kevinzhang.newshub.extension.twocat", "versionCode": 2},
+        ]
 
         self.assertEqual(
-            ["tw.kevinzhang.newshub.extension.gamer", TWOCAT_PACKAGE],
-            [extension["pkg"] for extension in merged],
+            [
+                {"pkg": "tw.kevinzhang.newshub.extension.gamer", "versionCode": 1},
+                {"pkg": "tw.kevinzhang.newshub.extension.twocat", "versionCode": 2},
+            ],
+            merge_extensions(existing, generated),
         )
-
-    def test_site2cat_stays_listed_until_twocat_is_generated(self):
-        existing = [{"pkg": LEGACY_PACKAGE}]
-
-        self.assertEqual(existing, merge_extensions(existing, []))
 
 
 if __name__ == "__main__":
