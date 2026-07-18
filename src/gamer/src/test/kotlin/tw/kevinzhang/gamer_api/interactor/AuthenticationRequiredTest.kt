@@ -32,6 +32,37 @@ class AuthenticationRequiredTest {
         )
     }
 
+    @Test
+    fun `all protected interactors convert HTTP 200 Gamer age gates to the host exception`() = runTest {
+        assertAllInteractorsRequireAuthentication(
+            responseClient(
+                statusCode = 200,
+                body = GAMER_AGE_GATE_PAGE,
+            ),
+        )
+    }
+
+    @Test
+    fun `an ordinary empty board is not treated as an authentication failure`() = runTest {
+        val summaries = GetThreadSummaries(responseClient(statusCode = 200)).invoke(
+            request("https://forum.gamer.com.tw/B.php?bsn=60030"),
+        )
+
+        assertEquals(emptyList<Any>(), summaries)
+    }
+
+    @Test
+    fun `a page mentioning one age-gate sentence is not treated as authentication failure`() = runTest {
+        val summaries = GetThreadSummaries(
+            responseClient(
+                statusCode = 200,
+                body = "<p>您即將進入之文章內容需滿十八歲方可瀏覽</p>",
+            ),
+        ).invoke(request("https://forum.gamer.com.tw/B.php?bsn=60030"))
+
+        assertEquals(emptyList<Any>(), summaries)
+    }
+
     private suspend fun assertAllInteractorsRequireAuthentication(client: OkHttpClient) {
         val boardRequest = request("https://forum.gamer.com.tw/B.php?bsn=60076")
         val threadRequest = request("https://forum.gamer.com.tw/C.php?bsn=60076&snA=1")
@@ -42,7 +73,11 @@ class AuthenticationRequiredTest {
         assertAuthenticationRequired { GetAllComment(client).invoke(commentRequest) }
     }
 
-    private fun responseClient(statusCode: Int, finalUrl: String? = null): OkHttpClient =
+    private fun responseClient(
+        statusCode: Int,
+        finalUrl: String? = null,
+        body: String = "",
+    ): OkHttpClient =
         OkHttpClient.Builder()
             .addInterceptor(Interceptor { chain ->
                 Response.Builder()
@@ -50,7 +85,7 @@ class AuthenticationRequiredTest {
                     .protocol(Protocol.HTTP_1_1)
                     .code(statusCode)
                     .message("test")
-                    .body("".toResponseBody("text/html".toMediaType()))
+                    .body(body.toResponseBody("text/html".toMediaType()))
                     .build()
             })
             .build()
@@ -64,5 +99,16 @@ class AuthenticationRequiredTest {
         } catch (error: AuthenticationRequiredException) {
             assertEquals(true, error.isUserAction)
         }
+    }
+
+    private companion object {
+        // Captured text from Gamer's age-gate dialog. The requested B.php URL stays
+        // unchanged and the server responds with HTTP 200.
+        const val GAMER_AGE_GATE_PAGE = """
+            <section class="age-gate">
+              <p>您即將進入之文章內容需滿十八歲方可瀏覽</p>
+              <button>是的，我已經年滿 18 歲了</button>
+            </section>
+        """
     }
 }

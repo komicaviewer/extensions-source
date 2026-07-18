@@ -142,8 +142,10 @@ class GamerSource : AuthenticatedSource {
             name = "場外討論區",
         )
         return try {
-            getThreadSummaries(protectedBoard, page = 0)
-            true
+            // A valid session must be able to parse at least one thread from this
+            // active protected board. An empty result is not enough evidence of a
+            // valid session, while ordinary empty boards remain valid elsewhere.
+            getThreadSummaries(protectedBoard, page = 0).isNotEmpty()
         } catch (_: AuthenticationRequiredException) {
             false
         }
