@@ -1,15 +1,15 @@
-package tw.kevinzhang.newshub.extension.komica2_sora.parser
+package tw.kevinzhang.komica_api.pixmicat.parser
 
 import okhttp3.HttpUrl
 import org.jsoup.nodes.Element
 import org.jsoup.nodes.TextNode
 import tw.kevinzhang.komica_api.parser.PostHeadParser
-import tw.kevinzhang.newshub.extension.sora.toTimestamp
+import tw.kevinzhang.komica_api.pixmicat.toTimestamp
 import java.util.logging.Logger
 
 private val logger = Logger.getLogger("Komica2PostHeadParser")
 
-class Komica2SoraPostHeadParser : PostHeadParser {
+class Komica2PixmicatPostHeadParser : PostHeadParser {
     override fun parseTitle(source: Element, url: HttpUrl): String? {
         val titleE = source.selectFirst("span.title")
         return titleE?.text()
@@ -17,11 +17,7 @@ class Komica2SoraPostHeadParser : PostHeadParser {
 
     override fun parseCreatedAt(source: Element, url: HttpUrl): Long? {
         return try {
-            val nameSpan = source.selectFirst("span.name")
-                ?: throw IllegalArgumentException("找不到 span.name")
-
-            // 尋找包含日期時間和 ID 的文字節點
-            val dateTimeText = findDateTimeText(nameSpan)
+            val dateTimeText = findMetadataText(source)
                 ?: throw IllegalArgumentException("找不到包含日期和ID的文字節點")
 
             // 提取 [日期時間 ID:xxx] 格式
@@ -43,11 +39,7 @@ class Komica2SoraPostHeadParser : PostHeadParser {
 
     override fun parsePoster(source: Element, url: HttpUrl): String? {
         return try {
-            val nameSpan = source.selectFirst("span.name")
-                ?: throw IllegalArgumentException("找不到 span.name")
-
-            // 尋找包含日期時間和 ID 的文字節點
-            val dateTimeText = findDateTimeText(nameSpan)
+            val dateTimeText = findMetadataText(source)
                 ?: throw IllegalArgumentException("找不到包含日期和ID的文字節點")
 
             // 提取 ID
@@ -65,22 +57,22 @@ class Komica2SoraPostHeadParser : PostHeadParser {
 
 
     /**
-     * 輔助方法: 從 span.name 後面找到包含日期時間和 ID 的文字節點
+     * Prefer the metadata text following span.name, used by newer Komica2 pages. Older
+     * Pixmicat pages such as touhoux omit span.name and place the same bracketed metadata
+     * directly in the post, so fall back to the post's complete text.
      */
-    private fun findDateTimeText(nameSpan: Element): String? {
-        var currentNode = nameSpan.nextSibling()
-
-        while (currentNode != null) {
-            if (currentNode is TextNode) {
-                val text = currentNode.text()
-                if (text.contains("ID:")) {
-                    return text
+    private fun findMetadataText(source: Element): String? {
+        source.selectFirst("span.name")?.let { nameSpan ->
+            var currentNode = nameSpan.nextSibling()
+            while (currentNode != null) {
+                if (currentNode is TextNode) {
+                    val text = currentNode.text()
+                    if (text.contains("ID:")) return text
                 }
+                currentNode = currentNode.nextSibling()
             }
-            currentNode = currentNode.nextSibling()
         }
-
-        return null
+        return source.text().takeIf { it.contains("ID:") }
     }
 
     /**

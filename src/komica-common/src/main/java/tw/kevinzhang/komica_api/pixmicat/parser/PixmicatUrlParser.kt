@@ -1,9 +1,9 @@
-package tw.kevinzhang.newshub.extension.sora.parser
+package tw.kevinzhang.komica_api.pixmicat.parser
 
 import okhttp3.HttpUrl
 import tw.kevinzhang.komica_api.parser.UrlParser
 
-class SoraUrlParser: UrlParser {
+class PixmicatUrlParser: UrlParser {
     override fun parseBoardId(url: HttpUrl): String? {
         TODO("Not yet implemented")
     }

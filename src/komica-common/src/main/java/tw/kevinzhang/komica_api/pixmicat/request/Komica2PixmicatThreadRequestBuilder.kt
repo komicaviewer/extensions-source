@@ -1,10 +1,9 @@
-package tw.kevinzhang.newshub.extension.komica2_sora.request
+package tw.kevinzhang.komica_api.pixmicat.request
 
 import okhttp3.Request
-import tw.kevinzhang.newshub.extension.sora.request.SoraThreadRequestBuilder
 
 
-class Komica2SoraThreadRequestBuilder : SoraThreadRequestBuilder() {
+class Komica2PixmicatThreadRequestBuilder : PixmicatThreadRequestBuilder() {
     override fun build(): Request {
         val req = super.build()
         return if (req.url.host == "2cat.org") {

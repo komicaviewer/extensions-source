@@ -1,4 +1,4 @@
-package tw.kevinzhang.newshub.extension.sora
+package tw.kevinzhang.komica_api.pixmicat
 
 import okhttp3.HttpUrl
 import okhttp3.ResponseBody
@@ -8,16 +8,6 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-fun HttpUrl.Builder.setFilename(nameWithExtension: String?): HttpUrl.Builder {
-    val lastIndex = build().pathSegments.lastIndex
-    if (nameWithExtension != null) {
-        setPathSegment(lastIndex, nameWithExtension)
-    } else {
-        removePathSegment(lastIndex)
-    }
-    return this
-}
-
 fun HttpUrl.Builder.addFilename(name: String, extension: String): HttpUrl.Builder {
     addPathSegment("$name.$extension")
     return this
@@ -25,13 +15,6 @@ fun HttpUrl.Builder.addFilename(name: String, extension: String): HttpUrl.Builde
 
 fun HttpUrl.Builder.removeFilename(): HttpUrl.Builder {
     if (this.build().isFile()) {
-        removePathSegment(build().pathSegments.lastIndex)
-    }
-    return this
-}
-
-fun HttpUrl.Builder.removeFilename(extension: String): HttpUrl.Builder {
-    if (this.build().isFile(extension)) {
         removePathSegment(build().pathSegments.lastIndex)
     }
     return this

@@ -1,4 +1,4 @@
-package tw.kevinzhang.newshub.extension.sora.parser
+package tw.kevinzhang.komica_api.pixmicat.parser
 
 import okhttp3.HttpUrl
 import okhttp3.Request
@@ -19,7 +19,7 @@ import tw.kevinzhang.komica_api.parser.Parser
 import tw.kevinzhang.komica_api.parser.PostHeadParser
 import tw.kevinzhang.komica_api.parser.UrlParser
 
-class SoraPostParser(
+class PixmicatPostParser(
     private val urlParser: UrlParser,
     private val postHeadParser: PostHeadParser,
 ): Parser<KPost> {
@@ -44,7 +44,7 @@ class SoraPostParser(
 
     private fun setContent(source: Element) {
         val list: MutableList<KParagraph> = ArrayList<KParagraph>()
-        val parent = source.selectFirst(".quote")
+        val parent = requireNotNull(source.selectFirst(".quote")) { "Missing .quote content" }
         for (child in parent.childNodes()) {
             if (child is TextNode) {
                 val content = child.text()

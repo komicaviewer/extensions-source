@@ -1,43 +1,29 @@
 package tw.kevinzhang.newshub.extension.komica2_sora
 
-import tw.kevinzhang.extension_api.model.Board
 import tw.kevinzhang.komica_api.model.KPost
 import tw.kevinzhang.komica_api.parser.Parser
 import tw.kevinzhang.komica_api.parser.UrlParser
+import tw.kevinzhang.komica_api.pixmicat.Komica2PixmicatEngine
 import tw.kevinzhang.komica_api.request.ThreadRequestBuilder
 import tw.kevinzhang.komica_api.request.ThreadSummariesRequestBuilder
-import tw.kevinzhang.newshub.extension.komica2_sora.parser.Komica2SoraPostHeadParser
-import tw.kevinzhang.newshub.extension.komica2_sora.request.Komica2SoraThreadRequestBuilder
-import tw.kevinzhang.newshub.extension.komica2_sora.request.Komica2SoraThreadSummariesRequestBuilder
-import tw.kevinzhang.newshub.extension.sora.parser.SoraPostParser
-import tw.kevinzhang.newshub.extension.sora.parser.SoraThreadParser
-import tw.kevinzhang.newshub.extension.sora.parser.SoraThreadSummariesParser
-import tw.kevinzhang.newshub.extension.sora.parser.SoraUrlParser
-import tw.kevinzhang.newshub.extension.sora.request.SoraThreadRequestParser
-import tw.kevinzhang.newshub.extension.sora.request.SoraThreadSummariesRequestParser
+import tw.kevinzhang.extension_api.model.Board
 
 class Komica2SoraFactory {
-    // SoraKomica2 boards use the Sora URL scheme and Sora-format parsers;
-    // only PostHeadParser and request builders are komica2-specific.
-    fun createThreadUrlParser(): UrlParser = SoraUrlParser()
+    private val engine = Komica2PixmicatEngine()
+
+    fun createThreadUrlParser(): UrlParser = engine.createUrlParser()
 
     fun createThreadParser(urlParser: UrlParser): Parser<List<KPost>> =
-        SoraThreadParser(
-            SoraPostParser(urlParser, Komica2SoraPostHeadParser()),
-            SoraThreadRequestParser(),
-            Komica2SoraThreadRequestBuilder(),
-        )
+        engine.createThreadParser(urlParser)
 
     fun createThreadSummariesParser(urlParser: UrlParser): Parser<List<KPost>> =
-        SoraThreadSummariesParser(
-            SoraPostParser(urlParser, Komica2SoraPostHeadParser()),
-            SoraThreadSummariesRequestParser(),
-            Komica2SoraThreadRequestBuilder(),
-        )
+        engine.createThreadSummariesParser(urlParser)
 
     fun createThreadSummariesRequestBuilder(board: Board): ThreadSummariesRequestBuilder =
-        Komica2SoraThreadSummariesRequestBuilder().setBoard(board)
+        engine.createThreadSummariesRequestBuilder(board)
 
     fun createThreadRequestBuilder(board: Board): ThreadRequestBuilder =
-        Komica2SoraThreadRequestBuilder().setBoard(board)
+        engine.createThreadRequestBuilder(board)
+
+    fun normalizeUrl(url: okhttp3.HttpUrl): String = engine.normalizeUrl(url)
 }

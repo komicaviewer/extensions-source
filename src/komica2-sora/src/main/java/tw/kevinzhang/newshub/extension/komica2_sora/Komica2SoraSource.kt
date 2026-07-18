@@ -11,8 +11,8 @@ import tw.kevinzhang.extension_api.model.Thread
 import tw.kevinzhang.extension_api.model.ThreadSummary
 import tw.kevinzhang.komica_api.HttpException
 import tw.kevinzhang.komica_api.model.KImageInfo
+import tw.kevinzhang.komica_api.model.toExtParagraph
 import tw.kevinzhang.newshub.extension.komica2_sora.model.Komica2SoraBoards
-import tw.kevinzhang.newshub.extension.twocat.request.TwocatRequestBuilder
 import tw.kevinzhang.extension_api.model.Board as ExtBoard
 
 class Komica2SoraSource : Source {
@@ -47,12 +47,8 @@ class Komica2SoraSource : Source {
         val thread = Komica2SoraFactory().createThreadSummariesParser(urlParser).parse(response.body!!, req)
 
         thread.map { kPost ->
-            val boardUrl =
-                TwocatRequestBuilder().setUrl(board.url.toHttpUrl()).setPage(null)
-                    .build().url.toString()
-            val postUrl =
-                TwocatRequestBuilder().setUrl(kPost.url.toHttpUrl()).setPage(null)
-                    .build().url.toString()
+            val boardUrl = Komica2SoraFactory().normalizeUrl(board.url.toHttpUrl())
+            val postUrl = Komica2SoraFactory().normalizeUrl(kPost.url.toHttpUrl())
             ThreadSummary(
                 sourceId = id,
                 boardUrl = boardUrl,

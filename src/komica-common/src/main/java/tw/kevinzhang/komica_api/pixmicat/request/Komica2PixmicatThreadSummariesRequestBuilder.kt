@@ -1,27 +1,27 @@
-package tw.kevinzhang.newshub.extension.komica2_sora.request
+package tw.kevinzhang.komica_api.pixmicat.request
 
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import tw.kevinzhang.extension_api.model.Board
 import tw.kevinzhang.komica_api.request.ThreadSummariesRequestBuilder
-import tw.kevinzhang.newshub.extension.sora.isZeroOrNull
+import tw.kevinzhang.komica_api.pixmicat.isZeroOrNull
 
-class Komica2SoraThreadSummariesRequestBuilder : ThreadSummariesRequestBuilder {
+class Komica2PixmicatThreadSummariesRequestBuilder : ThreadSummariesRequestBuilder {
     private lateinit var builder: HttpUrl.Builder
     private var boardUrl: HttpUrl? = null
 
-    override fun setUrl(url: HttpUrl): Komica2SoraThreadSummariesRequestBuilder {
+    override fun setUrl(url: HttpUrl): Komica2PixmicatThreadSummariesRequestBuilder {
         builder = url.newBuilder()
         return this
     }
 
-    fun setBoard(board: Board): Komica2SoraThreadSummariesRequestBuilder {
+    fun setBoard(board: Board): Komica2PixmicatThreadSummariesRequestBuilder {
         boardUrl = board.url.toHttpUrl()
         return setUrl(boardUrl!!)
     }
 
-    override fun setPage(page: Int?): Komica2SoraThreadSummariesRequestBuilder {
+    override fun setPage(page: Int?): Komica2PixmicatThreadSummariesRequestBuilder {
         val board = boardUrl
         if (board?.host == "2cat.org") {
             val requestUrl = board.newBuilder().apply {

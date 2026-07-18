@@ -1,4 +1,4 @@
-package tw.kevinzhang.newshub.extension.sora.parser
+package tw.kevinzhang.komica_api.pixmicat.parser
 
 import okhttp3.Request
 import okhttp3.ResponseBody
@@ -6,21 +6,22 @@ import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import tw.kevinzhang.komica_api.model.KPost
 import tw.kevinzhang.komica_api.parser.Parser
-import tw.kevinzhang.newshub.extension.sora.request.SoraThreadRequestBuilder
-import tw.kevinzhang.newshub.extension.sora.request.SoraThreadSummariesRequestParser
-import tw.kevinzhang.newshub.extension.sora.toResponseBody
+import tw.kevinzhang.komica_api.pixmicat.request.PixmicatThreadRequestBuilder
+import tw.kevinzhang.komica_api.pixmicat.request.PixmicatThreadSummariesRequestParser
+import tw.kevinzhang.komica_api.pixmicat.toResponseBody
 
-class SoraThreadSummariesParser(
+class PixmicatThreadSummariesParser(
     private val postParser: Parser<KPost>,
-    private val summariesReqParser: SoraThreadSummariesRequestParser,
-    private val threadReqBuilder: SoraThreadRequestBuilder,
+    private val summariesReqParser: PixmicatThreadSummariesRequestParser,
+    private val threadReqBuilder: PixmicatThreadRequestBuilder,
 ): Parser<List<KPost>> {
     override fun parse(res: ResponseBody, req: Request): List<KPost> {
         val source = Jsoup.parse(res.string())
         val summariesUrl = summariesReqParser.req(req).baseUrl()
-        val threads = source.selectFirst("#threads").installThreadTag().select("div.thread")
+        val threadsRoot = requireNotNull(source.selectFirst("#threads")) { "Missing #threads" }
+        val threads = threadsRoot.installThreadTag().select("div.thread")
         return threads.map { thread ->
-            val threadpost = thread.selectFirst("div.threadpost")
+            val threadpost = requireNotNull(thread.selectFirst("div.threadpost")) { "Missing div.threadpost" }
             val postId = threadpost.attr("id").substring(1)
             val post = postParser.parse(
                 threadpost.toResponseBody(),
@@ -32,15 +33,13 @@ class SoraThreadSummariesParser(
 
     companion object {
         fun parseReplyCount(thread: Element): Int {
-            var replyCount = 0
-            try {
-                replyCount = thread.selectFirst("span.warn_txt2").text()
-                    .replace("\\D".toRegex(), "")
-                    .toInt()
-            } catch (ignored: NullPointerException) { }
+            var replyCount = thread.selectFirst("span.warn_txt2")
+                ?.text()
+                ?.replace("\\D".toRegex(), "")
+                ?.toIntOrNull()
+                ?: 0
             replyCount += thread.getElementsByClass("reply").size
             return replyCount
         }
     }
 }
-

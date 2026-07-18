@@ -1,4 +1,4 @@
-package tw.kevinzhang.newshub.extension.sora.parser
+package tw.kevinzhang.komica_api.pixmicat.parser
 
 import okhttp3.HttpUrl
 import okhttp3.Request
@@ -10,14 +10,14 @@ import tw.kevinzhang.komica_api.model.KReplyTo
 import tw.kevinzhang.komica_api.model.KText
 import tw.kevinzhang.komica_api.model.filterRepliesBy
 import tw.kevinzhang.komica_api.parser.Parser
-import tw.kevinzhang.newshub.extension.sora.request.SoraThreadRequestBuilder
-import tw.kevinzhang.newshub.extension.sora.request.SoraThreadRequestParser
-import tw.kevinzhang.newshub.extension.sora.toResponseBody
+import tw.kevinzhang.komica_api.pixmicat.request.PixmicatThreadRequestBuilder
+import tw.kevinzhang.komica_api.pixmicat.request.PixmicatThreadRequestParser
+import tw.kevinzhang.komica_api.pixmicat.toResponseBody
 
-class SoraThreadParser(
+class PixmicatThreadParser(
     private val postParser: Parser<KPost>,
-    private val threadReqParser: SoraThreadRequestParser,
-    private val threadReqBuilder: SoraThreadRequestBuilder,
+    private val threadReqParser: PixmicatThreadRequestParser,
+    private val threadReqBuilder: PixmicatThreadRequestBuilder,
 ): Parser<List<KPost>> {
     override fun parse(res: ResponseBody, req: Request): List<KPost> {
         val source = Jsoup.parse(res.string())
@@ -27,11 +27,13 @@ class SoraThreadParser(
 
     private fun parseHeadPost(source: Element, url: HttpUrl): KPost {
         val req = threadReqBuilder.setUrl(url).build()
-        return postParser.parse(source.selectFirst("div.threadpost").toResponseBody(), req)
+        val headPost = requireNotNull(source.selectFirst("div.threadpost")) { "Missing div.threadpost" }
+        return postParser.parse(headPost.toResponseBody(), req)
     }
 
     private fun parseReplies(source: Element, url: HttpUrl): List<KPost> {
-        val threads = source.selectFirst("#threads").installThreadTag().select("div.thread")
+        val threadsRoot = requireNotNull(source.selectFirst("#threads")) { "Missing #threads" }
+        val threads = threadsRoot.installThreadTag().select("div.thread")
         val posts = threads.select("div.reply").map { reply_ele ->
             val fragment = reply_ele.attr("id") // r12345678
             val postId = fragment.substring(1)
@@ -64,4 +66,3 @@ class SoraThreadParser(
         }
     }
 }
-
