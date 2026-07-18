@@ -46,12 +46,29 @@ android {
     }
     kotlinOptions {
         jvmTarget = "17"
+        freeCompilerArgs += ['-Xjspecify-annotations=ignore']
     }
 }
 
 dependencies {
-    // extension-api from NewsHub via JitPack
-    compileOnly 'com.github.twkevinzhang.NewsHub:extension-api:d1709d89e6'
+    // A local NewsHub checkout lets extensions validate a pending extension-api change
+    // before the corresponding JitPack artifact is published.
+    def newshubDir = providers.gradleProperty('newshubDir').orNull
+    if (newshubDir != null) {
+        def extensionApiJar = file("${newshubDir}/extension-api/build/libs/extension-api.jar")
+        if (!extensionApiJar.exists()) {
+            throw new GradleException(
+                "Local extension-api JAR not found at ${extensionApiJar}. " +
+                    "Build it first with: cd ${newshubDir} && ./gradlew :extension-api:jar"
+            )
+        }
+        compileOnly files(extensionApiJar)
+        testImplementation files(extensionApiJar)
+    } else {
+        // extension-api from NewsHub via JitPack
+        compileOnly 'com.github.twkevinzhang.NewsHub:extension-api:c459a1920ddc39e22b067376145efe042043bce0'
+        testImplementation 'com.github.twkevinzhang.NewsHub:extension-api:c459a1920ddc39e22b067376145efe042043bce0'
+    }
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
     implementation 'com.squareup.okhttp3:logging-interceptor:4.12.0'
     implementation 'com.google.code.gson:gson:2.10.1'

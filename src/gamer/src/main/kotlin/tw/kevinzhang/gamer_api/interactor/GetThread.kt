@@ -6,7 +6,6 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import ru.gildor.coroutines.okhttp.await
-import tw.kevinzhang.gamer_api.AuthRequiredException
 import tw.kevinzhang.gamer_api.model.GPost
 import tw.kevinzhang.gamer_api.parser.PostParser
 import tw.kevinzhang.gamer_api.parser.ThreadParser
@@ -25,13 +24,17 @@ class GetThread(
         val t0 = System.currentTimeMillis()
         val response = client.newCall(req).await()
         val ms = System.currentTimeMillis() - t0
-        val finalUrl = response.request.url.toString()
-        if (finalUrl.contains("loginPage")) {
-            logger.warning("← AUTH_REDIRECT $finalUrl (${ms}ms)")
-            throw AuthRequiredException()
+        try {
+            response.throwIfAuthenticationRequired()
+        } catch (error: tw.kevinzhang.extension_api.AuthenticationRequiredException) {
+            logger.warning("← AUTH_REQUIRED ${response.request.url} (${ms}ms)")
+            response.close()
+            throw error
         }
-        logger.info("← ${response.code} $url (${ms}ms)")
-        parse(response, req)
+        response.use {
+            logger.info("← ${it.code} $url (${ms}ms)")
+            parse(it, req)
+        }
     }
 
     private fun parse(res: Response, req: Request) =

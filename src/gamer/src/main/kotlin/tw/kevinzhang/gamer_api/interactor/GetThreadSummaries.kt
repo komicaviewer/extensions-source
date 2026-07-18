@@ -5,7 +5,6 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import ru.gildor.coroutines.okhttp.await
-import tw.kevinzhang.gamer_api.AuthRequiredException
 import tw.kevinzhang.gamer_api.model.GThreadSummary
 import tw.kevinzhang.gamer_api.parser.BoardParser
 import tw.kevinzhang.gamer_api.parser.ThreadSummaryParser
@@ -27,12 +26,16 @@ class GetThreadSummaries(
         val board = GetBoard().invoke(url)
         val res = client.newCall(req).await()
         val ms = System.currentTimeMillis() - t0
-        val finalUrl = res.request.url.toString()
-        if (finalUrl.contains("loginPage")) {
-            logger.warning("← AUTH_REDIRECT $finalUrl (${ms}ms)")
-            throw AuthRequiredException()
+        try {
+            res.throwIfAuthenticationRequired()
+        } catch (error: tw.kevinzhang.extension_api.AuthenticationRequiredException) {
+            logger.warning("← AUTH_REQUIRED ${res.request.url} (${ms}ms)")
+            res.close()
+            throw error
         }
-        logger.info("← ${res.code} $url (${ms}ms)")
-        BoardParser(ThreadSummaryParser(), RequestBuilderImpl()).parse(res.body!!, req)
+        res.use {
+            logger.info("← ${it.code} $url (${ms}ms)")
+            BoardParser(ThreadSummaryParser(), RequestBuilderImpl()).parse(it.body!!, req)
+        }
     }
 }

@@ -5,7 +5,6 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import ru.gildor.coroutines.okhttp.await
-import tw.kevinzhang.gamer_api.AuthRequiredException
 import tw.kevinzhang.gamer_api.model.GComment
 import tw.kevinzhang.gamer_api.parser.CommentListParser
 import tw.kevinzhang.gamer_api.request.RequestBuilderImpl
@@ -22,12 +21,16 @@ class GetAllComment(
         val t0 = System.currentTimeMillis()
         val res = client.newCall(req).await()
         val ms = System.currentTimeMillis() - t0
-        val finalUrl = res.request.url.toString()
-        if (finalUrl.contains("loginPage")) {
-            logger.warning("← AUTH_REDIRECT $finalUrl (${ms}ms)")
-            throw AuthRequiredException()
+        try {
+            res.throwIfAuthenticationRequired()
+        } catch (error: tw.kevinzhang.extension_api.AuthenticationRequiredException) {
+            logger.warning("← AUTH_REQUIRED ${res.request.url} (${ms}ms)")
+            res.close()
+            throw error
         }
-        logger.info("← ${res.code} $url (${ms}ms)")
-        CommentListParser(RequestBuilderImpl()).parse(res.body!!, req)
+        res.use {
+            logger.info("← ${it.code} $url (${ms}ms)")
+            CommentListParser(RequestBuilderImpl()).parse(it.body!!, req)
+        }
     }
 }

@@ -2,7 +2,11 @@ package tw.kevinzhang.newshub.extension.gamer
 
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
-import tw.kevinzhang.extension_api.Source
+import tw.kevinzhang.extension_api.AuthSpec
+import tw.kevinzhang.extension_api.AuthenticatedSource
+import tw.kevinzhang.extension_api.AuthenticationRequiredException
+import tw.kevinzhang.extension_api.AuthenticationSession
+import tw.kevinzhang.extension_api.SourceRuntime
 import tw.kevinzhang.extension_api.model.Board
 import tw.kevinzhang.extension_api.model.Comment
 import tw.kevinzhang.extension_api.model.Paragraph
@@ -19,21 +23,36 @@ import tw.kevinzhang.gamer_api.model.GText
 import tw.kevinzhang.gamer_api.model.GVideoInfo
 import tw.kevinzhang.gamer_api.model.GVideoSite
 
-class GamerSource : Source {
+class GamerSource : AuthenticatedSource {
     private var gamerApi = GamerApi(OkHttpClient())
+    private var authenticationSession: AuthenticationSession? = null
 
     override val id = "tw.kevinzhang.newshub.extension.gamer"
     override val name = "Gamer 巴哈姆特"
     override val language = "zh-TW"
-    override val version = 1
+    override val version = 2
     override val iconUrl: String = "https://i2.bahamut.com.tw/apple-touch-icon-72x72.png"
     override val supportsCommentPagination: Boolean = false
     override val alwaysUseRawImage: Boolean = false
-    override val needsLogin = true
+    override val needsLogin = false
+    override val authSpec = AuthSpec.WebCookie(
+        loginUrl = "https://user.gamer.com.tw/login.php",
+        allowedHosts = setOf(
+            "user.gamer.com.tw",
+            "forum.gamer.com.tw",
+            "www.gamer.com.tw",
+        ),
+        cookieOrigins = setOf(
+            "https://user.gamer.com.tw",
+            "https://forum.gamer.com.tw",
+        ),
+        cookieDomains = setOf("gamer.com.tw"),
+    )
 
-    /** Replaces the default OkHttpClient with the host app's shared client (which has the cookie jar). */
-    override fun onAttach(client: OkHttpClient) {
-        gamerApi = GamerApi(client)
+    /** Uses the host's source-scoped client, so Gamer cookies cannot leak to another source. */
+    override fun onAttach(runtime: SourceRuntime) {
+        gamerApi = GamerApi(runtime.httpClient)
+        authenticationSession = runtime.authentication
     }
 
     override suspend fun getBoards(): List<Board> =
@@ -45,12 +64,12 @@ class GamerSource : Source {
             )
         }
 
-    override suspend fun getThreadSummaries(board: Board, page: Int): List<ThreadSummary> {
+    override suspend fun getThreadSummaries(board: Board, page: Int): List<ThreadSummary> = withAuthenticationExpiry {
         val req = gamerApi.getRequestBuilder()
             .setUrl(board.url.toHttpUrl())
             .setPage(page.takeIf { it != 0 })
             .build()
-        return gamerApi.getThreadSummaries(req).map { gNews ->
+        gamerApi.getThreadSummaries(req).map { gNews ->
             ThreadSummary(
                 sourceId = id,
                 boardUrl = board.url,
@@ -68,13 +87,13 @@ class GamerSource : Source {
         }
     }
 
-    override suspend fun getThread(summary: ThreadSummary): Thread {
+    override suspend fun getThread(summary: ThreadSummary): Thread = withAuthenticationExpiry {
         val req = gamerApi.getRequestBuilder()
             .setUrl(summary.id.toHttpUrl())
             .setPage(1)
             .build()
         val gPosts = gamerApi.getThread(req)
-        return Thread(
+        Thread(
             id = summary.id,
             url = getWebUrl(summary),
             title = summary.title,
@@ -92,6 +111,8 @@ class GamerSource : Source {
                                 content = listOf(Paragraph.Text(gComment.content)),
                             )
                         }
+                    } catch (error: AuthenticationRequiredException) {
+                        throw error
                     } catch (_: Exception) {
                         emptyList()
                     }
@@ -113,7 +134,29 @@ class GamerSource : Source {
         )
     }
 
+    /** Checks a protected board instead of treating the presence of a cookie as proof of login. */
+    override suspend fun validateSession(): Boolean {
+        val protectedBoard = Board(
+            sourceId = id,
+            url = "https://forum.gamer.com.tw/B.php?bsn=60076",
+            name = "場外討論區",
+        )
+        return try {
+            getThreadSummaries(protectedBoard, page = 0)
+            true
+        } catch (_: AuthenticationRequiredException) {
+            false
+        }
+    }
+
     override fun getWebUrl(summary: ThreadSummary): String = summary.id
+
+    private suspend fun <T> withAuthenticationExpiry(block: suspend () -> T): T = try {
+        block()
+    } catch (error: AuthenticationRequiredException) {
+        authenticationSession?.markExpired()
+        throw error
+    }
 }
 
 private fun GParagraph.toExtParagraph(): tw.kevinzhang.extension_api.model.Paragraph = when (this) {
