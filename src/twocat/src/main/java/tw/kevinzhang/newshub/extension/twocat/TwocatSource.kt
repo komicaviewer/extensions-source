@@ -1,7 +1,5 @@
-package tw.kevinzhang.newshub.extension.komica2_sora
+package tw.kevinzhang.newshub.extension.twocat
 
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import ru.gildor.coroutines.okhttp.await
@@ -11,16 +9,16 @@ import tw.kevinzhang.extension_api.model.Thread
 import tw.kevinzhang.extension_api.model.ThreadSummary
 import tw.kevinzhang.komica_api.HttpException
 import tw.kevinzhang.komica_api.model.KImageInfo
-import tw.kevinzhang.newshub.extension.komica2_sora.model.Komica2SoraBoards
+import tw.kevinzhang.komica_api.model.toExtParagraph
 import tw.kevinzhang.newshub.extension.twocat.request.TwocatRequestBuilder
 import tw.kevinzhang.extension_api.model.Board as ExtBoard
 
-class Komica2SoraSource : Source {
-    override val id = Komica2SoraBoards.SOURCE_ID
-    override val name = "komica2 Sora"
+class TwocatSource : Source {
+    override val id = TwocatBoardCatalog.SOURCE_ID
+    override val name = "twocat"
     override val language = "zh-TW"
-    override val version = 2
-    override val iconUrl: String = "https://komica1.org/favicon.ico"
+    override val version = 1
+    override val iconUrl: String = "https://2cat.uk/futaba.ico"
     override val supportsCommentPagination = false
     override val alwaysUseRawImage = true
     override val needsLogin = false
@@ -30,23 +28,20 @@ class Komica2SoraSource : Source {
         this.client = client
     }
 
-    override suspend fun getBoards(): List<ExtBoard> = Komica2SoraBoards.all
+    override suspend fun getBoards(): List<ExtBoard> = TwocatBoardCatalog.boards
 
-    override suspend fun getThreadSummaries(
-        board: ExtBoard,
-        page: Int,
-    ): List<ThreadSummary> = withContext(Dispatchers.IO) {
-        val supportedBoard = Komica2SoraBoards.all.first { it.url == board.url }
-        val req = Komica2SoraFactory().createThreadSummariesRequestBuilder(supportedBoard)
+    override suspend fun getThreadSummaries(board: ExtBoard, page: Int): List<ThreadSummary> {
+        val twocatBoard = TwocatBoardCatalog.findByUrl(board.url)
+        val req = TwocatFactory().createThreadSummariesRequestBuilder(twocatBoard)
             .setPage(page)
             .build()
 
         val response = client.newCall(req).await()
         if (!response.isSuccessful) throw HttpException(response.code, req.url.toString())
-        val urlParser = Komica2SoraFactory().createThreadUrlParser()
-        val thread = Komica2SoraFactory().createThreadSummariesParser(urlParser).parse(response.body!!, req)
+        val urlParser = TwocatFactory().createUrlParser()
+        val thread = TwocatFactory().createThreadSummariesParser(urlParser).parse(response.body!!, req)
 
-        thread.map { kPost ->
+        return thread.map { kPost ->
             val boardUrl =
                 TwocatRequestBuilder().setUrl(board.url.toHttpUrl()).setPage(null)
                     .build().url.toString()
@@ -69,18 +64,18 @@ class Komica2SoraSource : Source {
         }
     }
 
-    override suspend fun getThread(summary: ThreadSummary): Thread = withContext(Dispatchers.IO) {
-        val supportedBoard = Komica2SoraBoards.all.first { it.url == summary.boardUrl }
-        val req = Komica2SoraFactory().createThreadRequestBuilder(supportedBoard)
+    override suspend fun getThread(summary: ThreadSummary): Thread {
+        TwocatBoardCatalog.findByUrl(summary.boardUrl)
+        val req = TwocatFactory().createThreadRequestBuilder()
             .setUrl(summary.id.toHttpUrl())
             .build()
 
         val response = client.newCall(req).await()
         if (!response.isSuccessful) throw HttpException(response.code, req.url.toString())
-        val urlParser = Komica2SoraFactory().createThreadUrlParser()
-        val posts = Komica2SoraFactory().createThreadParser(urlParser).parse(response.body!!, req)
+        val urlParser = TwocatFactory().createUrlParser()
+        val posts = TwocatFactory().createThreadParser(urlParser).parse(response.body!!, req)
 
-        Thread(
+        return Thread(
             id = summary.id,
             url = getWebUrl(summary),
             title = summary.title,

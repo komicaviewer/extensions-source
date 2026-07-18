@@ -5,7 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 import tw.kevinzhang.extension_api.model.Board
 import tw.kevinzhang.newshub.extension.komica2_sora.model.Komica2SoraBoards
-import tw.kevinzhang.newshub.extension.site2cat.request.Site2catRequestBuilder
+import tw.kevinzhang.newshub.extension.twocat.request.TwocatRequestBuilder
 
 class Komica2RequestBuildersTest {
     @Test
@@ -51,9 +51,9 @@ class Komica2RequestBuildersTest {
     }
 
     @Test
-    fun `site2cat builder uses its explicitly supplied board URL for pagination`() {
+    fun `twocat builder uses its explicitly supplied board URL for pagination`() {
         val board = Board("test", "https://2cat.org/~gifura/pixmicat.php", "GIF裏")
-        val request = Site2catRequestBuilder()
+        val request = TwocatRequestBuilder()
             .setBoard(board)
             .setUrl("https://2cat.org/~gifura/pixmicat.php/res/123".toHttpUrl())
             .setPage(2)
