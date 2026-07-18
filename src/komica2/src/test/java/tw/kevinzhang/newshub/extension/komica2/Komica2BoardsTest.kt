@@ -11,7 +11,7 @@ class Komica2BoardsTest {
             listOf(
                 Triple("二次裡A避難版", "https://2cat.uk/~chatura/pixmicat.php", "tw.kevinzhang.komica2"),
                 Triple("三次裡避難版", "https://2cat.uk/~realura/pixmicat.php", "tw.kevinzhang.komica2"),
-                Triple("高解析裡", "https://2cat.org/hiso", "tw.kevinzhang.komica2"),
+                Triple("高解析裡", "https://2cat.org/hiso/pixmicat.php", "tw.kevinzhang.komica2"),
             ),
             Komica2Boards.all.map { Triple(it.name, it.url, it.sourceId) },
         )

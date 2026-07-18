@@ -1,5 +1,7 @@
 package tw.kevinzhang.newshub.extension.komica2
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import ru.gildor.coroutines.okhttp.await
@@ -17,7 +19,7 @@ class Komica2Source : Source {
     override val id = Komica2Boards.SOURCE_ID
     override val name = "komica2"
     override val language = "zh-TW"
-    override val version = 1
+    override val version = 2
     override val iconUrl: String = "https://komica1.org/favicon.ico"
     override val supportsCommentPagination = false
     override val alwaysUseRawImage = true
@@ -30,7 +32,10 @@ class Komica2Source : Source {
 
     override suspend fun getBoards(): List<ExtBoard> = Komica2Boards.all
 
-    override suspend fun getThreadSummaries(board: ExtBoard, page: Int): List<ThreadSummary> {
+    override suspend fun getThreadSummaries(
+        board: ExtBoard,
+        page: Int,
+    ): List<ThreadSummary> = withContext(Dispatchers.IO) {
         val supportedBoard = Komica2Boards.all.first { it.url == board.url }
         val req = Komica2Factory().createThreadSummariesRequestBuilder(supportedBoard)
             .setPage(page)
@@ -41,7 +46,7 @@ class Komica2Source : Source {
         val urlParser = Komica2Factory().createThreadUrlParser()
         val thread = Komica2Factory().createThreadSummariesParser(urlParser).parse(response.body!!, req)
 
-        return thread.map { kPost ->
+        thread.map { kPost ->
             val boardUrl =
                 Site2catRequestBuilder().setUrl(board.url.toHttpUrl()).setPage(null)
                     .build().url.toString()
@@ -64,7 +69,7 @@ class Komica2Source : Source {
         }
     }
 
-    override suspend fun getThread(summary: ThreadSummary): Thread {
+    override suspend fun getThread(summary: ThreadSummary): Thread = withContext(Dispatchers.IO) {
         val supportedBoard = Komica2Boards.all.first { it.url == summary.boardUrl }
         val req = Komica2Factory().createThreadRequestBuilder(supportedBoard)
             .setUrl(summary.id.toHttpUrl())
@@ -75,7 +80,7 @@ class Komica2Source : Source {
         val urlParser = Komica2Factory().createThreadUrlParser()
         val posts = Komica2Factory().createThreadParser(urlParser).parse(response.body!!, req)
 
-        return Thread(
+        Thread(
             id = summary.id,
             url = getWebUrl(summary),
             title = summary.title,

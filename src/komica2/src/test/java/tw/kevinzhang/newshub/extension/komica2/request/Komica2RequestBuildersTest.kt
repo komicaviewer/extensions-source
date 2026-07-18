@@ -9,14 +9,34 @@ import tw.kevinzhang.newshub.extension.site2cat.request.Site2catRequestBuilder
 
 class Komica2RequestBuildersTest {
     @Test
-    fun `summary builder preserves Sora pagination and Komica2 referer`() {
+    fun `high resolution board maps app pages to its pixmicat endpoint`() {
+        val firstPageRequest = Komica2ThreadSummariesRequestBuilder()
+            .setBoard(Komica2Boards.all.last())
+            .setPage(1)
+            .build()
         val request = Komica2ThreadSummariesRequestBuilder()
             .setBoard(Komica2Boards.all.last())
             .setPage(2)
             .build()
+        val thirdPageRequest = Komica2ThreadSummariesRequestBuilder()
+            .setBoard(Komica2Boards.all.last())
+            .setPage(3)
+            .build()
 
-        assertEquals("https://2cat.org/hiso?page_num=2", request.url.toString())
+        assertEquals("https://2cat.org/hiso/pixmicat.php", firstPageRequest.url.toString())
+        assertEquals("https://2cat.org/hiso/pixmicat.php?page_num=1", request.url.toString())
+        assertEquals("https://2cat.org/hiso/pixmicat.php?page_num=2", thirdPageRequest.url.toString())
         assertEquals("https://komica2.cc/mainmenu2022.html", request.header("Referer"))
+    }
+
+    @Test
+    fun `non 2cat org board preserves Sora pagination`() {
+        val request = Komica2ThreadSummariesRequestBuilder()
+            .setBoard(Komica2Boards.all.first())
+            .setPage(2)
+            .build()
+
+        assertEquals("https://2cat.uk/~chatura/pixmicat.php?page_num=2", request.url.toString())
     }
 
     @Test

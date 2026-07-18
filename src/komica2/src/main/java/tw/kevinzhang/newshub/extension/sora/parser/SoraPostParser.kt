@@ -84,8 +84,8 @@ class SoraPostParser(
 
             if (img != null && href.isNotEmpty()) {
                 if (href.isImageUrl()) {
-                    val thumbnailUrl = img.attr("src").ifEmpty {
-                        img.attr("data-original")
+                    val thumbnailUrl = img.attr("data-original").ifEmpty {
+                        img.attr("src")
                     }
 
                     if (thumbnailUrl.isNotEmpty()) {
@@ -118,13 +118,16 @@ class SoraPostParser(
 fun Element.installThreadTag(): Element {
     if (this.selectFirst("div.thread") != null) return this
 
-    //將thread加入threads中，變成標準綜合版樣式
-    var thread = this.appendElement("div").addClass("thread")
-    for (div in this.children()) {
-        thread.appendChild(div)
-        if (div.tagName() == "hr") {
-            this.appendChild(thread)
-            thread = this.appendElement("div").addClass("thread")
+    // 先建立快照，避免在移動節點時改變正在迭代的 live collection。
+    var thread: Element? = null
+    for (child in children().toList()) {
+        when {
+            child.hasClass("threadpost") -> {
+                thread = appendElement("div").addClass("thread")
+                thread.appendChild(child)
+            }
+            child.tagName() == "hr" -> thread = null
+            thread != null -> thread.appendChild(child)
         }
     }
     return this
