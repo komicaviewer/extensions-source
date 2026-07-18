@@ -1,0 +1,87 @@
+package tw.kevinzhang.newshub.extension.akraft
+
+import okhttp3.OkHttpClient
+import ru.gildor.coroutines.okhttp.await
+import tw.kevinzhang.extension_api.Source
+import tw.kevinzhang.extension_api.model.Board
+import tw.kevinzhang.extension_api.model.Post
+import tw.kevinzhang.extension_api.model.Thread
+import tw.kevinzhang.extension_api.model.ThreadSummary
+import tw.kevinzhang.komica_api.HttpException
+import tw.kevinzhang.komica_api.model.KImageInfo
+import tw.kevinzhang.komica_api.model.toExtParagraph
+
+class AkraftSource : Source {
+    override val id = AkraftBoards.SOURCE_ID
+    override val name = "Akraft"
+    override val language = "zh-TW"
+    override val version = 1
+    override val iconUrl = "https://www.akraft.net/favicon.ico"
+    override val supportsCommentPagination = false
+    override val alwaysUseRawImage = true
+    override val needsLogin = false
+
+    private lateinit var client: OkHttpClient
+    private val parser = AkraftParser()
+
+    override fun onAttach(client: OkHttpClient) {
+        this.client = client
+    }
+
+    override suspend fun getBoards(): List<Board> = AkraftBoards.all
+
+    override suspend fun getThreadSummaries(board: Board, page: Int): List<ThreadSummary> {
+        val supportedBoard = AkraftBoards.require(board.url)
+        val request = AkraftRequestBuilder.board(supportedBoard.url, page)
+        val posts = execute(request) { html -> parser.parseSummaries(html, request.url.toString()) }
+        return posts.map { post ->
+            val image = post.content.filterIsInstance<KImageInfo>().firstOrNull()
+            ThreadSummary(
+                sourceId = id,
+                boardUrl = supportedBoard.url,
+                id = post.url,
+                title = post.title,
+                author = post.poster,
+                createdAt = post.createdAt,
+                commentCount = post.replies,
+                thumbnail = image?.thumb,
+                rawImage = image?.raw,
+                previewContent = post.content.map { it.toExtParagraph() },
+                sourceIconUrl = iconUrl,
+                replyCount = post.replies.takeIf { it > 0 },
+            )
+        }
+    }
+
+    override suspend fun getThread(summary: ThreadSummary): Thread {
+        AkraftBoards.require(summary.boardUrl)
+        val request = AkraftRequestBuilder.thread(summary.id)
+        val posts = execute(request) { html -> parser.parseThread(html, request.url.toString()) }
+        return Thread(
+            id = summary.id,
+            url = getWebUrl(summary),
+            title = summary.title,
+            posts = posts.map { post ->
+                Post(
+                    id = post.id,
+                    author = post.poster,
+                    createdAt = post.createdAt,
+                    thumbnail = post.content.filterIsInstance<KImageInfo>().firstOrNull()?.thumb,
+                    content = post.content.map { it.toExtParagraph() },
+                    comments = emptyList(),
+                    sourceIconUrl = iconUrl,
+                    replyCount = post.replies.takeIf { it > 0 },
+                )
+            },
+        )
+    }
+
+    override fun getWebUrl(summary: ThreadSummary): String = summary.id
+
+    private suspend fun <T> execute(request: okhttp3.Request, parse: (String) -> T): T {
+        client.newCall(request).await().use { response ->
+            if (!response.isSuccessful) throw HttpException(response.code, request.url.toString())
+            return parse(response.body?.string().orEmpty())
+        }
+    }
+}
