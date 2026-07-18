@@ -3,7 +3,7 @@ package tw.kevinzhang.newshub.extension.sora.request
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
-import tw.kevinzhang.komica_api.model.KBoard
+import tw.kevinzhang.extension_api.model.Board
 import tw.kevinzhang.komica_api.request.ThreadRequestBuilder
 import tw.kevinzhang.newshub.extension.sora.addFilename
 import tw.kevinzhang.newshub.extension.sora.isFile
@@ -20,7 +20,7 @@ open class SoraThreadRequestBuilder : ThreadRequestBuilder {
         return this
     }
 
-    fun setBoard(board: KBoard): SoraThreadRequestBuilder {
+    fun setBoard(board: Board): SoraThreadRequestBuilder {
         setUrl(board.url.toHttpUrl())
         return this
     }

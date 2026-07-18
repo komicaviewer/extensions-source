@@ -1,9 +1,7 @@
 package tw.kevinzhang.newshub.extension.sora.request
 
 import okhttp3.HttpUrl
-import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
-import tw.kevinzhang.komica_api.model.KBoard
 import tw.kevinzhang.komica_api.request.ThreadRequestBuilder
 import tw.kevinzhang.newshub.extension.sora.addFilename
 import tw.kevinzhang.newshub.extension.sora.isFile
@@ -17,11 +15,6 @@ class SoraThreadRequestBuilder : ThreadRequestBuilder {
         } else {
             url.newBuilder()
         }
-        return this
-    }
-
-    fun setBoard(board: KBoard): SoraThreadRequestBuilder {
-        setUrl(board.url.toHttpUrl())
         return this
     }
 

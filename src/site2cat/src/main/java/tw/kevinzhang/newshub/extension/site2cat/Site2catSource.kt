@@ -8,15 +8,13 @@ import tw.kevinzhang.extension_api.model.Post
 import tw.kevinzhang.extension_api.model.Thread
 import tw.kevinzhang.extension_api.model.ThreadSummary
 import tw.kevinzhang.komica_api.HttpException
-import tw.kevinzhang.komica_api.model.KBoard
 import tw.kevinzhang.komica_api.model.KImageInfo
-import tw.kevinzhang.komica_api.model.boards
 import tw.kevinzhang.komica_api.model.toExtParagraph
 import tw.kevinzhang.newshub.extension.site2cat.request.Site2catRequestBuilder
 import tw.kevinzhang.extension_api.model.Board as ExtBoard
 
 class Site2catSource : Source {
-    override val id = "tw.kevinzhang.site2cat"
+    override val id = Site2catBoardCatalog.SOURCE_ID
     override val name = "2cat"
     override val language = "zh-TW"
     override val version = 1
@@ -30,14 +28,11 @@ class Site2catSource : Source {
         this.client = client
     }
 
-    override suspend fun getBoards(): List<ExtBoard> =
-        boards()
-            .filterIsInstance<KBoard._2cat>()
-            .map { kBoard -> ExtBoard(sourceId = id, url = kBoard.url, name = kBoard.name) }
+    override suspend fun getBoards(): List<ExtBoard> = Site2catBoardCatalog.boards
 
     override suspend fun getThreadSummaries(board: ExtBoard, page: Int): List<ThreadSummary> {
-        val kBoard = boards().first { it.url == board.url }
-        val req = Site2catFactory().createThreadSummariesRequestBuilder(kBoard)
+        val site2catBoard = Site2catBoardCatalog.findByUrl(board.url)
+        val req = Site2catFactory().createThreadSummariesRequestBuilder(site2catBoard)
             .setPage(page)
             .build()
 
@@ -70,8 +65,8 @@ class Site2catSource : Source {
     }
 
     override suspend fun getThread(summary: ThreadSummary): Thread {
-        val kBoard = boards().first { it.url == summary.boardUrl }
-        val req = Site2catFactory().createThreadRequestBuilder(kBoard)
+        Site2catBoardCatalog.findByUrl(summary.boardUrl)
+        val req = Site2catFactory().createThreadRequestBuilder()
             .setUrl(summary.id.toHttpUrl())
             .build()
 

@@ -4,22 +4,23 @@ import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import tw.kevinzhang.newshub.extension.sora.isZeroOrNull
-import tw.kevinzhang.komica_api.model.KBoard
-import tw.kevinzhang.komica_api.model.boards
 import tw.kevinzhang.komica_api.request.ThreadRequestBuilder
 import tw.kevinzhang.komica_api.request.ThreadSummariesRequestBuilder
-import tw.kevinzhang.newshub.extension.sora.toKBoard
+import tw.kevinzhang.extension_api.model.Board
 
 class Site2catRequestBuilder : ThreadSummariesRequestBuilder, ThreadRequestBuilder {
     private lateinit var builder: HttpUrl.Builder
+    private var boardUrl: HttpUrl? = null
 
     override fun setUrl(url: HttpUrl): Site2catRequestBuilder {
         this.builder = url.newBuilder()
         return this
     }
 
-    fun setBoard(board: KBoard): Site2catRequestBuilder {
-        setUrl(board.url.toHttpUrl())
+    fun setBoard(board: Board): Site2catRequestBuilder {
+        val url = board.url.toHttpUrl()
+        boardUrl = url
+        setUrl(url)
         return this
     }
 
@@ -73,10 +74,9 @@ class Site2catRequestBuilder : ThreadSummariesRequestBuilder, ThreadRequestBuild
                 if (page.isZeroOrNull()) {
                     removeQuery("page")
                 } else {
-                    val _httpUrl = builder.build()
-                    val extra =
-                        _httpUrl.pathSegments - _httpUrl.toKBoard().url.toHttpUrl().pathSegments
-                    if (extra.isEmpty()) {
+                    val currentUrl = builder.build()
+                    val extra = boardUrl?.let { currentUrl.pathSegments - it.pathSegments }
+                    if (extra == null || extra.isEmpty()) {
                         addQuery("page", "$page")
                     } else {
                         setQueryParameter("page", "$page")

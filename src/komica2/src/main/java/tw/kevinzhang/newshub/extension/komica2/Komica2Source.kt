@@ -9,12 +9,12 @@ import tw.kevinzhang.extension_api.model.Thread
 import tw.kevinzhang.extension_api.model.ThreadSummary
 import tw.kevinzhang.komica_api.HttpException
 import tw.kevinzhang.komica_api.model.KImageInfo
-import tw.kevinzhang.komica_api.model.Komica2
+import tw.kevinzhang.newshub.extension.komica2.model.Komica2Boards
 import tw.kevinzhang.newshub.extension.site2cat.request.Site2catRequestBuilder
 import tw.kevinzhang.extension_api.model.Board as ExtBoard
 
 class Komica2Source : Source {
-    override val id = "tw.kevinzhang.komica2"
+    override val id = Komica2Boards.SOURCE_ID
     override val name = "komica2"
     override val language = "zh-TW"
     override val version = 1
@@ -28,13 +28,11 @@ class Komica2Source : Source {
         this.client = client
     }
 
-    override suspend fun getBoards(): List<ExtBoard> =
-        Komica2()
-            .map { kBoard -> ExtBoard(sourceId = id, url = kBoard.url, name = kBoard.name) }
+    override suspend fun getBoards(): List<ExtBoard> = Komica2Boards.all
 
     override suspend fun getThreadSummaries(board: ExtBoard, page: Int): List<ThreadSummary> {
-        val kBoard = Komica2().first { it.url == board.url }
-        val req = Komica2Factory().createThreadSummariesRequestBuilder(kBoard)
+        val supportedBoard = Komica2Boards.all.first { it.url == board.url }
+        val req = Komica2Factory().createThreadSummariesRequestBuilder(supportedBoard)
             .setPage(page)
             .build()
 
@@ -67,8 +65,8 @@ class Komica2Source : Source {
     }
 
     override suspend fun getThread(summary: ThreadSummary): Thread {
-        val kBoard = Komica2().first { it.url == summary.boardUrl }
-        val req = Komica2Factory().createThreadRequestBuilder(kBoard)
+        val supportedBoard = Komica2Boards.all.first { it.url == summary.boardUrl }
+        val req = Komica2Factory().createThreadRequestBuilder(supportedBoard)
             .setUrl(summary.id.toHttpUrl())
             .build()
 

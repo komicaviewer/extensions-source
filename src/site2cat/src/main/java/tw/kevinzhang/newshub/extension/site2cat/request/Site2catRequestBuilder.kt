@@ -1,24 +1,18 @@
 package tw.kevinzhang.newshub.extension.site2cat.request
 
 import okhttp3.HttpUrl
-import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
-import tw.kevinzhang.komica_api.model.KBoard
-import tw.kevinzhang.komica_api.model.boards
 import tw.kevinzhang.komica_api.request.ThreadRequestBuilder
 import tw.kevinzhang.komica_api.request.ThreadSummariesRequestBuilder
 import tw.kevinzhang.newshub.extension.site2cat.isZeroOrNull
 
-class Site2catRequestBuilder : ThreadSummariesRequestBuilder, ThreadRequestBuilder {
+class Site2catRequestBuilder(
+    private val baseBoardUrl: HttpUrl? = null,
+) : ThreadSummariesRequestBuilder, ThreadRequestBuilder {
     private lateinit var builder: HttpUrl.Builder
 
     override fun setUrl(url: HttpUrl): Site2catRequestBuilder {
         this.builder = url.newBuilder()
-        return this
-    }
-
-    fun setBoard(board: KBoard): Site2catRequestBuilder {
-        setUrl(board.url.toHttpUrl())
         return this
     }
 
@@ -72,9 +66,11 @@ class Site2catRequestBuilder : ThreadSummariesRequestBuilder, ThreadRequestBuild
                 if (page.isZeroOrNull()) {
                     removeQuery("page")
                 } else {
-                    val _httpUrl = builder.build()
-                    val extra =
-                        _httpUrl.pathSegments - _httpUrl.toKBoard().url.toHttpUrl().pathSegments
+                    val currentUrl = builder.build()
+                    val boardUrl = checkNotNull(baseBoardUrl) {
+                        "A base board URL is required when setting a non-zero page"
+                    }
+                    val extra = currentUrl.pathSegments - boardUrl.pathSegments
                     if (extra.isEmpty()) {
                         addQuery("page", "$page")
                     } else {
@@ -91,6 +87,3 @@ class Site2catRequestBuilder : ThreadSummariesRequestBuilder, ThreadRequestBuild
             .build()
     }
 }
-
-fun HttpUrl.toKBoard() =
-    boards().first { toString().contains(it.url) }

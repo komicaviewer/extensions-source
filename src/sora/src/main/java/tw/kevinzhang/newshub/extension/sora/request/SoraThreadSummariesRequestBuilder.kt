@@ -1,9 +1,7 @@
 package tw.kevinzhang.newshub.extension.sora.request
 
 import okhttp3.HttpUrl
-import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
-import tw.kevinzhang.komica_api.model.KBoard
 import tw.kevinzhang.komica_api.request.ThreadSummariesRequestBuilder
 import tw.kevinzhang.newshub.extension.sora.isZeroOrNull
 
@@ -12,11 +10,6 @@ open class SoraThreadSummariesRequestBuilder : ThreadSummariesRequestBuilder {
 
     override fun setUrl(url: HttpUrl): SoraThreadSummariesRequestBuilder {
         this.builder = url.newBuilder()
-        return this
-    }
-
-    fun setBoard(board: KBoard): SoraThreadSummariesRequestBuilder {
-        setUrl(board.url.toHttpUrl())
         return this
     }
 

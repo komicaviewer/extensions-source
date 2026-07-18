@@ -8,14 +8,12 @@ import tw.kevinzhang.extension_api.model.Post
 import tw.kevinzhang.extension_api.model.Thread
 import tw.kevinzhang.extension_api.model.ThreadSummary
 import tw.kevinzhang.komica_api.HttpException
-import tw.kevinzhang.komica_api.model.KBoard
 import tw.kevinzhang.komica_api.model.KImageInfo
-import tw.kevinzhang.komica_api.model.boards
 import tw.kevinzhang.komica_api.model.toExtParagraph
 import tw.kevinzhang.extension_api.model.Board as ExtBoard
 
 class SoraSource : Source {
-    override val id = "tw.kevinzhang.komica-sora"
+    override val id = SoraBoardCatalog.SOURCE_ID
     override val name = "Sora Komica"
     override val language = "zh-TW"
     override val version = 1
@@ -29,14 +27,11 @@ class SoraSource : Source {
         this.client = client
     }
 
-    override suspend fun getBoards(): List<ExtBoard> =
-        boards()
-            .filterIsInstance<KBoard.Sora>()
-            .map { kBoard -> ExtBoard(sourceId = id, url = kBoard.url, name = kBoard.name) }
+    override suspend fun getBoards(): List<ExtBoard> = SoraBoardCatalog.boards
 
     override suspend fun getThreadSummaries(board: ExtBoard, page: Int): List<ThreadSummary> {
-        val kBoard = boards().first { it.url == board.url }
-        val req = SoraFactory().createThreadSummariesRequestBuilder(kBoard)
+        val supportedBoard = SoraBoardCatalog.findByUrl(board.url)
+        val req = SoraFactory().createThreadSummariesRequestBuilder(supportedBoard)
             .setPage(page)
             .build()
 
@@ -64,10 +59,8 @@ class SoraSource : Source {
     }
 
     override suspend fun getThread(summary: ThreadSummary): Thread {
-        val kBoard = boards().first { it.url == summary.boardUrl }
-        val req = SoraFactory().createThreadRequestBuilder(kBoard)
-            .setUrl(summary.id.toHttpUrl())
-            .build()
+        SoraBoardCatalog.findByUrl(summary.boardUrl)
+        val req = SoraFactory().createThreadRequestBuilder(summary.id.toHttpUrl()).build()
 
         val response = client.newCall(req).await()
         if (!response.isSuccessful) throw HttpException(response.code, req.url.toString())

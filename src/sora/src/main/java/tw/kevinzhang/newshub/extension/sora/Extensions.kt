@@ -4,13 +4,9 @@ import okhttp3.HttpUrl
 import okhttp3.ResponseBody
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.jsoup.nodes.Element
-import tw.kevinzhang.komica_api.model.boards
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-
-fun HttpUrl.toKBoard() =
-    boards().first { toString().contains(it.url) }
 
 fun HttpUrl.Builder.setFilename(nameWithExtension: String?): HttpUrl.Builder {
     val lastIndex = build().pathSegments.lastIndex
