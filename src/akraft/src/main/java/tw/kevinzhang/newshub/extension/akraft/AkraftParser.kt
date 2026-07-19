@@ -3,14 +3,7 @@ package tw.kevinzhang.newshub.extension.akraft
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
-import tw.kevinzhang.komica_api.model.KImageInfo
-import tw.kevinzhang.komica_api.model.KLink
-import tw.kevinzhang.komica_api.model.KParagraph
-import tw.kevinzhang.komica_api.model.KPost
-import tw.kevinzhang.komica_api.model.KQuote
-import tw.kevinzhang.komica_api.model.KReplyTo
-import tw.kevinzhang.komica_api.model.KText
-import tw.kevinzhang.komica_api.model.KVideoInfo
+import tw.kevinzhang.extension_api.model.Paragraph
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -19,8 +12,18 @@ import java.time.format.DateTimeFormatter
  * Parser for Akraft's own SSR markup.  It intentionally lives in this APK:
  * Akraft does not use the Pixmicat/Tinyboard markup used by other extensions.
  */
+internal data class AkraftParsedPost(
+    val id: String,
+    val url: String,
+    val title: String,
+    val createdAt: Long,
+    val author: String,
+    val replies: Int,
+    val content: List<Paragraph>,
+)
+
 internal class AkraftParser {
-    fun parseSummaries(html: String, boardUrl: String): List<KPost> {
+    fun parseSummaries(html: String, boardUrl: String): List<AkraftParsedPost> {
         val document = Jsoup.parse(html, boardUrl)
         return document.select(THREAD_CARD_SELECTOR).mapNotNull { card ->
             val replyCount = card.children()
@@ -37,7 +40,7 @@ internal class AkraftParser {
         }
     }
 
-    fun parseThread(html: String, threadUrl: String): List<KPost> {
+    fun parseThread(html: String, threadUrl: String): List<AkraftParsedPost> {
         val document = Jsoup.parse(html, threadUrl)
         val root = document.selectFirst(THREAD_CARD_SELECTOR) ?: return emptyList()
         val replies = document.select("div.scroll-mt-20[id]")
@@ -53,7 +56,7 @@ internal class AkraftParser {
         pageUrl: String,
         replies: Int,
         isThreadRoot: Boolean,
-    ): KPost? {
+    ): AkraftParsedPost? {
         val id = container.id().takeIf { it.isNotBlank() } ?: return null
         val title = if (isThreadRoot) {
             container.selectFirst("h3")?.text()?.trim().orEmpty()
@@ -69,21 +72,19 @@ internal class AkraftParser {
             "$pageUrl#$id"
         }
 
-        return KPost(
+        return AkraftParsedPost(
             id = id,
             url = postUrl,
             title = title,
             createdAt = createdAt,
-            poster = author,
-            visits = 0,
+            author = author,
             replies = replies,
-            readAt = 0,
             content = parseContent(container, pageUrl),
         )
     }
 
-    private fun parseContent(container: Element, pageUrl: String): List<KParagraph> {
-        val result = mutableListOf<KParagraph>()
+    private fun parseContent(container: Element, pageUrl: String): List<Paragraph> {
+        val result = mutableListOf<Paragraph>()
         val contentRoot = if (container.hasClass("rounded-lg")) {
             container.children().firstOrNull { it.hasClass("p-6") && it.hasClass("pt-3") }
         } else {
@@ -103,35 +104,35 @@ internal class AkraftParser {
                 ?: absoluteUrl(pageUrl, image.attr("src"))
             if (raw.isNotBlank()) {
                 val thumb = absoluteUrl(pageUrl, image.attr("src")).takeIf { it != raw }
-                result += KImageInfo(thumb = thumb, raw = raw)
+                result += Paragraph.ImageInfo(thumb = thumb, raw = raw)
             }
         }
         contentRoot.select("iframe[src]").forEach { frame ->
-            absoluteUrl(pageUrl, frame.attr("src")).takeIf { it.isNotBlank() }?.let { result += KVideoInfo(it) }
+            absoluteUrl(pageUrl, frame.attr("src")).takeIf { it.isNotBlank() }?.let { result += Paragraph.VideoInfo(it) }
         }
         return result.distinct()
     }
 
-    private fun addContentElement(element: Element, pageUrl: String, result: MutableList<KParagraph>) {
+    private fun addContentElement(element: Element, pageUrl: String, result: MutableList<Paragraph>) {
         when (element.tagName()) {
-            "blockquote" -> element.text().trim().takeIf { it.isNotBlank() }?.let { result += KQuote(it) }
+            "blockquote" -> element.text().trim().takeIf { it.isNotBlank() }?.let { result += Paragraph.Quote(it) }
             "img" -> {
                 val raw = element.closest("a[href]")?.attr("href")?.let { absoluteUrl(pageUrl, it) }
                     ?: absoluteUrl(pageUrl, element.attr("src"))
-                if (raw.isNotBlank()) result += KImageInfo(raw = raw)
+                if (raw.isNotBlank()) result += Paragraph.ImageInfo(raw = raw)
             }
             "iframe" -> absoluteUrl(pageUrl, element.attr("src")).takeIf { it.isNotBlank() }
-                ?.let { result += KVideoInfo(it) }
+                ?.let { result += Paragraph.VideoInfo(it) }
             else -> {
                 val text = element.text().trim()
                 val replyId = REPLY_PATTERN.matchEntire(text)?.groupValues?.get(1)
                 when {
-                    replyId != null -> result += KReplyTo(replyId)
-                    text.startsWith(">") -> result += KQuote(text.removePrefix("> ").trim())
-                    text.isNotBlank() -> result += KText(text)
+                    replyId != null -> result += Paragraph.ReplyTo(replyId)
+                    text.startsWith(">") -> result += Paragraph.Quote(text.removePrefix("> ").trim())
+                    text.isNotBlank() -> result += Paragraph.Text(text)
                 }
                 element.select("a[href]").forEach { link ->
-                    absoluteUrl(pageUrl, link.attr("href")).takeIf { it.isNotBlank() }?.let { result += KLink(it) }
+                    absoluteUrl(pageUrl, link.attr("href")).takeIf { it.isNotBlank() }?.let { result += Paragraph.Link(it) }
                 }
             }
         }

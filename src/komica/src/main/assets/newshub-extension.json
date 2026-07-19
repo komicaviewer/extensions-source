@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "name": "NewsHub: Komica",
+  "sources": [
+    {
+      "className": "tw.kevinzhang.newshub.extension.twocat.komica.TwocatSource",
+      "id": "tw.kevinzhang.komica.twocat",
+      "name": "Twocat",
+      "lang": "zh-TW",
+      "baseUrl": "https://2cat.org"
+    },
+    {
+      "className": "tw.kevinzhang.newshub.extension.sora.komica.SoraSource",
+      "id": "tw.kevinzhang.komica.sora",
+      "name": "Sora",
+      "lang": "zh-TW",
+      "baseUrl": "https://komica1.org"
+    }
+  ]
+}

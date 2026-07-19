@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "name": "NewsHub: Wtako",
+  "sources": [{
+    "className": "tw.kevinzhang.newshub.extension.wtako.WtakoSource",
+    "id": "tw.kevinzhang.wtako",
+    "name": "Wtako",
+    "lang": "zh-TW",
+    "baseUrl": "https://kemono.wtako.net"
+  }]
+}

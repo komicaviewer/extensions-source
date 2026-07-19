@@ -5,11 +5,10 @@ import ru.gildor.coroutines.okhttp.await
 import tw.kevinzhang.extension_api.Source
 import tw.kevinzhang.extension_api.model.Board
 import tw.kevinzhang.extension_api.model.Post
+import tw.kevinzhang.extension_api.model.Paragraph
 import tw.kevinzhang.extension_api.model.Thread
 import tw.kevinzhang.extension_api.model.ThreadSummary
-import tw.kevinzhang.komica_api.HttpException
-import tw.kevinzhang.komica_api.model.KImageInfo
-import tw.kevinzhang.komica_api.model.toExtParagraph
+import java.io.IOException
 
 class WtakoSource : Source {
     override val id = WtakoBoardCatalog.SOURCE_ID
@@ -34,21 +33,21 @@ class WtakoSource : Source {
         WtakoBoardCatalog.findByUrl(board.url)
         val request = WtakoRequestBuilder.boardPage(board.url, page)
         val response = client.newCall(request).await()
-        if (!response.isSuccessful) throw HttpException(response.code, request.url.toString())
+        if (!response.isSuccessful) throw IOException("HTTP ${response.code}: ${request.url}")
         val posts = response.use { parser.parseSummaries(it.body!!.string(), board.url) }
         return posts.map { post ->
-            val image = post.content.filterIsInstance<KImageInfo>().firstOrNull()
+            val image = post.content.filterIsInstance<Paragraph.ImageInfo>().firstOrNull()
             ThreadSummary(
                 sourceId = id,
                 boardUrl = board.url,
                 id = post.url,
                 title = post.title,
-                author = post.poster,
+                author = post.author,
                 createdAt = post.createdAt,
                 commentCount = post.replies,
                 rawImage = image?.raw,
                 thumbnail = image?.thumb,
-                previewContent = post.content.map { it.toExtParagraph() },
+                previewContent = post.content,
                 sourceIconUrl = iconUrl,
                 replyCount = post.replies.takeIf { it > 0 },
             )
@@ -59,7 +58,7 @@ class WtakoSource : Source {
         WtakoBoardCatalog.findByUrl(summary.boardUrl)
         val request = WtakoRequestBuilder.thread(summary.id)
         val response = client.newCall(request).await()
-        if (!response.isSuccessful) throw HttpException(response.code, request.url.toString())
+        if (!response.isSuccessful) throw IOException("HTTP ${response.code}: ${request.url}")
         val posts = response.use { parser.parseThread(it.body!!.string(), request.url.toString()) }
         return Thread(
             id = summary.id,
@@ -68,10 +67,10 @@ class WtakoSource : Source {
             posts = posts.map { post ->
                 Post(
                     id = post.id,
-                    author = post.poster,
+                    author = post.author,
                     createdAt = post.createdAt,
-                    thumbnail = post.content.filterIsInstance<KImageInfo>().firstOrNull()?.thumb,
-                    content = post.content.map { it.toExtParagraph() },
+                    thumbnail = post.content.filterIsInstance<Paragraph.ImageInfo>().firstOrNull()?.thumb,
+                    content = post.content,
                     comments = emptyList(),
                     sourceIconUrl = iconUrl,
                     replyCount = post.replies.takeIf { it > 0 },

@@ -2,7 +2,6 @@ apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 
 assert extName != null : "extName is not set in build.gradle.kts"
-assert extClass != null : "extClass is not set in build.gradle.kts"
 assert extVersionCode != null : "extVersionCode is not set in build.gradle.kts"
 
 android {
@@ -17,7 +16,6 @@ android {
         versionName extVersionName ?: "1.0"
 
         manifestPlaceholders = [
-            extClass: extClass,
             extName : extName,
         ]
     }

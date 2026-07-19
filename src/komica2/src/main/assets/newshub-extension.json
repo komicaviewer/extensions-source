@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "name": "NewsHub: Komica2",
+  "sources": [
+    {
+      "className": "tw.kevinzhang.newshub.extension.twocat.komica2.Komica2TwocatSource",
+      "id": "tw.kevinzhang.komica2.twocat",
+      "name": "Komica2 Twocat",
+      "lang": "zh-TW",
+      "baseUrl": "https://2cat.org"
+    },
+    {
+      "className": "tw.kevinzhang.newshub.extension.sora.komica2.Komica2SoraSource",
+      "id": "tw.kevinzhang.komica2.sora",
+      "name": "Komica2 Sora",
+      "lang": "zh-TW",
+      "baseUrl": "https://komica1.org"
+    },
+    {
+      "className": "tw.kevinzhang.newshub.extension.zawarudo.komica2.Komica2ZawarudoSource",
+      "id": "tw.kevinzhang.komica2.zawarudo",
+      "name": "Komica2 Zawarudo",
+      "lang": "zh-TW",
+      "baseUrl": "https://majeur.zawarudo.org"
+    }
+  ]
+}

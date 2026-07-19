@@ -1,20 +1,11 @@
 package tw.kevinzhang.newshub.extension.wtako
 
-import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import org.jsoup.nodes.Node
 import org.jsoup.nodes.TextNode
-import tw.kevinzhang.komica_api.model.KImageInfo
-import tw.kevinzhang.komica_api.model.KLink
-import tw.kevinzhang.komica_api.model.KParagraph
-import tw.kevinzhang.komica_api.model.KPost
-import tw.kevinzhang.komica_api.model.KPostBuilder
-import tw.kevinzhang.komica_api.model.KQuote
-import tw.kevinzhang.komica_api.model.KReplyTo
-import tw.kevinzhang.komica_api.model.KText
-import tw.kevinzhang.komica_api.model.KVideoInfo
+import tw.kevinzhang.extension_api.model.Paragraph
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -24,8 +15,18 @@ import java.time.format.DateTimeFormatter
  * markup differs enough (grid cards, reply wrappers and URL forms) to keep this
  * implementation independent from the other extension modules.
  */
+internal data class WtakoParsedPost(
+    val id: String,
+    val url: String,
+    val title: String,
+    val createdAt: Long,
+    val author: String,
+    var replies: Int = 0,
+    var content: List<Paragraph>,
+)
+
 internal class WtakoParser {
-    fun parseSummaries(html: String, boardUrl: String): List<KPost> {
+    fun parseSummaries(html: String, boardUrl: String): List<WtakoParsedPost> {
         val document = Jsoup.parse(html, boardUrl)
         return document.select("div.threadpost[id^=r]").map { post ->
             parsePost(post, boardUrl, threadUrl(boardUrl, postId(post, null))).copy(
@@ -34,7 +35,7 @@ internal class WtakoParser {
         }
     }
 
-    fun parseThread(html: String, threadUrl: String): List<KPost> {
+    fun parseThread(html: String, threadUrl: String): List<WtakoParsedPost> {
         val document = Jsoup.parse(html, threadUrl)
         val original = document.selectFirst("div.threadpost[id^=r]") ?: return emptyList()
         val posts = buildList {
@@ -49,7 +50,7 @@ internal class WtakoParser {
                 posts.size - 1
             } else {
                 posts.count { candidate ->
-                    candidate.content.filterIsInstance<KReplyTo>().any { it.targetId == post.id }
+                    candidate.content.filterIsInstance<Paragraph.ReplyTo>().any { it.targetId == post.id }
                 }
             }
         }
@@ -57,21 +58,21 @@ internal class WtakoParser {
         return posts
     }
 
-    private fun parsePost(element: Element, baseUrl: String, canonicalUrl: String): KPost {
+    private fun parsePost(element: Element, baseUrl: String, canonicalUrl: String): WtakoParsedPost {
         val id = postId(element, canonicalUrl)
         val body = element.selectFirst("div.quote")
         val content = buildList {
             if (body != null) addAll(paragraphs(body, baseUrl))
             addAll(media(element, baseUrl))
         }
-        return KPostBuilder()
-            .setPostId(id)
-            .setUrl(canonicalUrl)
-            .setTitle(element.selectFirst("span.title")?.text()?.trim().orEmpty())
-            .setPoster(element.selectFirst("span.name")?.text()?.trim().orEmpty())
-            .setCreatedAt(parseDate(element.text()))
-            .setContent(content)
-            .build()
+        return WtakoParsedPost(
+            id = id,
+            url = canonicalUrl,
+            title = element.selectFirst("span.title")?.text()?.trim().orEmpty(),
+            author = element.selectFirst("span.name")?.text()?.trim().orEmpty(),
+            createdAt = parseDate(element.text()),
+            content = content,
+        )
     }
 
     private fun replyCount(original: Element): Int {
@@ -97,59 +98,62 @@ internal class WtakoParser {
         return omittedCount + rendered
     }
 
-    private fun paragraphs(root: Element, baseUrl: String): List<KParagraph> = buildList {
+    private fun paragraphs(root: Element, baseUrl: String): List<Paragraph> = buildList {
         root.childNodes().forEach { appendNode(it, baseUrl, this) }
     }
 
-    private fun appendNode(node: Node, baseUrl: String, into: MutableList<KParagraph>) {
+    private fun appendNode(node: Node, baseUrl: String, into: MutableList<Paragraph>) {
         when (node) {
             is TextNode -> {
                 val text = node.text()
-                if (text.isNotBlank()) into += if (text.trimStart().startsWith(">")) KQuote(text.trim()) else KText(text)
+                if (text.isNotBlank()) into += if (text.trimStart().startsWith(">")) Paragraph.Quote(text.trim()) else Paragraph.Text(text)
             }
             is Element -> when {
-                node.tagName() == "br" -> into += KText("\n")
+                node.tagName() == "br" -> into += Paragraph.Text("\n")
                 node.hasClass("resquote") || node.hasClass("qlink") -> {
                     val link = if (node.tagName() == "a") node else node.selectFirst("a.qlink")
                     val target = link?.let { postIdFromText(it.text()) }
-                    if (target != null) into += KReplyTo(target)
+                    if (target != null) into += Paragraph.ReplyTo(target)
                     else node.childNodes().forEach { appendNode(it, baseUrl, into) }
                 }
                 node.tagName() == "a" -> {
                     val href = absoluteUrl(baseUrl, node.attr("href"))
                     val target = postIdFromText(node.text())
-                    if (node.hasClass("qlink") && target != null) into += KReplyTo(target)
-                    else if (href != null) into += KLink(href)
-                    else if (node.text().isNotBlank()) into += KText(node.text())
+                    if (node.hasClass("qlink") && target != null) into += Paragraph.ReplyTo(target)
+                    else if (href != null) into += Paragraph.Link(href)
+                    else if (node.text().isNotBlank()) into += Paragraph.Text(node.text())
                 }
                 else -> node.childNodes().forEach { appendNode(it, baseUrl, into) }
             }
         }
     }
 
-    private fun media(post: Element, baseUrl: String): List<KParagraph> = buildList {
+    private fun media(post: Element, baseUrl: String): List<Paragraph> = buildList {
         val seen = mutableSetOf<String>()
         post.select("a[href]").forEach { anchor ->
             val raw = absoluteUrl(baseUrl, anchor.attr("href")) ?: return@forEach
             val image = anchor.selectFirst("img.img, img[src], img[data-original]")
             when {
-                isVideo(raw) && seen.add(raw) -> add(KVideoInfo(raw))
+                isVideo(raw) && seen.add(raw) -> add(Paragraph.VideoInfo(raw))
                 image != null && isImage(raw) && seen.add(raw) -> {
                     val thumb = absoluteUrl(baseUrl, image.attr("data-original").ifBlank { image.attr("src") })
-                    add(KImageInfo(thumb, raw))
+                    add(Paragraph.ImageInfo(thumb, raw))
                 }
             }
         }
     }
 
-    private fun addReplyPreviews(posts: List<KPost>) {
+    private fun addReplyPreviews(posts: List<WtakoParsedPost>) {
         val byId = posts.associateBy { it.id }
         posts.forEach { post ->
-            post.content.filterIsInstance<KReplyTo>().forEach { reference ->
-                reference.preview = byId[reference.targetId]?.content
-                    ?.filterIsInstance<KText>()
-                    ?.firstOrNull { it.content.isNotBlank() }
-                    ?.content?.trim()?.take(80)
+            post.content = post.content.map { paragraph ->
+                if (paragraph !is Paragraph.ReplyTo) return@map paragraph
+                paragraph.copy(
+                    preview = byId[paragraph.targetId]?.content
+                        ?.filterIsInstance<Paragraph.Text>()
+                        ?.firstOrNull { it.content.isNotBlank() }
+                        ?.content?.trim()?.take(80),
+                )
             }
         }
     }

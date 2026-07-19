@@ -124,7 +124,7 @@ class GamerSource : AuthenticatedSource {
                     author = gPost.posterName,
                     createdAt = gPost.createdAt,
                     thumbnail = gPost.content.filterIsInstance<GImageInfo>().firstOrNull()?.thumb,
-                    content = gPost.content.map { it.toExtParagraph() },
+                    content = gPost.content.map { it.toParagraph() },
                     comments = comments,
                     rawHtml = gPost.rawHtml,
                     sourceIconUrl = iconUrl,
@@ -161,7 +161,7 @@ class GamerSource : AuthenticatedSource {
     }
 }
 
-private fun GParagraph.toExtParagraph(): tw.kevinzhang.extension_api.model.Paragraph = when (this) {
+private fun GParagraph.toParagraph(): tw.kevinzhang.extension_api.model.Paragraph = when (this) {
     is GQuote   -> tw.kevinzhang.extension_api.model.Paragraph.Quote(content)
     is GReplyTo -> tw.kevinzhang.extension_api.model.Paragraph.ReplyTo(targetId = content)
     is GText    -> tw.kevinzhang.extension_api.model.Paragraph.Text(content)

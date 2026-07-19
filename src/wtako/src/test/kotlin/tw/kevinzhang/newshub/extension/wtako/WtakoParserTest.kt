@@ -3,11 +3,7 @@ package tw.kevinzhang.newshub.extension.wtako
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import tw.kevinzhang.komica_api.model.KImageInfo
-import tw.kevinzhang.komica_api.model.KLink
-import tw.kevinzhang.komica_api.model.KReplyTo
-import tw.kevinzhang.komica_api.model.KText
-import tw.kevinzhang.komica_api.model.KVideoInfo
+import tw.kevinzhang.extension_api.model.Paragraph
 
 class WtakoParserTest {
     private val parser = WtakoParser()
@@ -19,13 +15,13 @@ class WtakoParserTest {
         assertEquals(1, posts.size)
         assertEquals("391476", posts.single().id)
         assertEquals("有趣截圖祭", posts.single().title)
-        assertEquals("無名氏", posts.single().poster)
+        assertEquals("無名氏", posts.single().author)
         assertEquals(12, posts.single().replies)
         assertEquals(
             "https://rthost.win/sd/pixmicat.php?res=391476",
             posts.single().url,
         )
-        val image = posts.single().content.filterIsInstance<KImageInfo>().single()
+        val image = posts.single().content.filterIsInstance<Paragraph.ImageInfo>().single()
         assertEquals("https://rthost.win/sd/src/1528104841802.png", image.raw)
         assertEquals("https://rthost.win/sd/thumb/1528104841802s.jpg", image.thumb)
     }
@@ -36,11 +32,11 @@ class WtakoParserTest {
 
         assertEquals(listOf("43871", "44259"), posts.map { it.id })
         val reply = posts[1]
-        assertTrue(reply.content.filterIsInstance<KReplyTo>().any { it.targetId == "43871" })
-        assertEquals("首文內容", reply.content.filterIsInstance<KReplyTo>().single().preview)
-        assertTrue(reply.content.filterIsInstance<KLink>().any { it.content == "https://example.org/info" })
-        assertTrue(reply.content.filterIsInstance<KVideoInfo>().any { it.url == "https://www.karlsland.net/sw/src/movie.webm" })
-        val image = reply.content.filterIsInstance<KImageInfo>().single()
+        assertTrue(reply.content.filterIsInstance<Paragraph.ReplyTo>().any { it.targetId == "43871" })
+        assertEquals("首文內容", reply.content.filterIsInstance<Paragraph.ReplyTo>().single().preview)
+        assertTrue(reply.content.filterIsInstance<Paragraph.Link>().any { it.content == "https://example.org/info" })
+        assertTrue(reply.content.filterIsInstance<Paragraph.VideoInfo>().any { it.url == "https://www.karlsland.net/sw/src/movie.webm" })
+        val image = reply.content.filterIsInstance<Paragraph.ImageInfo>().single()
         assertEquals("https://www.karlsland.net/sw/src/1770076508178.jpg", image.raw)
         assertEquals("https://www.karlsland.net/sw/thumb/1770076508178s.jpg", image.thumb)
     }
@@ -48,11 +44,11 @@ class WtakoParserTest {
     @Test
     fun `parser resolves relative WTako attachment URLs`() {
         val post = parser.parseSummaries(WTAKO_LIST, "https://kemono.wtako.net/kemono").single()
-        val image = post.content.filterIsInstance<KImageInfo>().single()
+        val image = post.content.filterIsInstance<Paragraph.ImageInfo>().single()
 
         assertEquals("https://kemono.wtako.net/kemono/src/1596588476076.gif", image.raw)
         assertEquals("https://kemono.wtako.net/kemono/thumb/1596588476076s.jpg", image.thumb)
-        assertTrue(post.content.filterIsInstance<KText>().any { it.content.contains("獸版") })
+        assertTrue(post.content.filterIsInstance<Paragraph.Text>().any { it.content.contains("獸版") })
     }
 
     private companion object {

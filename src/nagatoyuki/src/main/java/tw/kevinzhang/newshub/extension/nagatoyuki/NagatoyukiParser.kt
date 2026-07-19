@@ -6,22 +6,25 @@ import org.jsoup.nodes.Element
 import org.jsoup.nodes.Node
 import org.jsoup.nodes.TextNode
 import org.jsoup.select.Elements
-import tw.kevinzhang.komica_api.model.KImageInfo
-import tw.kevinzhang.komica_api.model.KLink
-import tw.kevinzhang.komica_api.model.KParagraph
-import tw.kevinzhang.komica_api.model.KPost
-import tw.kevinzhang.komica_api.model.KQuote
-import tw.kevinzhang.komica_api.model.KReplyTo
-import tw.kevinzhang.komica_api.model.KText
-import tw.kevinzhang.komica_api.model.KVideoInfo
+import tw.kevinzhang.extension_api.model.Paragraph
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 /** Parser deliberately kept inside this APK: the supported sites can change independently. */
+internal data class NagatoyukiParsedPost(
+    val id: String,
+    val url: String,
+    val title: String,
+    val createdAt: Long,
+    val author: String,
+    var replies: Int,
+    var content: List<Paragraph>,
+)
+
 internal class NagatoyukiParser {
-    fun parseSummaries(html: String, boardUrl: String): List<KPost> =
+    fun parseSummaries(html: String, boardUrl: String): List<NagatoyukiParsedPost> =
         Jsoup.parse(html, boardUrl).select("div.thread").mapNotNull { thread ->
             thread.selectFirst(".post.op")?.let { op ->
                 parsePost(op, NagatoyukiRequestBuilder.threadUrl(boardUrl, postId(op)))
@@ -29,7 +32,7 @@ internal class NagatoyukiParser {
             }
         }
 
-    fun parseThread(html: String, threadUrl: String): List<KPost> {
+    fun parseThread(html: String, threadUrl: String): List<NagatoyukiParsedPost> {
         val document = Jsoup.parse(html, threadUrl)
         val thread = document.selectFirst("div.thread") ?: return emptyList()
         val posts = thread.select(".post.op, .post.reply").map { post ->
@@ -41,62 +44,63 @@ internal class NagatoyukiParser {
                 posts.size - 1
             } else {
                 posts.count { candidate ->
-                    candidate.content.filterIsInstance<KReplyTo>().any { it.targetId == post.id }
+                    candidate.content.filterIsInstance<Paragraph.ReplyTo>().any { it.targetId == post.id }
                 }
             }
-            post.content.filterIsInstance<KReplyTo>().forEach { reply ->
-                reply.preview = byId[reply.targetId]
-                    ?.content
-                    ?.filterIsInstance<KText>()
-                    ?.firstOrNull { it.content.isNotBlank() }
-                    ?.content
-                    ?.trim()
-                    ?.take(80)
+            post.content = post.content.map { paragraph ->
+                if (paragraph !is Paragraph.ReplyTo) return@map paragraph
+                paragraph.copy(
+                    preview = byId[paragraph.targetId]
+                        ?.content
+                        ?.filterIsInstance<Paragraph.Text>()
+                        ?.firstOrNull { it.content.isNotBlank() }
+                        ?.content
+                        ?.trim()
+                        ?.take(80),
+                )
             }
         }
         return posts
     }
 
-    private fun parsePost(post: Element, url: String): KPost {
+    private fun parsePost(post: Element, url: String): NagatoyukiParsedPost {
         val intro = post.selectFirst(".intro")
         val postId = postId(post)
-        val content = mutableListOf<KParagraph>()
+        val content = mutableListOf<Paragraph>()
         post.selectFirst(".body")?.childNodes()?.forEach { appendBodyNode(it, content) }
         appendAttachments(post, content)
         val subject = intro?.selectFirst(".subject")?.text().orEmpty()
-        return KPost(
+        return NagatoyukiParsedPost(
             id = postId,
             url = url,
             title = subject.ifBlank {
-                content.filterIsInstance<KText>()
+                    content.filterIsInstance<Paragraph.Text>()
                     .joinToString(" ") { it.content }
                     .replace(Regex("\\s+"), " ")
                     .trim()
                     .take(80)
             },
             createdAt = intro?.selectFirst("time")?.let(::parseTime) ?: 0L,
-            poster = intro?.selectFirst(".name")?.text().orEmpty(),
-            visits = 0,
+            author = intro?.selectFirst(".name")?.text().orEmpty(),
             replies = 0,
-            readAt = 0,
             content = content,
         )
     }
 
-    private fun appendBodyNode(node: Node, output: MutableList<KParagraph>) {
+    private fun appendBodyNode(node: Node, output: MutableList<Paragraph>) {
         when (node) {
-            is TextNode -> node.text().takeIf { it.isNotEmpty() }?.let { output += KText(it) }
+            is TextNode -> node.text().takeIf { it.isNotEmpty() }?.let { output += Paragraph.Text(it) }
             !is Element -> Unit
             else -> when {
-                node.tagName() == "br" -> output += KText("")
+                node.tagName() == "br" -> output += Paragraph.Text("")
                 node.tagName() == "a" -> appendLink(node, output)
                 node.hasClass("quote") || node.hasClass("resquote") -> {
                     val link = node.selectFirst("a")
                     val target = REPLY_TEXT.matchEntire(node.text().trim())?.groupValues?.get(1)
                     when {
                         link != null -> appendLink(link, output)
-                        target != null -> output += KReplyTo(target)
-                        else -> output += KQuote(node.text().removePrefix(">").trimStart())
+                        target != null -> output += Paragraph.ReplyTo(target)
+                        else -> output += Paragraph.Quote(node.text().removePrefix(">").trimStart())
                     }
                 }
                 else -> node.childNodes().forEach { appendBodyNode(it, output) }
@@ -104,19 +108,19 @@ internal class NagatoyukiParser {
         }
     }
 
-    private fun appendLink(link: Element, output: MutableList<KParagraph>) {
+    private fun appendLink(link: Element, output: MutableList<Paragraph>) {
         val href = resolve(link, link.attr("href"))
         val target = link.attr("href").substringAfterLast('#', "")
             .removePrefix("q")
             .takeIf { it.all(Char::isDigit) && it.isNotBlank() }
         when {
-            target != null -> output += KReplyTo(target)
-            href.isNotBlank() -> output += KLink(href)
-            else -> output += KText(link.text())
+            target != null -> output += Paragraph.ReplyTo(target)
+            href.isNotBlank() -> output += Paragraph.Link(href)
+            else -> output += Paragraph.Text(link.text())
         }
     }
 
-    private fun appendAttachments(post: Element, output: MutableList<KParagraph>) {
+    private fun appendAttachments(post: Element, output: MutableList<Paragraph>) {
         val ownFiles = post.select(".files .file").ifEmpty {
             post.previousElementSibling()
                 ?.takeIf { it.hasClass("files") }
@@ -128,8 +132,8 @@ internal class NagatoyukiParser {
             val raw = resolve(source, source.attr("href"))
             val image = file.selectFirst("img.post-image")
             when {
-                isVideo(raw) -> output += KVideoInfo(raw)
-                isImage(raw) -> output += KImageInfo(image?.let { resolve(it, it.attr("data-original").ifBlank { it.attr("src") }) }, raw)
+                isVideo(raw) -> output += Paragraph.VideoInfo(raw)
+                isImage(raw) -> output += Paragraph.ImageInfo(image?.let { resolve(it, it.attr("data-original").ifBlank { it.attr("src") }) }, raw)
             }
         }
     }

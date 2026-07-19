@@ -3,12 +3,7 @@ package tw.kevinzhang.newshub.extension.nagatoyuki
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import tw.kevinzhang.komica_api.model.KImageInfo
-import tw.kevinzhang.komica_api.model.KLink
-import tw.kevinzhang.komica_api.model.KQuote
-import tw.kevinzhang.komica_api.model.KReplyTo
-import tw.kevinzhang.komica_api.model.KText
-import tw.kevinzhang.komica_api.model.KVideoInfo
+import tw.kevinzhang.extension_api.model.Paragraph
 
 class NagatoyukiParserTest {
     private val parser = NagatoyukiParser()
@@ -19,11 +14,11 @@ class NagatoyukiParserTest {
 
         assertEquals("3212", post.id)
         assertEquals("測試標題", post.title)
-        assertEquals("作者", post.poster)
+        assertEquals("作者", post.author)
         assertEquals(4, post.replies)
-        assertTrue(post.content.any { it is KImageInfo && it.raw == "https://selene.zawarudo.org/costumade/src/image.png" })
-        assertTrue(post.content.any { it is KQuote && it.content == "引用文字" })
-        assertTrue(post.content.any { it is KLink && it.content == "https://example.com/a" })
+        assertTrue(post.content.any { it is Paragraph.ImageInfo && it.raw == "https://selene.zawarudo.org/costumade/src/image.png" })
+        assertTrue(post.content.any { it is Paragraph.Quote && it.content == "引用文字" })
+        assertTrue(post.content.any { it is Paragraph.Link && it.content == "https://example.com/a" })
     }
 
     @Test
@@ -32,11 +27,11 @@ class NagatoyukiParserTest {
 
         assertEquals(listOf("3212", "3220", "3221"), posts.map { it.id })
         assertEquals(2, posts.first().replies)
-        val reply = posts[1].content.filterIsInstance<KReplyTo>().single()
+        val reply = posts[1].content.filterIsInstance<Paragraph.ReplyTo>().single()
         assertEquals("3212", reply.targetId)
         assertEquals("首篇內容", reply.preview)
-        assertTrue(posts[1].content.any { it is KVideoInfo && it.url == "https://selene.zawarudo.org/costumade/src/movie.mp4" })
-        assertTrue(posts[2].content.filterIsInstance<KText>().any { it.content == "純文字" })
+        assertTrue(posts[1].content.any { it is Paragraph.VideoInfo && it.url == "https://selene.zawarudo.org/costumade/src/movie.mp4" })
+        assertTrue(posts[2].content.filterIsInstance<Paragraph.Text>().any { it.content == "純文字" })
     }
 
     private companion object {

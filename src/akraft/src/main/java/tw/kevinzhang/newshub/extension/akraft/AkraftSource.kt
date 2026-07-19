@@ -5,11 +5,10 @@ import ru.gildor.coroutines.okhttp.await
 import tw.kevinzhang.extension_api.Source
 import tw.kevinzhang.extension_api.model.Board
 import tw.kevinzhang.extension_api.model.Post
+import tw.kevinzhang.extension_api.model.Paragraph
 import tw.kevinzhang.extension_api.model.Thread
 import tw.kevinzhang.extension_api.model.ThreadSummary
-import tw.kevinzhang.komica_api.HttpException
-import tw.kevinzhang.komica_api.model.KImageInfo
-import tw.kevinzhang.komica_api.model.toExtParagraph
+import java.io.IOException
 
 class AkraftSource : Source {
     override val id = AkraftBoards.SOURCE_ID
@@ -35,18 +34,18 @@ class AkraftSource : Source {
         val request = AkraftRequestBuilder.board(supportedBoard.url, page)
         val posts = execute(request) { html -> parser.parseSummaries(html, request.url.toString()) }
         return posts.map { post ->
-            val image = post.content.filterIsInstance<KImageInfo>().firstOrNull()
+            val image = post.content.filterIsInstance<Paragraph.ImageInfo>().firstOrNull()
             ThreadSummary(
                 sourceId = id,
                 boardUrl = supportedBoard.url,
                 id = post.url,
                 title = post.title,
-                author = post.poster,
+                author = post.author,
                 createdAt = post.createdAt,
                 commentCount = post.replies,
                 thumbnail = image?.thumb,
                 rawImage = image?.raw,
-                previewContent = post.content.map { it.toExtParagraph() },
+                previewContent = post.content,
                 sourceIconUrl = iconUrl,
                 replyCount = post.replies.takeIf { it > 0 },
             )
@@ -64,10 +63,10 @@ class AkraftSource : Source {
             posts = posts.map { post ->
                 Post(
                     id = post.id,
-                    author = post.poster,
+                    author = post.author,
                     createdAt = post.createdAt,
-                    thumbnail = post.content.filterIsInstance<KImageInfo>().firstOrNull()?.thumb,
-                    content = post.content.map { it.toExtParagraph() },
+                    thumbnail = post.content.filterIsInstance<Paragraph.ImageInfo>().firstOrNull()?.thumb,
+                    content = post.content,
                     comments = emptyList(),
                     sourceIconUrl = iconUrl,
                     replyCount = post.replies.takeIf { it > 0 },
@@ -80,7 +79,7 @@ class AkraftSource : Source {
 
     private suspend fun <T> execute(request: okhttp3.Request, parse: (String) -> T): T {
         client.newCall(request).await().use { response ->
-            if (!response.isSuccessful) throw HttpException(response.code, request.url.toString())
+            if (!response.isSuccessful) throw IOException("HTTP ${response.code}: ${request.url}")
             return parse(response.body?.string().orEmpty())
         }
     }

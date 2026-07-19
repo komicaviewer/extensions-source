@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "name": "NewsHub: Gamer 巴哈姆特",
+  "sources": [{
+    "className": "tw.kevinzhang.newshub.extension.gamer.GamerSource",
+    "id": "tw.kevinzhang.newshub.extension.gamer",
+    "name": "Gamer 巴哈姆特",
+    "lang": "zh-TW",
+    "baseUrl": "https://forum.gamer.com.tw"
+  }]
+}

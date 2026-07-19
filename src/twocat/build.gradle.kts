@@ -1,11 +1,5 @@
 ext {
-    set("extName", "NewsHub: twocat")
-    set("extClass", ".TwocatSource")
-    set("extVersionCode", 2)
-    set("extVersionName", "0.0.2")
+    set("libraryNamespace", "tw.kevinzhang.newshub.extension.twocat")
+    set("engineFlavors", listOf("komica", "komica2"))
 }
-apply(from = "$rootDir/common.gradle")
-
-dependencies {
-    "implementation"(project(":src:komica-common"))
-}
+apply(from = "$rootDir/library.gradle")

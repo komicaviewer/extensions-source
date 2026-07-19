@@ -3,12 +3,7 @@ package tw.kevinzhang.newshub.extension.akraft
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import tw.kevinzhang.komica_api.model.KImageInfo
-import tw.kevinzhang.komica_api.model.KLink
-import tw.kevinzhang.komica_api.model.KQuote
-import tw.kevinzhang.komica_api.model.KReplyTo
-import tw.kevinzhang.komica_api.model.KText
-import tw.kevinzhang.komica_api.model.KVideoInfo
+import tw.kevinzhang.extension_api.model.Paragraph
 
 class AkraftParserTest {
     private val parser = AkraftParser()
@@ -22,16 +17,16 @@ class AkraftParserTest {
         val post = posts.single()
         assertEquals("thread-1", post.id)
         assertEquals("新番討論", post.title)
-        assertEquals("匿名", post.poster)
+        assertEquals("匿名", post.author)
         assertEquals("https://www.akraft.net/service/board-id/thread-1", post.url)
         assertEquals(0, post.replies)
         assertTrue(post.createdAt > 0)
-        assertTrue(post.content.contains(KText("第一行")))
-        assertTrue(post.content.contains(KQuote("引用文字")))
-        assertTrue(post.content.contains(KReplyTo("old-post")))
-        assertTrue(post.content.contains(KLink("https://www.akraft.net/wiki")))
-        assertTrue(post.content.contains(KImageInfo("https://www.akraft.net/thumb.jpg", "https://www.akraft.net/full.jpg")))
-        assertTrue(post.content.contains(KVideoInfo("https://www.youtube.com/embed/demo")))
+        assertTrue(post.content.contains(Paragraph.Text("第一行")))
+        assertTrue(post.content.contains(Paragraph.Quote("引用文字")))
+        assertTrue(post.content.contains(Paragraph.ReplyTo("old-post")))
+        assertTrue(post.content.contains(Paragraph.Link("https://www.akraft.net/wiki")))
+        assertTrue(post.content.contains(Paragraph.ImageInfo("https://www.akraft.net/thumb.jpg", "https://www.akraft.net/full.jpg")))
+        assertTrue(post.content.contains(Paragraph.VideoInfo("https://www.youtube.com/embed/demo")))
     }
 
     @Test
@@ -41,9 +36,9 @@ class AkraftParserTest {
         assertEquals(listOf("thread-1", "reply-1"), posts.map { it.id })
         assertEquals(1, posts.first().replies)
         assertEquals(0, posts.last().replies)
-        assertEquals("匿名回覆", posts.last().poster)
-        assertTrue(posts.last().content.contains(KReplyTo("thread-1")))
-        assertTrue(posts.last().content.contains(KText("回覆內容")))
+        assertEquals("匿名回覆", posts.last().author)
+        assertTrue(posts.last().content.contains(Paragraph.ReplyTo("thread-1")))
+        assertTrue(posts.last().content.contains(Paragraph.Text("回覆內容")))
     }
 
     private companion object {

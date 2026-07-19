@@ -1,14 +1,10 @@
 #!/usr/bin/env python3
 """
-Reads APKs from <apk_dir>, extracts metadata using aapt,
-generates index.json and index.min.json, and copies APKs to <output_dir>/apk/.
+Reads bundle APKs from <apk_dir>, extracts package metadata using aapt and
+Source metadata from assets/newshub-extension.json, then regenerates index.json
+and index.min.json and copies APKs to <output_dir>/apk/.
 
-Usage: generate_index.py [--replace] <apk_dir> <output_dir> [source_dir]
-  source_dir: optional path to extensions-source repo root, used to read
-              AndroidManifest.xml metadata when aapt cannot extract it.
-  --replace: replace the entire index with the APKs supplied in apk_dir.
-             Without this flag, generated APKs upsert matching packages and
-             preserve unrelated entries from the existing index.
+Usage: generate_index.py <apk_dir> <output_dir>
 Requires: aapt in PATH or AAPT env var pointing to the binary.
 """
 import json
@@ -18,7 +14,12 @@ import shutil
 import hashlib
 import subprocess
 import sys
-import xml.etree.ElementTree as ET
+import zipfile
+
+
+REGISTRY_ASSET_PATH = "assets/newshub-extension.json"
+REGISTRY_SCHEMA_VERSION = 1
+SOURCE_FIELDS = ("className", "id", "name", "lang", "baseUrl")
 
 
 def sha256_file(path: str) -> str:
@@ -72,112 +73,54 @@ def _parse_badging(output: str) -> dict:
         if m and "name" not in meta:
             meta["name"] = m.group(1)
 
-        # aapt dump badging does not normally output application meta-data,
-        # but handle it if present (some aapt versions do)
-        m = re.match(r"meta-data: name='([^']+)' value='([^']*)'", line)
-        if m:
-            k, v = m.group(1), m.group(2)
-            if k == "newshub.extension.name":            meta["name"] = v
-            elif k == "newshub.extension.source_id":     meta["source_id"] = v
-            elif k == "newshub.extension.source_name":   meta["source_name"] = v
-            elif k == "newshub.extension.source_lang":   meta["source_lang"] = v
-            elif k == "newshub.extension.source_base_url": meta["source_base_url"] = v
     return meta
 
 
-def read_source_manifest(source_dir: str, module: str) -> dict:
-    """
-    Read extension metadata from the source AndroidManifest.xml.
-    Falls back to build.gradle.kts for placeholder values (extName, extClass).
-    """
-    manifest_path = os.path.join(source_dir, "src", module, "src", "main", "AndroidManifest.xml")
-    gradle_path = os.path.join(source_dir, "src", module, "build.gradle.kts")
-
-    if not os.path.exists(manifest_path):
-        print(f"  Source manifest not found: {manifest_path}")
-        return {}
-
-    # Read placeholder values from build.gradle.kts
-    ext_name = module
-    if os.path.exists(gradle_path):
-        with open(gradle_path, encoding="utf-8") as f:
-            content = f.read()
-        m = re.search(r'set\s*\(\s*"extName"\s*,\s*"([^"]+)"\s*\)', content)
-        if m:
-            ext_name = m.group(1)
-
-    ns = "http://schemas.android.com/apk/res/android"
+def read_registry(apk_path: str) -> dict:
     try:
-        tree = ET.parse(manifest_path)
-        root = tree.getroot()
-    except ET.ParseError as e:
-        print(f"  XML parse error: {e}")
-        return {}
+        with zipfile.ZipFile(apk_path) as apk:
+            registry = json.loads(apk.read(REGISTRY_ASSET_PATH).decode("utf-8"))
+    except KeyError as e:
+        raise ValueError(f"missing {REGISTRY_ASSET_PATH}") from e
+    except (zipfile.BadZipFile, UnicodeDecodeError, json.JSONDecodeError) as e:
+        raise ValueError(f"invalid extension registry: {e}") from e
 
-    meta = {}
-    for elem in root.iter("meta-data"):
-        name = elem.get(f"{{{ns}}}name") or elem.get("android:name", "")
-        value = elem.get(f"{{{ns}}}value") or elem.get("android:value", "")
-        # Resolve manifest placeholders
-        value = value.replace("${extName}", ext_name)
-        if name == "newshub.extension.name":            meta["name"] = value
-        elif name == "newshub.extension.source_id":     meta["source_id"] = value
-        elif name == "newshub.extension.source_name":   meta["source_name"] = value
-        elif name == "newshub.extension.source_lang":   meta["source_lang"] = value
-        elif name == "newshub.extension.source_base_url": meta["source_base_url"] = value
+    if registry.get("schemaVersion") != REGISTRY_SCHEMA_VERSION:
+        raise ValueError(f"unsupported registry schemaVersion: {registry.get('schemaVersion')}")
+    if not isinstance(registry.get("name"), str) or not registry["name"].strip():
+        raise ValueError("registry name must be non-empty")
+    sources = registry.get("sources")
+    if not isinstance(sources, list) or not sources:
+        raise ValueError("registry sources must be a non-empty array")
 
-    return meta
-
-
-def module_from_apk_name(apk_file: str) -> str:
-    """Extract module name from newshub-<module>-v<version>.apk filename."""
-    m = re.match(r"newshub-([a-z0-9_-]+)-v[\d.]+\.apk", apk_file)
-    return m.group(1) if m else ""
-
-
-def merge_extensions(existing: list[dict], extensions: list[dict]) -> list[dict]:
-    """Upsert generated extensions by package ID."""
-    new_pkgs = {extension["pkg"] for extension in extensions}
-    return sorted(
-        [
-            extension
-            for extension in existing
-            if extension["pkg"] not in new_pkgs
-        ] + extensions,
-        key=lambda extension: extension["pkg"],
-    )
-
-
-def build_index(existing: list[dict], extensions: list[dict], replace: bool) -> list[dict]:
-    """Return either an upserted index or exactly the generated package set."""
-    if replace:
-        return sorted(extensions, key=lambda extension: extension["pkg"])
-    return merge_extensions(existing, extensions)
-
-
-def parse_args(argv: list[str]) -> tuple[str, str, str | None, bool]:
-    """Parse CLI arguments while accepting --replace before or after paths."""
-    args = argv[1:]
-    replace = "--replace" in args
-    args = [arg for arg in args if arg != "--replace"]
-    if len(args) not in (2, 3):
-        print(f"Usage: {argv[0]} [--replace] <apk_dir> <output_dir> [source_dir]")
-        sys.exit(1)
-    return args[0], args[1], args[2] if len(args) == 3 else None, replace
+    source_ids = set()
+    for index, source in enumerate(sources):
+        if not isinstance(source, dict):
+            raise ValueError(f"sources[{index}] must be an object")
+        for field in SOURCE_FIELDS:
+            if not isinstance(source.get(field), str) or not source[field].strip():
+                raise ValueError(f"sources[{index}].{field} must be non-empty")
+        source_id = source["id"]
+        if source_id in source_ids:
+            raise ValueError(f"duplicate source id: {source_id}")
+        source_ids.add(source_id)
+    return registry
 
 
 def main():
-    apk_dir, output_dir, source_dir, replace = parse_args(sys.argv)
+    if len(sys.argv) != 3:
+        print(f"Usage: {sys.argv[0]} <apk_dir> <output_dir>")
+        sys.exit(1)
+    apk_dir, output_dir = sys.argv[1:]
 
     aapt = find_aapt()
     print(f"Using aapt: {aapt}")
-    if source_dir:
-        print(f"Using source_dir: {source_dir}")
-    if replace:
-        print("Replacing the entire extension index")
 
     os.makedirs(os.path.join(output_dir, "apk"), exist_ok=True)
     os.makedirs(os.path.join(output_dir, "icon"), exist_ok=True)
+    for old_apk in os.listdir(os.path.join(output_dir, "apk")):
+        if old_apk.endswith(".apk"):
+            os.remove(os.path.join(output_dir, "apk", old_apk))
 
     extensions = []
     for apk_file in sorted(os.listdir(apk_dir)):
@@ -191,35 +134,28 @@ def main():
             print("  WARNING: no pkg from aapt, skipping")
             continue
 
-        # Supplement missing metadata from source AndroidManifest.xml
-        if source_dir and not meta.get("source_id"):
-            module = module_from_apk_name(apk_file)
-            if module:
-                src_meta = read_source_manifest(source_dir, module)
-                for k, v in src_meta.items():
-                    if not meta.get(k):
-                        meta[k] = v
-                if src_meta:
-                    print(f"  Loaded metadata from source manifest (module={module})")
+        registry = read_registry(apk_path)
 
         sha = sha256_file(apk_path)
         shutil.copy2(apk_path, os.path.join(output_dir, "apk", apk_file))
 
-        sources = []
-        if meta.get("source_id"):
-            sources.append({
-                "id":      meta["source_id"],
-                "name":    meta.get("source_name", meta.get("name", "")),
-                "lang":    meta.get("source_lang", ""),
-                "baseUrl": meta.get("source_base_url", ""),
-            })
+        sources = [
+            {
+                "id": source["id"],
+                "name": source["name"],
+                "lang": source["lang"],
+                "baseUrl": source["baseUrl"],
+            }
+            for source in registry["sources"]
+        ]
+        languages = {source["lang"] for source in sources}
 
         extensions.append({
             "pkg":         meta["pkg"],
-            "name":        meta.get("name", meta["pkg"]),
+            "name":        registry["name"],
             "versionCode": meta.get("versionCode", 1),
             "versionName": meta.get("versionName", "1.0"),
-            "lang":        meta.get("source_lang", ""),
+            "lang":        next(iter(languages)) if len(languages) == 1 else "",
             "apkName":     apk_file,
             "iconName":    f"{meta['pkg']}.png",
             "sha256":      sha,
@@ -227,27 +163,18 @@ def main():
         })
         print(f"  OK: {meta['pkg']} v{meta.get('versionName','?')}, sources={len(sources)}")
 
-    # Merge with existing index.json, unless a full replacement was requested.
+    # Destructive publication: the supplied bundles are the complete index.
     index_path = os.path.join(output_dir, "index.json")
-    existing = []
-    if os.path.exists(index_path):
-        with open(index_path, encoding="utf-8") as f:
-            try:
-                existing = json.load(f)
-            except json.JSONDecodeError:
-                existing = []
-
-    merged = build_index(existing, extensions, replace)
+    extensions.sort(key=lambda extension: extension["pkg"])
 
     with open(index_path, "w", encoding="utf-8") as f:
-        json.dump(merged, f, ensure_ascii=False, indent=2)
-    operation = "replaced" if replace else "updated"
-    print(f"\nWritten index.json: {len(merged)} extensions ({len(extensions)} {operation})")
+        json.dump(extensions, f, ensure_ascii=False, indent=2)
+    print(f"\nWritten index.json: {len(extensions)} extensions")
 
     # Also write index.min.json (minified, same content)
     min_path = os.path.join(output_dir, "index.min.json")
     with open(min_path, "w", encoding="utf-8") as f:
-        json.dump(merged, f, ensure_ascii=False, separators=(",", ":"))
+        json.dump(extensions, f, ensure_ascii=False, separators=(",", ":"))
     print(f"Written index.min.json")
 
 

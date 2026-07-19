@@ -1,11 +1,5 @@
 ext {
-    set("extName", "NewsHub: Sora")
-    set("extClass", ".SoraSource")
-    set("extVersionCode", 2)
-    set("extVersionName", "0.0.2")
+    set("libraryNamespace", "tw.kevinzhang.newshub.extension.sora")
+    set("engineFlavors", listOf("komica", "komica2"))
 }
-apply(from = "$rootDir/common.gradle")
-
-dependencies {
-    "implementation"(project(":src:komica-common"))
-}
+apply(from = "$rootDir/library.gradle")
