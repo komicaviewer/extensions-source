@@ -14,9 +14,9 @@ import tw.kevinzhang.extension_api.model.Board as ExtBoard
 
 class SoraSource : Source {
     override val id = SoraBoardCatalog.SOURCE_ID
-    override val name = "Sora Komica"
+    override val name = "Sora"
     override val language = "zh-TW"
-    override val version = 1
+    override val version = 2
     override val iconUrl: String = "https://komica1.org/favicon.ico"
     override val supportsCommentPagination = false
     override val alwaysUseRawImage = true

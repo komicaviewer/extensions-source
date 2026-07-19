@@ -54,8 +54,12 @@ jobs:
       - name: Build and test release candidates
         run: |
           ./gradlew \
+            :src:sora:testDebugUnitTest \
+            :src:komica2-sora:testDebugUnitTest \
             :src:twocat:testDebugUnitTest \
             :src:komica2-twocat:testDebugUnitTest \
+            :src:sora:assembleRelease \
+            :src:komica2-sora:assembleRelease \
             :src:twocat:assembleRelease \
             :src:komica2-twocat:assembleRelease
 
@@ -63,7 +67,7 @@ jobs:
         run: |
           mkdir -p output/apk
           expected_fingerprint=$(printf '%s' "${SIGNING_CERT_SHA256}" | tr -d '[:space:]:' | tr '[:lower:]' '[:upper:]')
-          for module in twocat komica2-twocat; do
+          for module in sora komica2-sora twocat komica2-twocat; do
             apk="src/${module}/build/outputs/apk/release/${module}-release.apk"
             test -f "${apk}"
             actual_fingerprint=$("${APKSIGNER}" verify --verbose --print-certs "${apk}" | \
