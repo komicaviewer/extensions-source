@@ -37,6 +37,7 @@ class GetAllBoards {
             GBoard("Fate/Grand Order", "https://forum.gamer.com.tw/B.php?bsn=26742"),
             GBoard("RO 仙境傳說 Online", "https://forum.gamer.com.tw/B.php?bsn=4212"),
             GBoard("蔚藍檔案", "https://forum.gamer.com.tw/B.php?bsn=38898"),
+            GBoard("場外休憩區", "https://forum.gamer.com.tw/B.php?bsn=60076"),
         )
     }
 }
