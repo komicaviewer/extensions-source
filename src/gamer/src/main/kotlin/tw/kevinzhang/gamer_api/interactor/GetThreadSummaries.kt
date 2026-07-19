@@ -23,7 +23,6 @@ class GetThreadSummaries(
         val url = req.url.toString()
         logger.info("→ GET $url")
         val t0 = System.currentTimeMillis()
-        val board = GetBoard().invoke(url)
         val res = client.newCall(req).await()
         val ms = System.currentTimeMillis() - t0
         try {

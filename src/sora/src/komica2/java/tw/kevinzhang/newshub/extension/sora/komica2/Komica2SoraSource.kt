@@ -7,6 +7,9 @@ import okhttp3.OkHttpClient
 import ru.gildor.coroutines.okhttp.await
 import tw.kevinzhang.extension_api.Source
 import tw.kevinzhang.extension_api.model.Post
+import tw.kevinzhang.extension_api.model.BoardCategory
+import tw.kevinzhang.extension_api.model.BoardPage
+import tw.kevinzhang.extension_api.model.BoardPageRequest
 import tw.kevinzhang.extension_api.model.Thread
 import tw.kevinzhang.extension_api.model.ThreadSummary
 import tw.kevinzhang.extension_api.model.Paragraph
@@ -17,7 +20,7 @@ class Komica2SoraSource : Source {
     override val id = Komica2SoraBoards.SOURCE_ID
     override val name = "Komica2 Sora"
     override val language = "zh-TW"
-    override val version = 2
+    override val version = 3
     override val iconUrl: String = "https://komica1.org/favicon.ico"
     override val supportsCommentPagination = false
     override val alwaysUseRawImage = true
@@ -28,7 +31,26 @@ class Komica2SoraSource : Source {
         this.client = client
     }
 
-    override suspend fun getBoards(): List<ExtBoard> = Komica2SoraBoards.all
+    override suspend fun getBoardCategories(): List<BoardCategory> = listOf(
+        BoardCategory("general", "綜合"),
+        BoardCategory("anime", "二次元"),
+    )
+
+    override suspend fun getBoardPage(request: BoardPageRequest): BoardPage {
+        val query = request.query.text.trim()
+        val categoryBoards = when (request.query.categoryId) {
+            null -> Komica2SoraBoards.all
+            "anime" -> Komica2SoraBoards.all.filter { it.name.contains("二次") || it.name.contains("高解析") }
+            "general" -> Komica2SoraBoards.all.filter { it.name.contains("三次") }
+            else -> emptyList()
+        }
+        val filtered = categoryBoards.filter { query.isEmpty() || it.name.contains(query, ignoreCase = true) }
+        val offset = request.pageToken?.toIntOrNull() ?: 0
+        require(offset >= 0) { "Invalid board page token: ${request.pageToken}" }
+        val boards = filtered.drop(offset).take(request.pageSize)
+        val nextOffset = offset + boards.size
+        return BoardPage(boards, nextOffset.takeIf { it < filtered.size }?.toString())
+    }
 
     override suspend fun getThreadSummaries(
         board: ExtBoard,

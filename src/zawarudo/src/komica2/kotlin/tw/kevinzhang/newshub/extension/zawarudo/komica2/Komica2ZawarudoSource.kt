@@ -4,6 +4,9 @@ import okhttp3.OkHttpClient
 import ru.gildor.coroutines.okhttp.await
 import tw.kevinzhang.extension_api.Source
 import tw.kevinzhang.extension_api.model.Board
+import tw.kevinzhang.extension_api.model.BoardCategory
+import tw.kevinzhang.extension_api.model.BoardPage
+import tw.kevinzhang.extension_api.model.BoardPageRequest
 import tw.kevinzhang.extension_api.model.Post
 import tw.kevinzhang.extension_api.model.Thread
 import tw.kevinzhang.extension_api.model.ThreadSummary
@@ -13,7 +16,7 @@ class Komica2ZawarudoSource : Source {
     override val id = ZawarudoBoards.SOURCE_ID
     override val name = "Komica2 Zawarudo"
     override val language = "zh-TW"
-    override val version = 1
+    override val version = 2
     override val iconUrl: String = "https://majeur.zawarudo.org/favicon.ico"
     override val supportsCommentPagination = false
     override val alwaysUseRawImage = true
@@ -26,7 +29,28 @@ class Komica2ZawarudoSource : Source {
         this.client = client
     }
 
-    override suspend fun getBoards(): List<Board> = ZawarudoBoards.all
+    override suspend fun getBoardCategories(): List<BoardCategory> = listOf(
+        BoardCategory("general", "綜合"),
+        BoardCategory("anime", "二次元"),
+        BoardCategory("games", "遊戲"),
+    )
+
+    override suspend fun getBoardPage(request: BoardPageRequest): BoardPage {
+        val query = request.query.text.trim()
+        val categorized = when (request.query.categoryId) {
+            null -> ZawarudoBoards.all
+            "general" -> ZawarudoBoards.all.filter { it.name == "詢問裡" }
+            "anime" -> ZawarudoBoards.all.filter { it.name == "二次元獵奇" }
+            "games" -> ZawarudoBoards.all.filter { it.name.contains("遊戲") }
+            else -> emptyList()
+        }
+        val filtered = categorized.filter { query.isEmpty() || it.name.contains(query, ignoreCase = true) }
+        val offset = request.pageToken?.toIntOrNull() ?: 0
+        require(offset >= 0) { "Invalid board page token: ${request.pageToken}" }
+        val boards = filtered.drop(offset).take(request.pageSize)
+        val nextOffset = offset + boards.size
+        return BoardPage(boards, nextOffset.takeIf { it < filtered.size }?.toString())
+    }
 
     override suspend fun getThreadSummaries(board: Board, page: Int): List<ThreadSummary> {
         val supportedBoard = ZawarudoBoards.requireByUrl(board.url)

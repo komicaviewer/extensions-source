@@ -5,6 +5,9 @@ import okhttp3.OkHttpClient
 import ru.gildor.coroutines.okhttp.await
 import tw.kevinzhang.extension_api.Source
 import tw.kevinzhang.extension_api.model.Post
+import tw.kevinzhang.extension_api.model.BoardCategory
+import tw.kevinzhang.extension_api.model.BoardPage
+import tw.kevinzhang.extension_api.model.BoardPageRequest
 import tw.kevinzhang.extension_api.model.Thread
 import tw.kevinzhang.extension_api.model.ThreadSummary
 import tw.kevinzhang.extension_api.model.Paragraph
@@ -15,7 +18,7 @@ class TwocatSource : Source {
     override val id = TwocatBoardCatalog.SOURCE_ID
     override val name = "Twocat"
     override val language = "zh-TW"
-    override val version = 1
+    override val version = 2
     override val iconUrl: String = "https://2cat.uk/futaba.ico"
     override val supportsCommentPagination = false
     override val alwaysUseRawImage = true
@@ -26,7 +29,17 @@ class TwocatSource : Source {
         this.client = client
     }
 
-    override suspend fun getBoards(): List<ExtBoard> = TwocatBoardCatalog.boards
+    override suspend fun getBoardCategories(): List<BoardCategory> = TWOCAT_CATEGORIES
+
+    override suspend fun getBoardPage(request: BoardPageRequest): BoardPage =
+        TwocatBoardCatalog.boards.toBoardPage(request) { board, categoryId ->
+            when (categoryId) {
+                "general" -> board.name !in ANIME_BOARDS && board.name !in GAME_BOARDS
+                "anime" -> board.name in ANIME_BOARDS
+                "games" -> board.name in GAME_BOARDS
+                else -> false
+            }
+        }
 
     override suspend fun getThreadSummaries(board: ExtBoard, page: Int): List<ThreadSummary> {
         val twocatBoard = TwocatBoardCatalog.findByUrl(board.url)
@@ -92,4 +105,33 @@ class TwocatSource : Source {
     }
 
     override fun getWebUrl(summary: ThreadSummary): String = summary.id
+}
+
+private val TWOCAT_CATEGORIES = listOf(
+    BoardCategory("general", "綜合"),
+    BoardCategory("anime", "二次元"),
+    BoardCategory("games", "遊戲"),
+)
+
+private val GAME_BOARDS = setOf(
+    "碧藍幻想", "手機遊戲", "網頁遊戲", "手機/平板遊戲", "體感遊戲", "女性向遊戲",
+    "桌上遊戲", "Azur Lane",
+)
+
+private val ANIME_BOARDS = setOf("繪師版", "東方", "龍騎士07", "涼宮", "二次壁")
+
+private fun List<ExtBoard>.toBoardPage(
+    request: BoardPageRequest,
+    inCategory: (ExtBoard, String) -> Boolean,
+): BoardPage {
+    val query = request.query.text.trim()
+    val filtered = filter { board ->
+        (request.query.categoryId == null || inCategory(board, request.query.categoryId!!)) &&
+            (query.isEmpty() || board.name.contains(query, ignoreCase = true))
+    }
+    val offset = request.pageToken?.toIntOrNull() ?: 0
+    require(offset >= 0) { "Invalid board page token: ${request.pageToken}" }
+    val boards = filtered.drop(offset).take(request.pageSize)
+    val nextOffset = offset + boards.size
+    return BoardPage(boards, nextOffset.takeIf { it < filtered.size }?.toString())
 }

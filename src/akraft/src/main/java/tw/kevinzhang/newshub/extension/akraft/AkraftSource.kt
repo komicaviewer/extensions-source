@@ -4,6 +4,8 @@ import okhttp3.OkHttpClient
 import ru.gildor.coroutines.okhttp.await
 import tw.kevinzhang.extension_api.Source
 import tw.kevinzhang.extension_api.model.Board
+import tw.kevinzhang.extension_api.model.BoardPage
+import tw.kevinzhang.extension_api.model.BoardPageRequest
 import tw.kevinzhang.extension_api.model.Post
 import tw.kevinzhang.extension_api.model.Paragraph
 import tw.kevinzhang.extension_api.model.Thread
@@ -14,7 +16,7 @@ class AkraftSource : Source {
     override val id = AkraftBoards.SOURCE_ID
     override val name = "Akraft"
     override val language = "zh-TW"
-    override val version = 1
+    override val version = 2
     override val iconUrl = "https://www.akraft.net/favicon.ico"
     override val supportsCommentPagination = false
     override val alwaysUseRawImage = true
@@ -27,7 +29,8 @@ class AkraftSource : Source {
         this.client = client
     }
 
-    override suspend fun getBoards(): List<Board> = AkraftBoards.all
+    override suspend fun getBoardPage(request: BoardPageRequest): BoardPage =
+        AkraftBoards.all.toBoardPage(request)
 
     override suspend fun getThreadSummaries(board: Board, page: Int): List<ThreadSummary> {
         val supportedBoard = AkraftBoards.require(board.url)
@@ -83,4 +86,16 @@ class AkraftSource : Source {
             return parse(response.body?.string().orEmpty())
         }
     }
+}
+
+private fun List<Board>.toBoardPage(request: BoardPageRequest): BoardPage {
+    val filtered = filter { board ->
+        request.query.text.trim().isEmpty() ||
+            board.name.contains(request.query.text.trim(), ignoreCase = true)
+    }
+    val offset = request.pageToken?.toIntOrNull() ?: 0
+    require(offset >= 0) { "Invalid board page token: ${request.pageToken}" }
+    val boards = filtered.drop(offset).take(request.pageSize)
+    val nextOffset = offset + boards.size
+    return BoardPage(boards, nextOffset.takeIf { it < filtered.size }?.toString())
 }

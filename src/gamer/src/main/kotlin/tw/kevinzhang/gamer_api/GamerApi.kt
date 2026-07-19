@@ -2,8 +2,8 @@ package tw.kevinzhang.gamer_api
 
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import tw.kevinzhang.gamer_api.interactor.GetAllBoards
 import tw.kevinzhang.gamer_api.interactor.GetAllComment
+import tw.kevinzhang.gamer_api.interactor.GetBoardPage
 import tw.kevinzhang.gamer_api.interactor.GetRequestBuilder
 import tw.kevinzhang.gamer_api.interactor.GetThread
 import tw.kevinzhang.gamer_api.interactor.GetThreadSummaries
@@ -17,8 +17,11 @@ class GamerApi (
     fun getRequestBuilder() =
         GetRequestBuilder().invoke()
 
-    suspend fun getAllBoards() =
-        GetAllBoards().invoke()
+    suspend fun getBoardPage(categoryCode: Int, page: Int) =
+        GetBoardPage(client).invoke(categoryCode, page)
+
+    suspend fun searchBoards(query: String, page: Int) =
+        GetBoardPage(client).search(query, page)
 
     suspend fun getThreadSummaries(req: Request): List<GThreadSummary> {
         return GetThreadSummaries(client).invoke(req)

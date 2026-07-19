@@ -4,6 +4,8 @@ import okhttp3.OkHttpClient
 import ru.gildor.coroutines.okhttp.await
 import tw.kevinzhang.extension_api.Source
 import tw.kevinzhang.extension_api.model.Board
+import tw.kevinzhang.extension_api.model.BoardPage
+import tw.kevinzhang.extension_api.model.BoardPageRequest
 import tw.kevinzhang.extension_api.model.Post
 import tw.kevinzhang.extension_api.model.Paragraph
 import tw.kevinzhang.extension_api.model.Thread
@@ -14,7 +16,7 @@ class WtakoSource : Source {
     override val id = WtakoBoardCatalog.SOURCE_ID
     override val name = "Wtako"
     override val language = "zh-TW"
-    override val version = 1
+    override val version = 2
     override val iconUrl = "https://kemono.wtako.net/favicon.ico"
     override val supportsCommentPagination = false
     override val alwaysUseRawImage = true
@@ -27,7 +29,8 @@ class WtakoSource : Source {
         this.client = client
     }
 
-    override suspend fun getBoards(): List<Board> = WtakoBoardCatalog.boards
+    override suspend fun getBoardPage(request: BoardPageRequest): BoardPage =
+        WtakoBoardCatalog.boards.toBoardPage(request)
 
     override suspend fun getThreadSummaries(board: Board, page: Int): List<ThreadSummary> {
         WtakoBoardCatalog.findByUrl(board.url)
@@ -80,4 +83,14 @@ class WtakoSource : Source {
     }
 
     override fun getWebUrl(summary: ThreadSummary): String = summary.id
+}
+
+private fun List<Board>.toBoardPage(request: BoardPageRequest): BoardPage {
+    val query = request.query.text.trim()
+    val filtered = filter { query.isEmpty() || it.name.contains(query, ignoreCase = true) }
+    val offset = request.pageToken?.toIntOrNull() ?: 0
+    require(offset >= 0) { "Invalid board page token: ${request.pageToken}" }
+    val boards = filtered.drop(offset).take(request.pageSize)
+    val nextOffset = offset + boards.size
+    return BoardPage(boards, nextOffset.takeIf { it < filtered.size }?.toString())
 }
