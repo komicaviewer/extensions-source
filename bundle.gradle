@@ -62,6 +62,6 @@ dependencies {
         }
         compileOnly files(extensionApiJar)
     } else {
-        compileOnly 'com.github.komicaviewer.NewsHub:extension-api:5b5d4e571afb60ce0ce1084b074381fda7664c84'
+        compileOnly 'com.github.komicaviewer.NewsHub:extension-api:6bb40c6b3cbe73c5f09f6fa3502ad038acb8cf19'
     }
 }
