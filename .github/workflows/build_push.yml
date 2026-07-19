@@ -5,6 +5,10 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+concurrency:
+  group: extensions-publish-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -24,60 +28,64 @@ jobs:
         run: |
           yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "build-tools;34.0.0" > /dev/null 2>&1 || true
           echo "AAPT=$ANDROID_SDK_ROOT/build-tools/34.0.0/aapt" >> $GITHUB_ENV
+          echo "APKSIGNER=$ANDROID_SDK_ROOT/build-tools/34.0.0/apksigner" >> $GITHUB_ENV
 
-      - name: Setup signing keystore
+      - name: Validate signing secrets and set up keystore
         run: |
-          if [ -n "${SIGNING_KEY}" ]; then
-            echo "${SIGNING_KEY}" | base64 --decode > keystore.jks
-            echo "KEY_STORE_PASSWORD=${KEY_STORE_PASSWORD_INPUT}" >> $GITHUB_ENV
-            echo "KEY_ALIAS=${KEY_ALIAS_INPUT}" >> $GITHUB_ENV
-            echo "KEY_PASSWORD=${KEY_PASSWORD_INPUT}" >> $GITHUB_ENV
-          else
-            echo "No SIGNING_KEY secret found, generating debug keystore"
-            keytool -genkeypair -v \
-              -keystore keystore.jks \
-              -storepass android \
-              -alias key0 \
-              -keypass android \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -dname "CN=Debug,O=Debug,C=US" 2>/dev/null
-            echo "KEY_STORE_PASSWORD=android" >> $GITHUB_ENV
-            echo "KEY_ALIAS=key0" >> $GITHUB_ENV
-            echo "KEY_PASSWORD=android" >> $GITHUB_ENV
-          fi
+          for secret_name in SIGNING_KEY KEY_STORE_PASSWORD_INPUT KEY_ALIAS_INPUT KEY_PASSWORD_INPUT SIGNING_CERT_SHA256; do
+            if [ -z "${!secret_name}" ]; then
+              echo "Required signing secret is missing: ${secret_name}" >&2
+              exit 1
+            fi
+          done
+          printf '%s' "${SIGNING_KEY}" | base64 --decode > keystore.jks
+          keytool -list -keystore keystore.jks -storepass "${KEY_STORE_PASSWORD_INPUT}" \
+            -alias "${KEY_ALIAS_INPUT}" >/dev/null
+          echo "KEY_STORE_PASSWORD=${KEY_STORE_PASSWORD_INPUT}" >> $GITHUB_ENV
+          echo "KEY_ALIAS=${KEY_ALIAS_INPUT}" >> $GITHUB_ENV
+          echo "KEY_PASSWORD=${KEY_PASSWORD_INPUT}" >> $GITHUB_ENV
         env:
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
           KEY_STORE_PASSWORD_INPUT: ${{ secrets.KEY_STORE_PASSWORD }}
           KEY_ALIAS_INPUT: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD_INPUT: ${{ secrets.KEY_PASSWORD }}
+          SIGNING_CERT_SHA256: ${{ secrets.SIGNING_CERT_SHA256 }}
 
-      - name: Build all extensions
+      - name: Build and test release candidates
         run: |
-          TASKS=$(find src -maxdepth 1 -mindepth 1 -type d | while read d; do
-            [ -f "$d/build.gradle.kts" ] && echo ":src:$(basename $d):assembleRelease"
-          done | tr '\n' ' ')
-          echo "Building tasks: $TASKS"
-          ./gradlew $TASKS
+          ./gradlew \
+            :src:twocat:testDebugUnitTest \
+            :src:komica2-twocat:testDebugUnitTest \
+            :src:twocat:assembleRelease \
+            :src:komica2-twocat:assembleRelease
 
-      - name: Collect and rename APKs
+      - name: Verify signatures and collect release APKs
         run: |
           mkdir -p output/apk
-          find . -name "*.apk" -path "*/release/*" | while read apk; do
-            # Extract module name from path: ./src/<module>/build/...
-            module=$(echo "$apk" | sed 's|.*/src/\([^/]*\)/build/.*|\1|')
-            # Extract versionName with anchored regex (avoids matching compileSdkVersionCodename)
+          expected_fingerprint=$(printf '%s' "${SIGNING_CERT_SHA256}" | tr -d '[:space:]:' | tr '[:lower:]' '[:upper:]')
+          for module in twocat komica2-twocat; do
+            apk="src/${module}/build/outputs/apk/release/${module}-release.apk"
+            test -f "${apk}"
+            actual_fingerprint=$("${APKSIGNER}" verify --verbose --print-certs "${apk}" | \
+              sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n 1 | \
+              tr -d '[:space:]:' | tr '[:lower:]' '[:upper:]')
+            if [ -z "${actual_fingerprint}" ] || [ "${actual_fingerprint}" != "${expected_fingerprint}" ]; then
+              echo "Unexpected signing certificate for ${apk}" >&2
+              exit 1
+            fi
             version=$($AAPT dump badging "$apk" 2>/dev/null | grep "^package:" | \
               sed "s/^package: name='[^']*' versionCode='[0-9]*' versionName='\([^']*\)'.*/\1/")
-            if [ -n "$module" ] && [ -n "$version" ]; then
+            if [ -n "$version" ]; then
               apk_name="newshub-${module}-v${version}.apk"
               cp "$apk" "output/apk/${apk_name}"
               echo "Collected: ${apk_name}"
             else
-              echo "WARNING: module='${module}' version='${version}' from ${apk}, skipping"
+              echo "Could not read version from ${apk}" >&2
+              exit 1
             fi
           done
+        env:
+          SIGNING_CERT_SHA256: ${{ secrets.SIGNING_CERT_SHA256 }}
 
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
