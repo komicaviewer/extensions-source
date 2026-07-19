@@ -3,9 +3,12 @@
 Reads APKs from <apk_dir>, extracts metadata using aapt,
 generates index.json and index.min.json, and copies APKs to <output_dir>/apk/.
 
-Usage: generate_index.py <apk_dir> <output_dir> [source_dir]
+Usage: generate_index.py [--replace] <apk_dir> <output_dir> [source_dir]
   source_dir: optional path to extensions-source repo root, used to read
               AndroidManifest.xml metadata when aapt cannot extract it.
+  --replace: replace the entire index with the APKs supplied in apk_dir.
+             Without this flag, generated APKs upsert matching packages and
+             preserve unrelated entries from the existing index.
 Requires: aapt in PATH or AAPT env var pointing to the binary.
 """
 import json
@@ -145,19 +148,33 @@ def merge_extensions(existing: list[dict], extensions: list[dict]) -> list[dict]
     )
 
 
-def main():
-    if len(sys.argv) < 3:
-        print(f"Usage: {sys.argv[0]} <apk_dir> <output_dir> [source_dir]")
-        sys.exit(1)
+def build_index(existing: list[dict], extensions: list[dict], replace: bool) -> list[dict]:
+    """Return either an upserted index or exactly the generated package set."""
+    if replace:
+        return sorted(extensions, key=lambda extension: extension["pkg"])
+    return merge_extensions(existing, extensions)
 
-    apk_dir = sys.argv[1]
-    output_dir = sys.argv[2]
-    source_dir = sys.argv[3] if len(sys.argv) >= 4 else None
+
+def parse_args(argv: list[str]) -> tuple[str, str, str | None, bool]:
+    """Parse CLI arguments while accepting --replace before or after paths."""
+    args = argv[1:]
+    replace = "--replace" in args
+    args = [arg for arg in args if arg != "--replace"]
+    if len(args) not in (2, 3):
+        print(f"Usage: {argv[0]} [--replace] <apk_dir> <output_dir> [source_dir]")
+        sys.exit(1)
+    return args[0], args[1], args[2] if len(args) == 3 else None, replace
+
+
+def main():
+    apk_dir, output_dir, source_dir, replace = parse_args(sys.argv)
 
     aapt = find_aapt()
     print(f"Using aapt: {aapt}")
     if source_dir:
         print(f"Using source_dir: {source_dir}")
+    if replace:
+        print("Replacing the entire extension index")
 
     os.makedirs(os.path.join(output_dir, "apk"), exist_ok=True)
     os.makedirs(os.path.join(output_dir, "icon"), exist_ok=True)
@@ -210,7 +227,7 @@ def main():
         })
         print(f"  OK: {meta['pkg']} v{meta.get('versionName','?')}, sources={len(sources)}")
 
-    # Merge with existing index.json (upsert by pkg)
+    # Merge with existing index.json, unless a full replacement was requested.
     index_path = os.path.join(output_dir, "index.json")
     existing = []
     if os.path.exists(index_path):
@@ -220,11 +237,12 @@ def main():
             except json.JSONDecodeError:
                 existing = []
 
-    merged = merge_extensions(existing, extensions)
+    merged = build_index(existing, extensions, replace)
 
     with open(index_path, "w", encoding="utf-8") as f:
         json.dump(merged, f, ensure_ascii=False, indent=2)
-    print(f"\nWritten index.json: {len(merged)} extensions ({len(extensions)} updated)")
+    operation = "replaced" if replace else "updated"
+    print(f"\nWritten index.json: {len(merged)} extensions ({len(extensions)} {operation})")
 
     # Also write index.min.json (minified, same content)
     min_path = os.path.join(output_dir, "index.min.json")

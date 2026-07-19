@@ -30,6 +30,34 @@ jobs:
           echo "AAPT=$ANDROID_SDK_ROOT/build-tools/34.0.0/aapt" >> $GITHUB_ENV
           echo "APKSIGNER=$ANDROID_SDK_ROOT/build-tools/34.0.0/apksigner" >> $GITHUB_ENV
 
+      - name: Discover APK extension modules
+        shell: bash
+        run: |
+          modules=$(find src -mindepth 2 -maxdepth 2 -name build.gradle.kts -print | sort | \
+            while IFS= read -r build_file; do
+              if grep -q 'com\.android\.library' "${build_file}"; then
+                continue
+              fi
+              basename "$(dirname "${build_file}")"
+            done)
+          module_count=$(printf '%s\n' "${modules}" | sed '/^$/d' | wc -l | tr -d '[:space:]')
+
+          if [ "${module_count}" -ne 9 ]; then
+            echo "Expected 9 APK extension modules, found ${module_count}:" >&2
+            printf '%s\n' "${modules}" | sed 's/^/  /' >&2
+            exit 1
+          fi
+
+          {
+            echo 'APK_MODULES<<EOF'
+            printf '%s\n' "${modules}"
+            echo EOF
+            echo "APK_MODULE_COUNT=${module_count}"
+          } >> "$GITHUB_ENV"
+
+          printf 'Discovered APK extension modules (%s):\n' "${module_count}"
+          printf '%s\n' "${modules}" | sed 's/^/  /'
+
       - name: Validate signing secrets and set up keystore
         run: |
           for secret_name in SIGNING_KEY KEY_STORE_PASSWORD_INPUT KEY_ALIAS_INPUT KEY_PASSWORD_INPUT SIGNING_CERT_SHA256; do
@@ -52,22 +80,27 @@ jobs:
           SIGNING_CERT_SHA256: ${{ secrets.SIGNING_CERT_SHA256 }}
 
       - name: Build and test release candidates
+        shell: bash
         run: |
-          ./gradlew \
-            :src:sora:testDebugUnitTest \
-            :src:komica2-sora:testDebugUnitTest \
-            :src:twocat:testDebugUnitTest \
-            :src:komica2-twocat:testDebugUnitTest \
-            :src:sora:assembleRelease \
-            :src:komica2-sora:assembleRelease \
-            :src:twocat:assembleRelease \
-            :src:komica2-twocat:assembleRelease
+          tasks=()
+          while IFS= read -r module; do
+            test -n "${module}"
+            tasks+=(":src:${module}:testDebugUnitTest")
+          done <<< "${APK_MODULES}"
+          while IFS= read -r module; do
+            test -n "${module}"
+            tasks+=(":src:${module}:assembleRelease")
+          done <<< "${APK_MODULES}"
+          ./gradlew "${tasks[@]}"
 
       - name: Verify signatures and collect release APKs
+        shell: bash
         run: |
           mkdir -p output/apk
           expected_fingerprint=$(printf '%s' "${SIGNING_CERT_SHA256}" | tr -d '[:space:]:' | tr '[:lower:]' '[:upper:]')
-          for module in sora komica2-sora twocat komica2-twocat; do
+          collected_count=0
+          while IFS= read -r module; do
+            test -n "${module}"
             apk="src/${module}/build/outputs/apk/release/${module}-release.apk"
             test -f "${apk}"
             actual_fingerprint=$("${APKSIGNER}" verify --verbose --print-certs "${apk}" | \
@@ -83,11 +116,18 @@ jobs:
               apk_name="newshub-${module}-v${version}.apk"
               cp "$apk" "output/apk/${apk_name}"
               echo "Collected: ${apk_name}"
+              ((collected_count += 1))
             else
               echo "Could not read version from ${apk}" >&2
               exit 1
             fi
-          done
+          done <<< "${APK_MODULES}"
+
+          artifact_count=$(find output/apk -maxdepth 1 -type f -name '*.apk' | wc -l | tr -d '[:space:]')
+          if [ "${collected_count}" -ne "${APK_MODULE_COUNT}" ] || [ "${artifact_count}" -ne "${APK_MODULE_COUNT}" ]; then
+            echo "Expected ${APK_MODULE_COUNT} collected APKs; collected=${collected_count}, files=${artifact_count}" >&2
+            exit 1
+          fi
         env:
           SIGNING_CERT_SHA256: ${{ secrets.SIGNING_CERT_SHA256 }}
 
@@ -127,7 +167,7 @@ jobs:
 
       - name: Generate index.json and publish
         run: |
-          python3 extensions-source/scripts/generate_index.py apks/ extensions-repo/ extensions-source/
+          python3 extensions-source/scripts/generate_index.py --replace apks/ extensions-repo/ extensions-source/
           cd extensions-repo
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
