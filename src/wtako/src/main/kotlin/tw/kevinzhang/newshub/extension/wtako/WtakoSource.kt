@@ -26,23 +26,26 @@ class WtakoSource : Source {
     private val parser = WtakoParser()
 
     override fun onAttach(client: OkHttpClient) {
-        this.client = client
+        this.client = client.newBuilder()
+            .addNetworkInterceptor(WtakoHttpsRedirectInterceptor())
+            .build()
     }
 
     override suspend fun getBoardPage(request: BoardPageRequest): BoardPage =
         WtakoBoardCatalog.boards.toBoardPage(request)
 
     override suspend fun getThreadSummaries(board: Board, page: Int): List<ThreadSummary> {
-        WtakoBoardCatalog.findByUrl(board.url)
-        val request = WtakoRequestBuilder.boardPage(board.url, page)
+        val boardUrl = WtakoUrlPolicy.canonicalize(board.url)
+        WtakoBoardCatalog.findByUrl(boardUrl)
+        val request = WtakoRequestBuilder.boardPage(boardUrl, page)
         val response = client.newCall(request).await()
         if (!response.isSuccessful) throw IOException("HTTP ${response.code}: ${request.url}")
-        val posts = response.use { parser.parseSummaries(it.body!!.string(), board.url) }
+        val posts = response.use { parser.parseSummaries(it.body!!.string(), boardUrl) }
         return posts.map { post ->
             val image = post.content.filterIsInstance<Paragraph.ImageInfo>().firstOrNull()
             ThreadSummary(
                 sourceId = id,
-                boardUrl = board.url,
+                boardUrl = boardUrl,
                 id = post.url,
                 title = post.title,
                 author = post.author,
@@ -82,7 +85,7 @@ class WtakoSource : Source {
         )
     }
 
-    override fun getWebUrl(summary: ThreadSummary): String = summary.id
+    override fun getWebUrl(summary: ThreadSummary): String = WtakoUrlPolicy.canonicalize(summary.id)
 }
 
 private fun List<Board>.toBoardPage(request: BoardPageRequest): BoardPage {

@@ -14,5 +14,8 @@ internal object WtakoBoardCatalog {
 
     private fun board(name: String, url: String) = Board(SOURCE_ID, url, name)
 
-    fun findByUrl(url: String): Board = boards.first { it.url == url }
+    fun findByUrl(url: String): Board {
+        val canonical = WtakoUrlPolicy.canonicalize(url)
+        return boards.first { it.url == canonical }
+    }
 }

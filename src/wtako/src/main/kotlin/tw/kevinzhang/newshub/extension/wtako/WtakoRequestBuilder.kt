@@ -8,7 +8,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 internal object WtakoRequestBuilder {
     fun boardPage(boardUrl: String, page: Int): Request {
         require(page >= 0) { "page must be non-negative" }
-        val endpoint = pixmicatEndpoint(boardUrl.toHttpUrl()).newBuilder()
+        val endpoint = pixmicatEndpoint(WtakoUrlPolicy.canonicalize(boardUrl.toHttpUrl())).newBuilder()
             .removeAllQueryParameters("page_num")
             .apply { if (page > 1) addQueryParameter("page_num", page.toString()) }
             .build()
@@ -16,12 +16,12 @@ internal object WtakoRequestBuilder {
     }
 
     fun thread(threadUrl: String): Request = Request.Builder()
-        .url(threadUrl.toHttpUrl())
+        .url(WtakoUrlPolicy.canonicalize(threadUrl.toHttpUrl()))
         .build()
 
     fun thread(boardUrl: String, postId: String): Request = Request.Builder()
         .url(
-            pixmicatEndpoint(boardUrl.toHttpUrl()).newBuilder()
+            pixmicatEndpoint(WtakoUrlPolicy.canonicalize(boardUrl.toHttpUrl())).newBuilder()
                 .addQueryParameter("res", postId)
                 .build(),
         )

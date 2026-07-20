@@ -17,6 +17,14 @@ class WtakoRequestBuilderTest {
     }
 
     @Test
+    fun `legacy rthost board URL is upgraded to HTTPS`() {
+        assertEquals(
+            "https://rthost.win/sd/pixmicat.php",
+            WtakoRequestBuilder.boardPage("http://rthost.win/sd", 1).url.toString(),
+        )
+    }
+
+    @Test
     fun `thread endpoint uses the Pixmicat res query`() {
         assertEquals(
             "https://www.karlsland.net/sw/pixmicat.php?res=44259",

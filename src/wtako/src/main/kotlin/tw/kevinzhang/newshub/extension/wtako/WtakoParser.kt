@@ -188,7 +188,7 @@ internal class WtakoParser {
         } else {
             base.newBuilder().addPathSegment("").build()
         }
-        return directoryBase.resolve(candidate)?.toString()
+        return directoryBase.resolve(candidate)?.let(WtakoUrlPolicy::canonicalize)?.toString()
     }
 
     private fun isImage(url: String) = IMAGE_EXTENSION.containsMatchIn(url.substringBefore('?'))
