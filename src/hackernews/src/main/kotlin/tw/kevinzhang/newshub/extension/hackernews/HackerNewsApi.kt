@@ -4,6 +4,7 @@ import com.google.gson.Gson
 import com.google.gson.JsonSyntaxException
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -11,6 +12,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
@@ -91,9 +93,11 @@ internal class HackerNewsApi(
             "Hacker News API request escaped configured host"
         }
         val request = Request.Builder().url(url).get().build()
-        client.newCall(request).await().use { response ->
-            if (!response.isSuccessful) throw IOException("HTTP ${response.code}: $url")
-            return response.body?.string()?.takeIf(String::isNotBlank)
+        return withContext(Dispatchers.IO) {
+            client.newCall(request).await().use { response ->
+                if (!response.isSuccessful) throw IOException("HTTP ${response.code}: $url")
+                response.body?.string()?.takeIf(String::isNotBlank)
+            }
         }
     }
 
