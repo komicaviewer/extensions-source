@@ -21,7 +21,7 @@ class Komica2TwocatSource : Source {
     override val id = Komica2TwocatBoards.SOURCE_ID
     override val name = "Komica2 Twocat"
     override val language = "zh-TW"
-    override val version = 2
+    override val version = 3
     override val iconUrl = "https://2cat.uk/futaba.ico"
     override val supportsCommentPagination = false
     override val alwaysUseRawImage = true
@@ -34,19 +34,11 @@ class Komica2TwocatSource : Source {
         this.client = client
     }
 
-    override suspend fun getBoardCategories(): List<BoardCategory> = listOf(
-        BoardCategory("general", "綜合"),
-        BoardCategory("anime", "二次元"),
-    )
+    override suspend fun getBoardCategories(): List<BoardCategory> = emptyList()
 
     override suspend fun getBoardPage(request: BoardPageRequest): BoardPage {
         val query = request.query.text.trim()
-        val categoryBoards = when (request.query.categoryId) {
-            null -> Komica2TwocatBoards.all
-            "anime" -> Komica2TwocatBoards.all.filter { it.name in setOf("動畫裡", "東方裡", "偽娘裡") }
-            "general" -> Komica2TwocatBoards.all.filter { it.name !in setOf("動畫裡", "東方裡", "偽娘裡") }
-            else -> emptyList()
-        }
+        val categoryBoards = if (request.query.categoryId == null) Komica2TwocatBoards.all else emptyList()
         val filtered = categoryBoards.filter { query.isEmpty() || it.name.contains(query, ignoreCase = true) }
         val offset = request.pageToken?.toIntOrNull() ?: 0
         require(offset >= 0) { "Invalid board page token: ${request.pageToken}" }
@@ -64,7 +56,7 @@ class Komica2TwocatSource : Source {
             .setPage(page)
             .build()
         val response = client.newCall(req).await()
-        if (!response.isSuccessful) throw HttpException(response.code, req.url.toString())
+        if (!response.isSuccessful) throw HttpException(response.code, response.request.url.toString())
 
         val parser = engine.createThreadSummariesParser(engine.createUrlParser())
         parser.parse(response.body!!, req).map { post ->
@@ -90,7 +82,7 @@ class Komica2TwocatSource : Source {
             .setUrl(summary.id.toHttpUrl())
             .build()
         val response = client.newCall(req).await()
-        if (!response.isSuccessful) throw HttpException(response.code, req.url.toString())
+        if (!response.isSuccessful) throw HttpException(response.code, response.request.url.toString())
 
         val parser = engine.createThreadParser(engine.createUrlParser())
         val posts = parser.parse(response.body!!, req)
