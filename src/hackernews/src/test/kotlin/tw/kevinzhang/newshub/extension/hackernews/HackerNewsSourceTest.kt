@@ -8,6 +8,7 @@ import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -44,7 +45,7 @@ class HackerNewsSourceTest {
     }
 
     @Test
-    fun `builds stable depth first reply tree with deleted placeholder and truncation notice`() = runTest {
+    fun `legacy thread view returns the first depth first page without truncation notice`() = runTest {
         val summary = source.getThreadSummaries(HackerNewsBoards.all.first(), page = 1).single()
         val thread = source.getThread(summary)
 
@@ -55,7 +56,7 @@ class HackerNewsSourceTest {
             listOf(Paragraph.ReplyTo("100"), Paragraph.Text("[deleted]")),
             thread.posts[3].content,
         )
-        assertTrue(
+        assertFalse(
             thread.posts.first().content.filterIsInstance<Paragraph.Text>()
                 .any { it.content.contains("Loaded 3 of 10 comments") },
         )

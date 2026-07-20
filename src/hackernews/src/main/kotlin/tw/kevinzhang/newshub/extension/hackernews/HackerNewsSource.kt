@@ -9,10 +9,11 @@ import tw.kevinzhang.extension_api.model.BoardPageRequest
 import tw.kevinzhang.extension_api.model.Paragraph
 import tw.kevinzhang.extension_api.model.Post
 import tw.kevinzhang.extension_api.model.Thread
+import tw.kevinzhang.extension_api.model.ThreadPage
+import tw.kevinzhang.extension_api.model.ThreadPageMetadata
 import tw.kevinzhang.extension_api.model.ThreadSummary
 import java.io.IOException
 import java.net.URI
-import java.util.ArrayDeque
 
 class HackerNewsSource : SessionAwareSource {
     private var api: HackerNewsApi
@@ -71,82 +72,37 @@ class HackerNewsSource : SessionAwareSource {
     }
 
     override suspend fun getThread(summary: ThreadSummary): Thread {
+        val page = getThreadPage(summary, pageToken = null)
+        val metadata = checkNotNull(page.metadata) { "Hacker News first page must include metadata" }
+        return Thread(
+            id = metadata.id,
+            url = metadata.url,
+            title = metadata.title,
+            posts = page.posts,
+        )
+    }
+
+    override suspend fun getThreadPage(summary: ThreadSummary, pageToken: String?): ThreadPage {
         require(summary.sourceId == id) { "Unexpected source id: ${summary.sourceId}" }
         val rootId = summary.id.toLongOrNull()
+            ?.takeIf { it > 0 }
             ?: throw IOException("Invalid Hacker News story id: ${summary.id}")
-        val root = api.getItem(rootId)
-            ?: throw IOException("Hacker News story does not exist: $rootId")
-        val loaded = loadComments(root)
-        val truncated = root.descendants?.let { it > loaded.comments.size } == true || loaded.hasMore
-        val op = root.toPost(
-            extraContent = buildList {
-                if (truncated) {
-                    add(
-                        Paragraph.Text(
-                            "Loaded ${loaded.comments.size} of ${root.descendants ?: "more than ${loaded.comments.size}"} comments. " +
-                                "Open the Hacker News discussion to read the rest.",
-                        ),
-                    )
-                    add(Paragraph.Link(discussionUrl(root.id)))
-                }
+        val page = HackerNewsThreadPager(api).load(rootId, pageToken)
+        return ThreadPage(
+            posts = page.items.map { it.toNewsHubPost() },
+            nextPageToken = page.nextPageToken,
+            metadata = page.root?.let { root ->
+                ThreadPageMetadata(
+                    id = root.id.toString(),
+                    url = discussionUrl(root.id),
+                    title = htmlParser.plainText(root.title) ?: summary.title,
+                )
             },
-        )
-        return Thread(
-            id = summary.id,
-            url = discussionUrl(root.id),
-            title = htmlParser.plainText(root.title) ?: summary.title,
-            posts = listOf(op) + flattenComments(root, loaded.comments),
         )
     }
 
     override fun getWebUrl(summary: ThreadSummary): String? =
         summary.id.toLongOrNull()?.takeIf { it > 0 }?.let(::discussionUrl)
-
-    private suspend fun loadComments(root: HackerNewsItem): LoadedComments {
-        val queue = ArrayDeque<Long>()
-        val visited = mutableSetOf(root.id)
-        root.kids.orEmpty().forEach { child ->
-            if (visited.add(child)) queue.addLast(child)
-        }
-        val comments = linkedMapOf<Long, HackerNewsItem>()
-        var requested = 0
-        while (queue.isNotEmpty() && requested < MAX_COMMENTS) {
-            val batch = buildList {
-                repeat(minOf(API_BATCH_SIZE, MAX_COMMENTS - requested, queue.size)) {
-                    add(queue.removeFirst())
-                }
-            }
-            requested += batch.size
-            api.getItems(batch).forEach { item ->
-                comments[item.id] = item
-                item.kids.orEmpty().forEach { child ->
-                    if (visited.add(child)) queue.addLast(child)
-                }
-            }
-        }
-        return LoadedComments(comments, queue.isNotEmpty())
-    }
-
-    private fun flattenComments(
-        root: HackerNewsItem,
-        comments: Map<Long, HackerNewsItem>,
-    ): List<Post> {
-        val result = mutableListOf<Post>()
-        val emitted = mutableSetOf<Long>()
-
-        fun append(itemId: Long) {
-            val item = comments[itemId] ?: return
-            if (!emitted.add(itemId)) return
-            result += item.toPost()
-            item.kids.orEmpty().forEach(::append)
-        }
-
-        root.kids.orEmpty().forEach(::append)
-        comments.values.forEach { item ->
-            if (item.id !in emitted) result += item.toPost()
-        }
-        return result
-    }
 
     private fun HackerNewsItem.toSummary(boardUrl: String): ThreadSummary {
         val metadata = metadataText()
@@ -171,7 +127,7 @@ class HackerNewsSource : SessionAwareSource {
         )
     }
 
-    private fun HackerNewsItem.toPost(extraContent: List<Paragraph> = emptyList()): Post {
+    private fun HackerNewsItem.toNewsHubPost(extraContent: List<Paragraph> = emptyList()): Post {
         val content = buildList {
             parent?.let { add(Paragraph.ReplyTo(it.toString())) }
             when {
@@ -213,15 +169,8 @@ class HackerNewsSource : SessionAwareSource {
         .getOrNull()
         ?.takeIf(String::isNotBlank)
 
-    private data class LoadedComments(
-        val comments: Map<Long, HackerNewsItem>,
-        val hasMore: Boolean,
-    )
-
     private companion object {
         const val STORIES_PER_PAGE = 30
-        const val API_BATCH_SIZE = 8
-        const val MAX_COMMENTS = 500
         const val MAX_SUMMARY_PARAGRAPHS = 2
         val ROOT_TYPES = setOf("story", "job", "poll")
 
