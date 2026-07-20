@@ -6,7 +6,7 @@ Modeled after [keiyoushi/extensions-source](https://github.com/keiyoushi/extensi
 
 ## Architecture
 
-The current release contains three installable APKs and nine Sources. Source
+The current release contains five installable APKs and eleven Sources. Source
 implementations are Kotlin/JVM libraries; Android application modules own the APK
 manifest, registry asset, signing version, and installation boundary.
 
@@ -28,6 +28,8 @@ sora-komica2 ───┼─→ komica2.apk (3 Sources)
 zawarudo-komica2┘
 
 gamer ────────────→ gamer.apk (1 Source)
+hackernews ───────→ hackernews.apk (1 Source)
+ptt ──────────────→ ptt.apk (1 Source)
 ```
 
 | Module | Type | Responsibility |
@@ -43,10 +45,17 @@ gamer ────────────→ gamer.apk (1 Source)
 | `src/komica` | Android application | Komica bundle APK and five-Source registry |
 | `src/komica2` | Android application | Komica2 bundle APK and three-Source registry |
 | `src/gamer` | Android application | Gamer APK and one-Source registry |
+| `src/hackernews` | Android application | Hacker News APK and one-Source registry |
+| `src/ptt` | Android application | PTT APK and one-Source registry |
 
 Parsers use `extension-api` models directly. There is no shared Komica parser or
 intermediate `KPost`/`KParagraph` model: site-specific parsing code stays inside
 the corresponding Source library.
+
+PTT keeps each article as a `Post` and its push messages as `Comment` values. Its
+internal page-shaped result (`posts` plus `nextPageToken`) is deliberately kept
+separate from the current `Thread` adapter so it can adopt the planned host
+`ThreadPage` contract without changing parsing semantics.
 
 Every Source ID belongs to exactly one release APK. Moving a Source between APKs
 must preserve its ID so subscriptions and cached board references remain valid.

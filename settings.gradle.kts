@@ -23,6 +23,7 @@ listOf(
     "komica",
     "komica2",
     "nagatoyuki",
+    "ptt",
     "sora-komica",
     "sora-komica2",
     "twocat-komica",

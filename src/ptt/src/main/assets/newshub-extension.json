@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "name": "NewsHub: PTT",
+  "sources": [{
+    "className": "tw.kevinzhang.newshub.extension.ptt.PttSource",
+    "id": "tw.kevinzhang.newshub.extension.ptt",
+    "name": "PTT 批踢踢實業坊",
+    "lang": "zh-TW",
+    "baseUrl": "https://www.ptt.cc"
+  }]
+}

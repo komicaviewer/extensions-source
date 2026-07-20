@@ -124,6 +124,27 @@
           "className": "tw.kevinzhang.newshub.extension.zawarudo.komica2.Komica2ZawarudoSource"
         }
       ]
+    },
+    {
+      "module": "ptt",
+      "gradleProject": ":src:ptt",
+      "assembleTask": ":src:ptt:assembleRelease",
+      "apkOutput": "src/ptt/build/outputs/apk/release/ptt-release.apk",
+      "artifactName": "newshub-ptt-v{versionName}.apk",
+      "package": "tw.kevinzhang.newshub.extension.ptt",
+      "registry": "src/ptt/src/main/assets/newshub-extension.json",
+      "icon": {
+        "source": "release-icons/ptt.png",
+        "name": "tw.kevinzhang.newshub.extension.ptt.png"
+      },
+      "sources": [
+        {
+          "module": "ptt",
+          "testTask": ":src:ptt:testDebugUnitTest",
+          "id": "tw.kevinzhang.newshub.extension.ptt",
+          "className": "tw.kevinzhang.newshub.extension.ptt.PttSource"
+        }
+      ]
     }
   ]
 }
