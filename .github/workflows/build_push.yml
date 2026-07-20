@@ -55,14 +55,16 @@ jobs:
         run: |
           python3 -m unittest discover -s scripts -p 'test_*.py'
           ./gradlew \
-            :src:akraft:testDebugUnitTest \
-            :src:nagatoyuki:testDebugUnitTest \
-            :src:wtako:testDebugUnitTest \
-            :src:twocat:testKomicaDebugUnitTest \
-            :src:twocat:testKomica2DebugUnitTest \
-            :src:sora:testKomicaDebugUnitTest \
-            :src:sora:testKomica2DebugUnitTest \
-            :src:zawarudo:testKomica2DebugUnitTest \
+            :src:akraft:test \
+            :src:nagatoyuki:test \
+            :src:wtako:test \
+            :src:twocat-komica:test \
+            :src:twocat-komica2:test \
+            :src:sora-komica:test \
+            :src:sora-komica2:test \
+            :src:zawarudo-komica2:test \
+            :src:gamer:testDebugUnitTest \
+            :src:gamer:assembleRelease \
             :src:komica:assembleRelease \
             :src:komica2:assembleRelease
 
@@ -71,7 +73,7 @@ jobs:
         run: |
           mkdir -p output/apk
           expected_fingerprint=$(printf '%s' "${SIGNING_CERT_SHA256}" | tr -d '[:space:]:' | tr '[:lower:]' '[:upper:]')
-          for module in komica komica2; do
+          for module in gamer komica komica2; do
             apk="src/${module}/build/outputs/apk/release/${module}-release.apk"
             test -f "${apk}"
             actual_fingerprint=$("${APKSIGNER}" verify --verbose --print-certs "${apk}" | \
@@ -94,19 +96,51 @@ jobs:
           done
 
           artifact_count=$(find output/apk -maxdepth 1 -type f -name '*.apk' | wc -l | tr -d '[:space:]')
-          if [ "${artifact_count}" -ne 2 ]; then
-            echo "Expected exactly 2 bundle APKs; files=${artifact_count}" >&2
+          if [ "${artifact_count}" -ne 3 ]; then
+            echo "Expected exactly 3 release APKs; files=${artifact_count}" >&2
             exit 1
           fi
           python3 scripts/validate_release_bundles.py output/apk
 
-          if unzip -p output/apk/newshub-komica-v*.apk 'classes*.dex' | strings | grep -q 'Komica2Pixmicat'; then
-            echo "komica.apk unexpectedly contains Komica2 Pixmicat classes" >&2
-            exit 1
-          fi
-          for site in twocat sora; do
-            if ! unzip -p output/apk/newshub-komica2-v*.apk 'classes*.dex' | strings | grep -q "${site}/komica2/pixmicat"; then
-              echo "komica2.apk is missing ${site} Komica2 Pixmicat classes" >&2
+          mkdir -p output/dex-strings
+          for module in gamer komica komica2; do
+            apk=$(find output/apk -maxdepth 1 -type f -name "newshub-${module}-v*.apk" -print -quit)
+            test -n "${apk}"
+            strings_file="output/dex-strings/${module}.txt"
+            unzip -p "${apk}" 'classes*.dex' | strings > "${strings_file}"
+            test -s "${strings_file}"
+
+            while IFS= read -r class_name; do
+              class_marker=${class_name//./\/}
+              if ! grep -Fq "${class_marker}" "${strings_file}"; then
+                echo "${module}.apk is missing registry Source class ${class_name}" >&2
+                exit 1
+              fi
+            done < <(
+              unzip -p "${apk}" assets/newshub-extension.json | \
+                python3 -c 'import json, sys; print("\n".join(source["className"] for source in json.load(sys.stdin)["sources"]))'
+            )
+          done
+
+          komica_strings=output/dex-strings/komica.txt
+          komica2_strings=output/dex-strings/komica2.txt
+          for forbidden in \
+            'tw/kevinzhang/newshub/extension/twocat/komica2/' \
+            'tw/kevinzhang/newshub/extension/sora/komica2/' \
+            'tw/kevinzhang/newshub/extension/zawarudo/komica2/'; do
+            if grep -Fq "${forbidden}" "${komica_strings}"; then
+              echo "komica.apk unexpectedly contains Komica2 bytecode: ${forbidden}" >&2
+              exit 1
+            fi
+          done
+          for forbidden in \
+            'tw/kevinzhang/newshub/extension/twocat/komica/' \
+            'tw/kevinzhang/newshub/extension/sora/komica/' \
+            'tw/kevinzhang/newshub/extension/akraft/' \
+            'tw/kevinzhang/newshub/extension/nagatoyuki/' \
+            'tw/kevinzhang/newshub/extension/wtako/'; do
+            if grep -Fq "${forbidden}" "${komica2_strings}"; then
+              echo "komica2.apk unexpectedly contains Komica bytecode: ${forbidden}" >&2
               exit 1
             fi
           done
@@ -118,6 +152,7 @@ jobs:
         with:
           name: extensions-apk
           path: output/apk/
+          if-no-files-found: error
           retention-days: 1
 
   publish:

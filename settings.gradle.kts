@@ -22,10 +22,12 @@ listOf(
     "komica",
     "komica2",
     "nagatoyuki",
-    "sora",
-    "twocat",
+    "sora-komica",
+    "sora-komica2",
+    "twocat-komica",
+    "twocat-komica2",
     "wtako",
-    "zawarudo",
+    "zawarudo-komica2",
 ).forEach { module ->
     include(":src:$module")
     project(":src:$module").projectDir = File(rootDir, "src/$module")

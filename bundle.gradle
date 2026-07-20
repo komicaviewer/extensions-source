@@ -3,7 +3,6 @@ apply plugin: 'kotlin-android'
 
 assert bundleName != null : "bundleName is not set in build.gradle.kts"
 assert bundleVersionCode != null : "bundleVersionCode is not set in build.gradle.kts"
-assert engineFlavor != null : "engineFlavor is not set in build.gradle.kts"
 
 android {
     compileSdk 34
@@ -15,7 +14,6 @@ android {
         targetSdk 34
         versionCode bundleVersionCode
         versionName bundleVersionName ?: "1.0"
-        missingDimensionStrategy 'engine', engineFlavor
 
         manifestPlaceholders = [
             bundleName: bundleName,

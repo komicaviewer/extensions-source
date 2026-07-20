@@ -1,41 +1,51 @@
 # NewsHub Extensions Source
 
-Source code for third-party extensions for [NewsHub](https://github.com/twkevinzhang/NewsHub).
+Source code for third-party extensions for [NewsHub](https://github.com/komicaviewer/NewsHub).
 
 Modeled after [keiyoushi/extensions-source](https://github.com/keiyoushi/extensions-source).
 
 ## Architecture
 
-Komica-family Sources are grouped into two installable bundle APKs. Site modules
-are Android libraries with an `engine` flavor; bundle modules select the matching
-variant and package several Sources together.
+The release contains exactly three installable APKs and nine Sources. Source
+implementations are Kotlin/JVM libraries; Android application modules own the APK
+manifest, registry asset, signing version, and installation boundary.
 
 ```text
-twocat[komica] ─┐
-sora[komica] ───┴─→ komica.apk
+twocat-komica ─┐
+sora-komica ───┤
+akraft ────────┤
+nagatoyuki ────┼─→ komica.apk (5 Sources)
+wtako ─────────┘
 
-twocat[komica2] ─┐
-sora[komica2] ───┼─→ komica2.apk
-zawarudo[komica2]┘
+twocat-komica2 ─┐
+sora-komica2 ───┼─→ komica2.apk (3 Sources)
+zawarudo-komica2┘
+
+gamer ────────────→ gamer.apk (1 Source)
 ```
 
 | Module | Type | Responsibility |
 |---|---|---|
-| `src/twocat` | Android library | Twocat Komica and Komica2 Source variants |
-| `src/sora` | Android library | Sora Komica and Komica2 Source variants |
-| `src/zawarudo` | Android library | Zawarudo shared crawler and Komica2 Source |
-| `src/komica` | Android application | Komica bundle APK and Source registry |
-| `src/komica2` | Android application | Komica2 bundle APK and Source registry |
+| `src/twocat-komica` | Kotlin/JVM library | Twocat Komica Source |
+| `src/sora-komica` | Kotlin/JVM library | Sora Komica Source |
+| `src/akraft` | Kotlin/JVM library | Akraft Source |
+| `src/nagatoyuki` | Kotlin/JVM library | Nagatoyuki Source |
+| `src/wtako` | Kotlin/JVM library | Wtako Source |
+| `src/twocat-komica2` | Kotlin/JVM library | Twocat Komica2 Source |
+| `src/sora-komica2` | Kotlin/JVM library | Sora Komica2 Source |
+| `src/zawarudo-komica2` | Kotlin/JVM library | Zawarudo Komica2 Source |
+| `src/komica` | Android application | Komica bundle APK and five-Source registry |
+| `src/komica2` | Android application | Komica2 bundle APK and three-Source registry |
+| `src/gamer` | Android application | Gamer APK and one-Source registry |
 
 Parsers use `extension-api` models directly. There is no shared Komica parser or
 intermediate `KPost`/`KParagraph` model: site-specific parsing code stays inside
-the corresponding library and flavor source set.
+the corresponding Source library.
 
-`akraft`, `nagatoyuki`, `wtako`, and `gamer` remain registry-based standalone
-application modules. They compile against the same clean-break bundle ABI but
-are not part of the two-bundle release workflow described below.
+Every Source ID belongs to exactly one release APK. Moving a Source between APKs
+must preserve its ID so subscriptions and cached board references remain valid.
 
-## Bundle registry
+## APK registry
 
 Every bundle manifest must declare:
 
@@ -69,29 +79,43 @@ Source classes require a public no-argument constructor. Their runtime `id`,
 
 ## Adding a Source
 
-1. Add the implementation to the appropriate site module and engine source set.
+1. Add the implementation to the appropriate Kotlin/JVM Source module.
 2. Return `ThreadSummary`, `Thread`, `Post`, and `Paragraph` from `extension-api`
    directly; site-specific intermediate models must be `internal`.
 3. Add the Source class and metadata to the owning bundle's
    `assets/newshub-extension.json`.
-4. Add parser tests under the matching `testKomica` or `testKomica2` source set.
-5. Update the release-bundle assertions when the expected Source set changes.
+4. Add parser and request tests to that module's normal `test` source set.
+5. Update `scripts/validate_release_bundles.py` when the owning APK or expected
+   Source set changes. The release contract must still contain exactly three
+   APKs and every intended Source exactly once.
 
 ## Building
 
 ```bash
 ./gradlew \
-  :src:twocat:testKomicaDebugUnitTest \
-  :src:twocat:testKomica2DebugUnitTest \
-  :src:sora:testKomicaDebugUnitTest \
-  :src:sora:testKomica2DebugUnitTest \
-  :src:zawarudo:testKomica2DebugUnitTest \
+  :src:akraft:test \
+  :src:nagatoyuki:test \
+  :src:wtako:test \
+  :src:twocat-komica:test \
+  :src:twocat-komica2:test \
+  :src:sora-komica:test \
+  :src:sora-komica2:test \
+  :src:zawarudo-komica2:test \
+  :src:gamer:testDebugUnitTest \
+  :src:gamer:assembleRelease \
   :src:komica:assembleRelease \
   :src:komica2:assembleRelease
 ```
 
 ## Releasing
 
-Push to `main`. GitHub Actions builds and signs the two bundle APKs, validates
-their registries, regenerates `index.json` from only those APKs, and publishes
-the result to the [extensions repo](https://github.com/komicaviewer/extensions).
+Push to `main`. GitHub Actions builds and signs exactly `gamer`, `komica`, and
+`komica2`; verifies every registry Source class is present and Komica/Komica2
+bytecode stays isolated; then regenerates `index.json` and publishes it to the
+[extensions repo](https://github.com/komicaviewer/extensions).
+
+Publication is fail-closed. Before the distribution checkout is changed, the
+scripts require the exact three-APK/nine-Source set, validate each APK package
+against its release module, and reject partial or unexpected inputs. A missing
+Gamer APK therefore fails the workflow instead of silently deleting Gamer from
+the index.

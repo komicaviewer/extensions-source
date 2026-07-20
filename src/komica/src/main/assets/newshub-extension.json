@@ -15,6 +15,27 @@
       "name": "Sora",
       "lang": "zh-TW",
       "baseUrl": "https://komica1.org"
+    },
+    {
+      "className": "tw.kevinzhang.newshub.extension.akraft.AkraftSource",
+      "id": "tw.kevinzhang.akraft",
+      "name": "Akraft",
+      "lang": "zh-TW",
+      "baseUrl": "https://www.akraft.net"
+    },
+    {
+      "className": "tw.kevinzhang.newshub.extension.nagatoyuki.NagatoyukiSource",
+      "id": "tw.kevinzhang.nagatoyuki",
+      "name": "Nagatoyuki",
+      "lang": "zh-TW",
+      "baseUrl": "https://eclair.nagatoyuki.org"
+    },
+    {
+      "className": "tw.kevinzhang.newshub.extension.wtako.WtakoSource",
+      "id": "tw.kevinzhang.wtako",
+      "name": "Wtako",
+      "lang": "zh-TW",
+      "baseUrl": "https://kemono.wtako.net"
     }
   ]
 }

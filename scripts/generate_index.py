@@ -7,19 +7,20 @@ and index.min.json and copies APKs to <output_dir>/apk/.
 Usage: generate_index.py <apk_dir> <output_dir>
 Requires: aapt in PATH or AAPT env var pointing to the binary.
 """
+import hashlib
 import json
 import os
 import re
 import shutil
-import hashlib
 import subprocess
 import sys
-import zipfile
 
-
-REGISTRY_ASSET_PATH = "assets/newshub-extension.json"
-REGISTRY_SCHEMA_VERSION = 1
-SOURCE_FIELDS = ("className", "id", "name", "lang", "baseUrl")
+from validate_release_bundles import (
+    EXPECTED_RELEASES,
+    module_from_apk_name,
+    read_registry,
+    validate_release_bundles,
+)
 
 
 def sha256_file(path: str) -> str:
@@ -76,68 +77,32 @@ def _parse_badging(output: str) -> dict:
     return meta
 
 
-def read_registry(apk_path: str) -> dict:
-    try:
-        with zipfile.ZipFile(apk_path) as apk:
-            registry = json.loads(apk.read(REGISTRY_ASSET_PATH).decode("utf-8"))
-    except KeyError as e:
-        raise ValueError(f"missing {REGISTRY_ASSET_PATH}") from e
-    except (zipfile.BadZipFile, UnicodeDecodeError, json.JSONDecodeError) as e:
-        raise ValueError(f"invalid extension registry: {e}") from e
-
-    if registry.get("schemaVersion") != REGISTRY_SCHEMA_VERSION:
-        raise ValueError(f"unsupported registry schemaVersion: {registry.get('schemaVersion')}")
-    if not isinstance(registry.get("name"), str) or not registry["name"].strip():
-        raise ValueError("registry name must be non-empty")
-    sources = registry.get("sources")
-    if not isinstance(sources, list) or not sources:
-        raise ValueError("registry sources must be a non-empty array")
-
-    source_ids = set()
-    for index, source in enumerate(sources):
-        if not isinstance(source, dict):
-            raise ValueError(f"sources[{index}] must be an object")
-        for field in SOURCE_FIELDS:
-            if not isinstance(source.get(field), str) or not source[field].strip():
-                raise ValueError(f"sources[{index}].{field} must be non-empty")
-        source_id = source["id"]
-        if source_id in source_ids:
-            raise ValueError(f"duplicate source id: {source_id}")
-        source_ids.add(source_id)
-    return registry
-
-
-def main():
-    if len(sys.argv) != 3:
-        print(f"Usage: {sys.argv[0]} <apk_dir> <output_dir>")
-        sys.exit(1)
-    apk_dir, output_dir = sys.argv[1:]
-
-    aapt = find_aapt()
-    print(f"Using aapt: {aapt}")
-
-    os.makedirs(os.path.join(output_dir, "apk"), exist_ok=True)
-    os.makedirs(os.path.join(output_dir, "icon"), exist_ok=True)
-    for old_apk in os.listdir(os.path.join(output_dir, "apk")):
-        if old_apk.endswith(".apk"):
-            os.remove(os.path.join(output_dir, "apk", old_apk))
-
+def generate_index(apk_dir: str, output_dir: str, aapt: str) -> list[dict]:
+    # Establish that the input directory is the complete release before touching output_dir.
+    validate_release_bundles(apk_dir)
     extensions = []
+    prepared_apks = []
     for apk_file in sorted(os.listdir(apk_dir)):
         if not apk_file.endswith(".apk"):
             continue
         apk_path = os.path.join(apk_dir, apk_file)
         print(f"Processing: {apk_file}")
 
+        module = module_from_apk_name(apk_file)
         meta = parse_apk(apk_path, aapt)
         if not meta.get("pkg"):
-            print("  WARNING: no pkg from aapt, skipping")
-            continue
+            raise ValueError(f"could not read package metadata from {apk_file}")
+        expected_package = EXPECTED_RELEASES[module]["package"]
+        if meta["pkg"] != expected_package:
+            raise ValueError(
+                f"unexpected package for {module}: "
+                f"expected={expected_package}, actual={meta['pkg']}",
+            )
 
         registry = read_registry(apk_path)
 
         sha = sha256_file(apk_path)
-        shutil.copy2(apk_path, os.path.join(output_dir, "apk", apk_file))
+        prepared_apks.append((apk_path, apk_file))
 
         sources = [
             {
@@ -163,6 +128,18 @@ def main():
         })
         print(f"  OK: {meta['pkg']} v{meta.get('versionName','?')}, sources={len(sources)}")
 
+    packages = [extension["pkg"] for extension in extensions]
+    if len(packages) != len(set(packages)):
+        raise ValueError(f"duplicate packages in release input: {packages}")
+
+    os.makedirs(os.path.join(output_dir, "apk"), exist_ok=True)
+    os.makedirs(os.path.join(output_dir, "icon"), exist_ok=True)
+    for old_apk in os.listdir(os.path.join(output_dir, "apk")):
+        if old_apk.endswith(".apk"):
+            os.remove(os.path.join(output_dir, "apk", old_apk))
+    for apk_path, apk_file in prepared_apks:
+        shutil.copy2(apk_path, os.path.join(output_dir, "apk", apk_file))
+
     # Destructive publication: the supplied bundles are the complete index.
     index_path = os.path.join(output_dir, "index.json")
     extensions.sort(key=lambda extension: extension["pkg"])
@@ -176,6 +153,18 @@ def main():
     with open(min_path, "w", encoding="utf-8") as f:
         json.dump(extensions, f, ensure_ascii=False, separators=(",", ":"))
     print(f"Written index.min.json")
+    return extensions
+
+
+def main():
+    if len(sys.argv) != 3:
+        print(f"Usage: {sys.argv[0]} <apk_dir> <output_dir>")
+        sys.exit(1)
+    apk_dir, output_dir = sys.argv[1:]
+
+    aapt = find_aapt()
+    print(f"Using aapt: {aapt}")
+    generate_index(apk_dir, output_dir, aapt)
 
 
 if __name__ == "__main__":
