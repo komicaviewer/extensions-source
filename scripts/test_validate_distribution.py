@@ -44,8 +44,11 @@ class DistributionValidationTest(unittest.TestCase):
     def test_accepts_complete_distribution(self):
         validated = self.validate()
 
-        self.assertEqual(3, len(validated))
-        self.assertEqual(9, sum(len(item["sources"]) for item in validated))
+        self.assertEqual(len(self.catalog["releases"]), len(validated))
+        self.assertEqual(
+            sum(len(release["sources"]) for release in self.catalog["releases"]),
+            sum(len(item["sources"]) for item in validated),
+        )
 
     def test_rejects_non_equivalent_minified_index(self):
         compact = json.loads((self.candidate / "index.min.json").read_text(encoding="utf-8"))
@@ -135,7 +138,7 @@ class DistributionValidationTest(unittest.TestCase):
             signature_reader=signature_reader,
         )
 
-        self.assertEqual(3, len(validated))
+        self.assertEqual(len(self.catalog["releases"]), len(validated))
 
     def test_rejects_unauthorized_historical_package_deletion(self):
         baseline_entries = build_distribution_tree(self.baseline, self.catalog)

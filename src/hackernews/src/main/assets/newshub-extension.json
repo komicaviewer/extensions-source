@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "name": "NewsHub: Hacker News",
+  "sources": [{
+    "className": "tw.kevinzhang.newshub.extension.hackernews.HackerNewsSource",
+    "id": "tw.kevinzhang.newshub.extension.hackernews",
+    "name": "Hacker News",
+    "lang": "en",
+    "baseUrl": "https://news.ycombinator.com"
+  }]
+}

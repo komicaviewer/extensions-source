@@ -27,6 +27,27 @@
       ]
     },
     {
+      "module": "hackernews",
+      "gradleProject": ":src:hackernews",
+      "assembleTask": ":src:hackernews:assembleRelease",
+      "apkOutput": "src/hackernews/build/outputs/apk/release/hackernews-release.apk",
+      "artifactName": "newshub-hackernews-v{versionName}.apk",
+      "package": "tw.kevinzhang.newshub.extension.hackernews",
+      "registry": "src/hackernews/src/main/assets/newshub-extension.json",
+      "icon": {
+        "source": "release-icons/hackernews.png",
+        "name": "tw.kevinzhang.newshub.extension.hackernews.png"
+      },
+      "sources": [
+        {
+          "module": "hackernews",
+          "testTask": ":src:hackernews:testDebugUnitTest",
+          "id": "tw.kevinzhang.newshub.extension.hackernews",
+          "className": "tw.kevinzhang.newshub.extension.hackernews.HackerNewsSource"
+        }
+      ]
+    },
+    {
       "module": "komica",
       "gradleProject": ":src:komica",
       "assembleTask": ":src:komica:assembleRelease",

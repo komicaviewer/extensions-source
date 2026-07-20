@@ -24,7 +24,10 @@ class ReleaseBundleValidationTest(unittest.TestCase):
             {release["module"] for release in self.catalog["releases"]},
             set(registries),
         )
-        self.assertEqual(9, sum(len(registry["sources"]) for registry in registries.values()))
+        self.assertEqual(
+            sum(len(release["sources"]) for release in self.catalog["releases"]),
+            sum(len(registry["sources"]) for registry in registries.values()),
+        )
 
     def test_rejects_release_missing_gamer(self):
         for release in self.catalog["releases"]:

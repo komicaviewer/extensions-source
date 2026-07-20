@@ -25,13 +25,23 @@ def write_release_apk(
     path = directory / artifact_name(release, version_name)
     release_registry = registry or registry_for_release(catalog, release)
     with zipfile.ZipFile(path, "w") as apk:
-        apk.writestr("assets/newshub-extension.json", json.dumps(release_registry))
+        write_deterministic_zip_entry(
+            apk,
+            "assets/newshub-extension.json",
+            json.dumps(release_registry),
+        )
         if include_dex:
             markers = "\n".join(
                 source["className"].replace(".", "/") for source in release_registry["sources"]
             )
-            apk.writestr("classes.dex", markers)
+            write_deterministic_zip_entry(apk, "classes.dex", markers)
     return path
+
+
+def write_deterministic_zip_entry(apk: zipfile.ZipFile, name: str, contents: str) -> None:
+    info = zipfile.ZipInfo(name, date_time=(2024, 1, 1, 0, 0, 0))
+    info.compress_type = zipfile.ZIP_DEFLATED
+    apk.writestr(info, contents)
 
 
 def write_complete_apks(

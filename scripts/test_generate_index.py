@@ -109,8 +109,11 @@ class GenerateIndexTest(unittest.TestCase):
 
         extensions = self.call_generate()
 
-        self.assertEqual(3, len(extensions))
-        self.assertEqual(9, sum(len(extension["sources"]) for extension in extensions))
+        self.assertEqual(len(self.catalog["releases"]), len(extensions))
+        self.assertEqual(
+            sum(len(release["sources"]) for release in self.catalog["releases"]),
+            sum(len(extension["sources"]) for extension in extensions),
+        )
         self.assertEqual(
             {item["apkName"] for item in extensions},
             {path.name for path in (self.output_dir / "apk").glob("*.apk")},
