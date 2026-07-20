@@ -15,6 +15,8 @@ import tw.kevinzhang.extension_api.model.Board
 import tw.kevinzhang.extension_api.model.BoardPage
 import tw.kevinzhang.extension_api.model.BoardPageRequest
 import tw.kevinzhang.extension_api.model.Thread
+import tw.kevinzhang.extension_api.model.ThreadPage
+import tw.kevinzhang.extension_api.model.ThreadPageMetadata
 import tw.kevinzhang.extension_api.model.ThreadSummary
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
@@ -24,7 +26,7 @@ class PttSource : AuthenticatedSource {
     override val id: String = PttBoardCatalog.SOURCE_ID
     override val name: String = "PTT 批踢踢實業坊"
     override val language: String = "zh-TW"
-    override val version: Int = 1
+    override val version: Int = 2
     override val iconUrl: String = "https://www.ptt.cc/favicon.ico"
     override val supportsCommentPagination: Boolean = false
     override val alwaysUseRawImage: Boolean = true
@@ -92,7 +94,24 @@ class PttSource : AuthenticatedSource {
         )
     }
 
-    /** The future Source.getThreadPage adapter can delegate here without changing PTT semantics. */
+    override suspend fun getThreadPage(summary: ThreadSummary, pageToken: String?): ThreadPage {
+        if (pageToken != null) {
+            throw UnsupportedOperationException("PTT articles do not support post pagination")
+        }
+        val parsed = loadThreadPage(summary)
+        val articleUrl = requireNotNull(PttUrlPolicy.articleUrl(summary.id)) { "Untrusted PTT article URL" }
+        return ThreadPage(
+            posts = parsed.posts,
+            nextPageToken = null,
+            metadata = ThreadPageMetadata(
+                id = articleUrl,
+                url = articleUrl,
+                title = summary.title,
+            ),
+        )
+    }
+
+    /** Fetches PTT's single-post article page; the public ThreadPage contract is implemented above. */
     internal suspend fun loadThreadPage(summary: ThreadSummary): PttParsedThreadPage {
         require(summary.sourceId == id) { "Thread belongs to a different source" }
         val articleUrl = requireNotNull(PttUrlPolicy.articleUrl(summary.id)) { "Untrusted PTT article URL" }

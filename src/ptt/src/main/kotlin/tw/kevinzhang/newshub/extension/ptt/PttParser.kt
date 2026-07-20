@@ -14,7 +14,7 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-/** Internal page result mirrors the pending host ThreadPage contract without requiring it yet. */
+/** Internal parsed result for PTT's single-post article page. */
 internal data class PttParsedThreadPage(
     val posts: List<Post>,
     val nextPageToken: String?,
