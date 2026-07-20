@@ -126,6 +126,27 @@
       ]
     },
     {
+      "module": "mobile01",
+      "gradleProject": ":src:mobile01",
+      "assembleTask": ":src:mobile01:assembleRelease",
+      "apkOutput": "src/mobile01/build/outputs/apk/release/mobile01-release.apk",
+      "artifactName": "newshub-mobile01-v{versionName}.apk",
+      "package": "tw.kevinzhang.newshub.extension.mobile01",
+      "registry": "src/mobile01/src/main/assets/newshub-extension.json",
+      "icon": {
+        "source": "release-icons/mobile01.png",
+        "name": "tw.kevinzhang.newshub.extension.mobile01.png"
+      },
+      "sources": [
+        {
+          "module": "mobile01-source",
+          "testTask": ":src:mobile01-source:test",
+          "id": "tw.kevinzhang.mobile01",
+          "className": "tw.kevinzhang.newshub.extension.mobile01.Mobile01Source"
+        }
+      ]
+    },
+    {
       "module": "ptt",
       "gradleProject": ":src:ptt",
       "assembleTask": ":src:ptt:assembleRelease",

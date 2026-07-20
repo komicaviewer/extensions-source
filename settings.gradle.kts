@@ -22,6 +22,8 @@ listOf(
     "hackernews",
     "komica",
     "komica2",
+    "mobile01",
+    "mobile01-source",
     "nagatoyuki",
     "ptt",
     "sora-komica",

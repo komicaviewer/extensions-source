@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "name": "NewsHub: Mobile01",
+  "sources": [{
+    "className": "tw.kevinzhang.newshub.extension.mobile01.Mobile01Source",
+    "id": "tw.kevinzhang.mobile01",
+    "name": "Mobile01",
+    "lang": "zh-TW",
+    "baseUrl": "https://www.mobile01.com"
+  }]
+}

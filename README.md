@@ -6,7 +6,7 @@ Modeled after [keiyoushi/extensions-source](https://github.com/keiyoushi/extensi
 
 ## Architecture
 
-The current release contains five installable APKs and eleven Sources. Source
+The current release contains six installable APKs and twelve Sources. Source
 implementations are Kotlin/JVM libraries; Android application modules own the APK
 manifest, registry asset, signing version, and installation boundary.
 
@@ -29,6 +29,7 @@ zawarudo-komica2┘
 
 gamer ────────────→ gamer.apk (1 Source)
 hackernews ───────→ hackernews.apk (1 Source)
+mobile01 ─────────→ mobile01.apk (1 Source)
 ptt ──────────────→ ptt.apk (1 Source)
 ```
 
@@ -46,6 +47,8 @@ ptt ──────────────→ ptt.apk (1 Source)
 | `src/komica2` | Android application | Komica2 bundle APK and three-Source registry |
 | `src/gamer` | Android application | Gamer APK and one-Source registry |
 | `src/hackernews` | Android application | Hacker News APK and one-Source registry |
+| `src/mobile01-source` | Kotlin/JVM library | Mobile01 Source with paginated forum posts |
+| `src/mobile01` | Android application | Mobile01 APK and one-Source registry |
 | `src/ptt` | Android application | PTT APK and one-Source registry |
 
 Parsers use `extension-api` models directly. There is no shared Komica parser or

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Orange 01 extension icon">
+  <rect width="512" height="512" rx="104" fill="#F07C24"/>
+  <path fill="#FFF7EF" fill-rule="evenodd" d="M151 112c-51 0-72 36-72 91v106c0 55 21 91 72 91h47c51 0 72-36 72-91V203c0-55-21-91-72-91h-47zm0 53h47c14 0 20 10 20 38v106c0 28-6 38-20 38h-47c-14 0-20-10-20-38V203c0-28 6-38 20-38z"/>
+  <path fill="#FFF7EF" d="M331 144l53-32v288h-53z"/>
+</svg>
