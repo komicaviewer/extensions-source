@@ -3,175 +3,153 @@ import json
 import os
 import tempfile
 import unittest
-import zipfile
+from pathlib import Path
 from unittest.mock import patch
 
 import generate_index as generator
-from generate_index import EXPECTED_RELEASES, generate_index, read_registry
+from generate_index import _publish_staged_tree, generate_index
+from release_catalog import load_catalog
+from test_support import TEST_CERT, metadata_reader_for, signature_reader, write_complete_apks
 
 
-class RegistryTest(unittest.TestCase):
-    def write_apk(self, registry):
-        temp = tempfile.NamedTemporaryFile(suffix=".apk", delete=False)
-        temp.close()
-        with zipfile.ZipFile(temp.name, "w") as apk:
-            apk.writestr("assets/newshub-extension.json", json.dumps(registry))
-        self.addCleanup(lambda: os.remove(temp.name))
-        return temp.name
-
-    def test_reads_multi_source_registry(self):
-        registry = {
-            "schemaVersion": 1,
-            "name": "NewsHub: Komica",
-            "sources": [
-                {
-                    "className": "example.TwocatSource",
-                    "id": "example.twocat",
-                    "name": "Twocat",
-                    "lang": "zh-TW",
-                    "baseUrl": "https://example.com",
-                },
-                {
-                    "className": "example.SoraSource",
-                    "id": "example.sora",
-                    "name": "Sora",
-                    "lang": "zh-TW",
-                    "baseUrl": "https://example.org",
-                },
-            ],
-        }
-        self.assertEqual(registry, read_registry(self.write_apk(registry)))
-
-    def test_rejects_duplicate_source_ids(self):
-        source = {
-            "className": "example.Source",
-            "id": "example.source",
-            "name": "Source",
-            "lang": "zh-TW",
-            "baseUrl": "https://example.com",
-        }
-        registry = {
-            "schemaVersion": 1,
-            "name": "Duplicate",
-            "sources": [source, dict(source, className="example.OtherSource")],
-        }
-        with self.assertRaisesRegex(ValueError, "duplicate source id"):
-            read_registry(self.write_apk(registry))
-
-    def test_rejects_missing_registry_asset(self):
-        temp = tempfile.NamedTemporaryFile(suffix=".apk", delete=False)
-        temp.close()
-        with zipfile.ZipFile(temp.name, "w") as apk:
-            apk.writestr("placeholder", "")
-        self.addCleanup(lambda: os.remove(temp.name))
-
-        with self.assertRaisesRegex(ValueError, "missing assets/newshub-extension.json"):
-            read_registry(temp.name)
-
-
-def release_registry(module):
-    expected = EXPECTED_RELEASES[module]
+def snapshot(root: Path) -> dict[str, bytes]:
+    if not root.exists():
+        return {}
     return {
-        "schemaVersion": 1,
-        "name": expected["name"],
-        "sources": [
-            {
-                "className": f"example.{index}.Source",
-                "id": source_id,
-                "name": source_id,
-                "lang": "zh-TW",
-                "baseUrl": f"https://{index}.example",
-            }
-            for index, source_id in enumerate(sorted(expected["sources"]))
-        ],
+        str(path.relative_to(root)): path.read_bytes()
+        for path in root.rglob("*")
+        if path.is_file()
     }
-
-
-def write_release_apk(apk_dir, module):
-    apk_name = f"newshub-{module}-v1.0.0.apk"
-    apk_path = os.path.join(apk_dir, apk_name)
-    with zipfile.ZipFile(apk_path, "w") as apk:
-        apk.writestr("assets/newshub-extension.json", json.dumps(release_registry(module)))
-    return apk_path
 
 
 class GenerateIndexTest(unittest.TestCase):
     def setUp(self):
-        self.temp_dir = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temp_dir.cleanup)
-        self.apk_dir = os.path.join(self.temp_dir.name, "input")
-        self.output_dir = os.path.join(self.temp_dir.name, "output")
-        os.makedirs(self.apk_dir)
-        os.makedirs(os.path.join(self.output_dir, "apk"))
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        root = Path(self.temporary.name)
+        self.apk_dir = root / "input"
+        self.output_dir = root / "output"
+        self.apk_dir.mkdir()
+        self.catalog = load_catalog()
+
+    def call_generate(self, **overrides):
+        arguments = {
+            "catalog": self.catalog,
+            "metadata_reader": metadata_reader_for(self.catalog),
+            "signature_reader": signature_reader,
+        }
+        arguments.update(overrides)
+        return generate_index(
+            str(self.apk_dir),
+            str(self.output_dir),
+            "unused-aapt",
+            "unused-apksigner",
+            TEST_CERT,
+            **arguments,
+        )
 
     def write_existing_output(self):
-        old_apk = os.path.join(self.output_dir, "apk", "existing-gamer.apk")
-        with open(old_apk, "wb") as file:
-            file.write(b"existing")
-        index_path = os.path.join(self.output_dir, "index.json")
-        with open(index_path, "w", encoding="utf-8") as file:
-            file.write("existing-index")
-        return old_apk, index_path
-
-    def write_complete_input(self):
-        for module in EXPECTED_RELEASES:
-            write_release_apk(self.apk_dir, module)
+        (self.output_dir / "apk").mkdir(parents=True)
+        (self.output_dir / "icon").mkdir()
+        (self.output_dir / "apk/old.apk").write_bytes(b"old-apk")
+        (self.output_dir / "icon/old.png").write_bytes(b"old-icon")
+        (self.output_dir / "index.json").write_text("old-index", encoding="utf-8")
+        (self.output_dir / "index.min.json").write_text("old-min", encoding="utf-8")
+        (self.output_dir / "repo.json").write_text("keep", encoding="utf-8")
 
     def test_incomplete_input_does_not_touch_existing_output(self):
-        old_apk, index_path = self.write_existing_output()
-        write_release_apk(self.apk_dir, "komica")
-        write_release_apk(self.apk_dir, "komica2")
+        self.write_existing_output()
+        before = snapshot(self.output_dir)
 
         with self.assertRaisesRegex(ValueError, "incomplete release APK set"):
-            generate_index(self.apk_dir, self.output_dir, "unused-aapt")
+            self.call_generate()
 
-        self.assertTrue(os.path.exists(old_apk))
-        with open(index_path, encoding="utf-8") as file:
-            self.assertEqual("existing-index", file.read())
+        self.assertEqual(before, snapshot(self.output_dir))
 
     def test_package_mismatch_does_not_touch_existing_output(self):
-        old_apk, index_path = self.write_existing_output()
-        self.write_complete_input()
-
-        def fake_parse(apk_path, _aapt):
-            module = generator.module_from_apk_name(os.path.basename(apk_path))
-            package = EXPECTED_RELEASES[module]["package"]
-            if module == "gamer":
-                package += ".wrong"
-            return {"pkg": package, "versionCode": 1, "versionName": "1.0.0"}
-
-        with patch.object(generator, "parse_apk", side_effect=fake_parse):
-            with self.assertRaisesRegex(ValueError, "unexpected package for gamer"):
-                generate_index(self.apk_dir, self.output_dir, "unused-aapt")
-
-        self.assertTrue(os.path.exists(old_apk))
-        with open(index_path, encoding="utf-8") as file:
-            self.assertEqual("existing-index", file.read())
-
-    def test_complete_input_replaces_output_with_three_packages_and_nine_sources(self):
         self.write_existing_output()
-        self.write_complete_input()
+        write_complete_apks(self.apk_dir, self.catalog)
+        before = snapshot(self.output_dir)
+        normal_reader = metadata_reader_for(self.catalog)
 
-        def fake_parse(apk_path, _aapt):
-            module = generator.module_from_apk_name(os.path.basename(apk_path))
-            return {
-                "pkg": EXPECTED_RELEASES[module]["package"],
-                "versionCode": 1,
-                "versionName": "1.0.0",
-            }
+        def wrong_package(apk_path, aapt):
+            metadata = normal_reader(apk_path, aapt)
+            if "gamer" in Path(apk_path).name:
+                metadata["pkg"] += ".wrong"
+            return metadata
 
-        with patch.object(generator, "parse_apk", side_effect=fake_parse):
-            extensions = generate_index(self.apk_dir, self.output_dir, "unused-aapt")
+        with self.assertRaisesRegex(ValueError, "unexpected package for gamer"):
+            self.call_generate(metadata_reader=wrong_package)
+
+        self.assertEqual(before, snapshot(self.output_dir))
+
+    def test_candidate_validation_failure_does_not_touch_existing_output(self):
+        self.write_existing_output()
+        write_complete_apks(self.apk_dir, self.catalog)
+        before = snapshot(self.output_dir)
+
+        def reject_candidate(*_args, **kwargs):
+            self.assertEqual(str(self.output_dir.resolve()), kwargs["baseline_dir"])
+            self.assertEqual(
+                "old-index",
+                (Path(kwargs["baseline_dir"]) / "index.json").read_text(encoding="utf-8"),
+            )
+            raise ValueError("injected candidate failure")
+
+        with self.assertRaisesRegex(ValueError, "injected candidate failure"):
+            self.call_generate(distribution_validator=reject_candidate)
+
+        self.assertEqual(before, snapshot(self.output_dir))
+
+    def test_complete_input_replaces_managed_tree_and_preserves_repo_files(self):
+        self.write_existing_output()
+        # An invalid old index is intentionally not used as a baseline in this success test.
+        (self.output_dir / "index.min.json").unlink()
+        write_complete_apks(self.apk_dir, self.catalog)
+
+        extensions = self.call_generate()
 
         self.assertEqual(3, len(extensions))
         self.assertEqual(9, sum(len(extension["sources"]) for extension in extensions))
         self.assertEqual(
-            {f"newshub-{module}-v1.0.0.apk" for module in EXPECTED_RELEASES},
-            set(os.listdir(os.path.join(self.output_dir, "apk"))),
+            {item["apkName"] for item in extensions},
+            {path.name for path in (self.output_dir / "apk").glob("*.apk")},
         )
-        with open(os.path.join(self.output_dir, "index.json"), encoding="utf-8") as file:
-            index = json.load(file)
-        self.assertEqual(extensions, index)
+        self.assertEqual(
+            {release["icon"]["name"] for release in self.catalog["releases"]},
+            {path.name for path in (self.output_dir / "icon").glob("*.png")},
+        )
+        pretty = json.loads((self.output_dir / "index.json").read_text(encoding="utf-8"))
+        compact = json.loads((self.output_dir / "index.min.json").read_text(encoding="utf-8"))
+        self.assertEqual(extensions, pretty)
+        self.assertEqual(pretty, compact)
+        self.assertEqual("keep", (self.output_dir / "repo.json").read_text(encoding="utf-8"))
+
+    def test_publish_error_rolls_back_all_managed_paths(self):
+        self.write_existing_output()
+        stage = Path(self.temporary.name) / "stage"
+        (stage / "apk").mkdir(parents=True)
+        (stage / "icon").mkdir()
+        (stage / "apk/new.apk").write_bytes(b"new")
+        (stage / "icon/new.png").write_bytes(b"new")
+        (stage / "index.json").write_text("new", encoding="utf-8")
+        (stage / "index.min.json").write_text("new", encoding="utf-8")
+        before = snapshot(self.output_dir)
+        real_replace = os.replace
+        calls = 0
+
+        def fail_once(source, destination):
+            nonlocal calls
+            calls += 1
+            if calls == 6:
+                raise OSError("injected replace failure")
+            return real_replace(source, destination)
+
+        with patch.object(generator.os, "replace", side_effect=fail_once):
+            with self.assertRaisesRegex(OSError, "injected replace failure"):
+                _publish_staged_tree(stage, self.output_dir)
+
+        self.assertEqual(before, snapshot(self.output_dir))
 
 
 if __name__ == "__main__":

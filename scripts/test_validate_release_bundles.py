@@ -1,89 +1,77 @@
 #!/usr/bin/env python3
-import json
-import os
 import tempfile
 import unittest
-import zipfile
+from pathlib import Path
 
-from validate_release_bundles import EXPECTED_RELEASES, validate_release_bundles
-
-
-def registry_for(module):
-    expected = EXPECTED_RELEASES[module]
-    return {
-        "schemaVersion": 1,
-        "name": expected["name"],
-        "sources": [
-            {
-                "className": f"example.{index}.Source",
-                "id": source_id,
-                "name": source_id,
-                "lang": "zh-TW",
-                "baseUrl": f"https://{index}.example",
-            }
-            for index, source_id in enumerate(sorted(expected["sources"]))
-        ],
-    }
+from release_catalog import load_catalog, registry_for_release
+from test_support import write_complete_apks, write_release_apk
+from validate_release_bundles import validate_release_bundles
 
 
 class ReleaseBundleValidationTest(unittest.TestCase):
     def setUp(self):
-        self.temp_dir = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temp_dir.cleanup)
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.apk_dir = Path(self.temporary.name)
+        self.catalog = load_catalog()
 
-    def write_apk(self, module, registry=None, apk_name=None):
-        path = os.path.join(
-            self.temp_dir.name,
-            apk_name or f"newshub-{module}-v1.0.0.apk",
+    def test_accepts_catalog_complete_release(self):
+        write_complete_apks(self.apk_dir, self.catalog)
+
+        registries = validate_release_bundles(str(self.apk_dir), self.catalog)
+
+        self.assertEqual(
+            {release["module"] for release in self.catalog["releases"]},
+            set(registries),
         )
-        with zipfile.ZipFile(path, "w") as apk:
-            apk.writestr(
-                "assets/newshub-extension.json",
-                json.dumps(registry or registry_for(module)),
-            )
-        return path
-
-    def write_complete_release(self):
-        for module in EXPECTED_RELEASES:
-            self.write_apk(module)
-
-    def test_accepts_exact_three_apk_nine_source_release(self):
-        self.write_complete_release()
-
-        registries = validate_release_bundles(self.temp_dir.name)
-
-        self.assertEqual(set(EXPECTED_RELEASES), set(registries))
         self.assertEqual(9, sum(len(registry["sources"]) for registry in registries.values()))
 
     def test_rejects_release_missing_gamer(self):
-        self.write_apk("komica")
-        self.write_apk("komica2")
+        for release in self.catalog["releases"]:
+            if release["module"] != "gamer":
+                write_release_apk(self.apk_dir, self.catalog, release)
 
         with self.assertRaisesRegex(ValueError, "incomplete release APK set"):
-            validate_release_bundles(self.temp_dir.name)
+            validate_release_bundles(str(self.apk_dir), self.catalog)
 
-    def test_rejects_unexpected_release_module(self):
-        self.write_complete_release()
-        self.write_apk("gamer", apk_name="newshub-akraft-v1.0.0.apk")
+    def test_rejects_unexpected_release_filename(self):
+        write_complete_apks(self.apk_dir, self.catalog)
+        (self.apk_dir / "newshub-unknown-v1.0.0.apk").write_bytes(b"not-an-apk")
 
-        with self.assertRaisesRegex(ValueError, "unexpected release APK module: akraft"):
-            validate_release_bundles(self.temp_dir.name)
+        with self.assertRaisesRegex(ValueError, "unexpected release APK filename"):
+            validate_release_bundles(str(self.apk_dir), self.catalog)
 
-    def test_rejects_incomplete_komica_source_set(self):
-        self.write_complete_release()
-        registry = registry_for("komica")
-        registry["sources"].pop()
-        self.write_apk("komica", registry=registry)
+    def test_rejects_registry_that_differs_from_catalog(self):
+        write_complete_apks(self.apk_dir, self.catalog)
+        release = next(item for item in self.catalog["releases"] if item["module"] == "komica")
+        registry = registry_for_release(self.catalog, release)
+        registry["sources"] = registry["sources"][:-1]
+        write_release_apk(self.apk_dir, self.catalog, release, registry=registry)
 
-        with self.assertRaisesRegex(ValueError, "unexpected sources for komica"):
-            validate_release_bundles(self.temp_dir.name)
+        with self.assertRaisesRegex(ValueError, "APK registry does not match catalog registry"):
+            validate_release_bundles(str(self.apk_dir), self.catalog)
 
-    def test_rejects_duplicate_apk_for_same_module(self):
-        self.write_complete_release()
-        self.write_apk("gamer", apk_name="newshub-gamer-v2.0.0.apk")
+    def test_rejects_missing_source_bytecode(self):
+        write_complete_apks(self.apk_dir, self.catalog)
+        release = next(item for item in self.catalog["releases"] if item["module"] == "gamer")
+        write_release_apk(self.apk_dir, self.catalog, release, include_dex=False)
 
-        with self.assertRaisesRegex(ValueError, "duplicate release APK module: gamer"):
-            validate_release_bundles(self.temp_dir.name)
+        with self.assertRaisesRegex(ValueError, "release APK has no classes.dex"):
+            validate_release_bundles(str(self.apk_dir), self.catalog)
+
+    def test_rejects_foreign_source_bytecode(self):
+        write_complete_apks(self.apk_dir, self.catalog)
+        gamer = next(item for item in self.catalog["releases"] if item["module"] == "gamer")
+        komica = next(item for item in self.catalog["releases"] if item["module"] == "komica")
+        apk = write_release_apk(self.apk_dir, self.catalog, gamer)
+        import zipfile
+
+        with zipfile.ZipFile(apk, "a") as archive:
+            marker = komica["sources"][0]["className"].replace(".", "/")
+            archive.writestr("classes2.dex", marker)
+
+        with self.assertRaisesRegex(ValueError, "contains foreign Source class"):
+            validate_release_bundles(str(self.apk_dir), self.catalog)
 
 
 if __name__ == "__main__":

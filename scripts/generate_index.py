@@ -1,170 +1,191 @@
 #!/usr/bin/env python3
-"""
-Reads bundle APKs from <apk_dir>, extracts package metadata using aapt and
-Source metadata from assets/newshub-extension.json, then regenerates index.json
-and index.min.json and copies APKs to <output_dir>/apk/.
+"""Build and atomically publish a validated extensions distribution candidate."""
+from __future__ import annotations
 
-Usage: generate_index.py <apk_dir> <output_dir>
-Requires: aapt in PATH or AAPT env var pointing to the binary.
-"""
-import hashlib
+import argparse
 import json
 import os
-import re
 import shutil
-import subprocess
-import sys
+import tempfile
+from pathlib import Path
+from typing import Callable
 
+from release_catalog import (
+    DEFAULT_CATALOG_PATH,
+    load_catalog,
+    releases_by_module,
+)
+from validate_distribution import (
+    find_tool,
+    read_apk_metadata,
+    read_signing_fingerprint,
+    sha256_file,
+    validate_distribution_tree,
+)
 from validate_release_bundles import (
-    EXPECTED_RELEASES,
     module_from_apk_name,
     read_registry,
     validate_release_bundles,
 )
 
 
-def sha256_file(path: str) -> str:
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(65536), b""):
-            h.update(chunk)
-    return h.hexdigest()
+def _index_source(source: dict) -> dict:
+    return {key: source[key] for key in ("id", "name", "lang", "baseUrl")}
 
 
-def find_aapt() -> str:
-    if os.environ.get("AAPT"):
-        return os.environ["AAPT"]
-    for candidate in ["aapt", "aapt2"]:
-        if shutil.which(candidate):
-            return candidate
-    sdk = os.environ.get("ANDROID_SDK_ROOT") or os.environ.get("ANDROID_HOME", "")
-    bt = os.path.join(sdk, "build-tools")
-    if os.path.isdir(bt):
-        for v in sorted(os.listdir(bt), reverse=True):
-            p = os.path.join(bt, v, "aapt")
-            if os.path.isfile(p):
-                return p
-    raise FileNotFoundError("aapt not found. Set AAPT env var or install Android build-tools.")
+def _remove_path(path: Path) -> None:
+    if path.is_dir() and not path.is_symlink():
+        shutil.rmtree(path)
+    elif path.exists() or path.is_symlink():
+        path.unlink()
 
 
-def parse_apk(apk_path: str, aapt: str) -> dict:
-    try:
-        r = subprocess.run([aapt, "dump", "badging", apk_path],
-                           capture_output=True, text=True, timeout=60)
-        if r.returncode != 0:
-            print(f"  aapt error: {r.stderr[:200]}")
-            return {}
-        return _parse_badging(r.stdout)
-    except Exception as e:
-        print(f"  Exception: {e}")
-        return {}
+def _publish_staged_tree(stage: Path, output: Path) -> None:
+    """Replace managed distribution paths, restoring all of them on any error."""
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="extensions-backup-", dir=output.parent) as backup_name:
+        backup = Path(backup_name)
+        managed = ("apk", "icon", "index.json", "index.min.json")
+        installed: list[str] = []
+        moved_to_backup: list[str] = []
+        output_created = False
+        try:
+            if not output.exists():
+                output.mkdir()
+                output_created = True
+            for name in managed:
+                current = output / name
+                if current.exists() or current.is_symlink():
+                    os.replace(current, backup / name)
+                    moved_to_backup.append(name)
+            for name in managed:
+                os.replace(stage / name, output / name)
+                installed.append(name)
+        except BaseException:
+            for name in reversed(installed):
+                _remove_path(output / name)
+            for name in reversed(moved_to_backup):
+                os.replace(backup / name, output / name)
+            if output_created and output.exists() and not any(output.iterdir()):
+                output.rmdir()
+            raise
 
 
-def _parse_badging(output: str) -> dict:
-    meta = {}
-    for line in output.splitlines():
-        # Anchored regex: avoids matching compileSdkVersionCodename at end of line
-        m = re.match(r"package: name='([^']+)' versionCode='(\d+)' versionName='([^']*)'", line)
-        if m:
-            meta["pkg"] = m.group(1)
-            meta["versionCode"] = int(m.group(2))
-            meta["versionName"] = m.group(3)
+def generate_index(
+    apk_dir: str,
+    output_dir: str,
+    aapt: str,
+    apksigner: str,
+    expected_signing_cert_sha256: str,
+    *,
+    catalog: dict | None = None,
+    metadata_reader: Callable[[str, str], dict] = read_apk_metadata,
+    signature_reader: Callable[[str, str], str] = read_signing_fingerprint,
+    bundle_validator: Callable[..., dict[str, dict]] = validate_release_bundles,
+    distribution_validator: Callable[..., list[dict]] = validate_distribution_tree,
+) -> list[dict]:
+    catalog = catalog or load_catalog()
+    apk_input = Path(apk_dir).resolve()
+    output = Path(output_dir).resolve()
 
-        m = re.match(r"application-label(?:-\w+)?:'(.+)'", line)
-        if m and "name" not in meta:
-            meta["name"] = m.group(1)
-
-    return meta
-
-
-def generate_index(apk_dir: str, output_dir: str, aapt: str) -> list[dict]:
-    # Establish that the input directory is the complete release before touching output_dir.
-    validate_release_bundles(apk_dir)
-    extensions = []
-    prepared_apks = []
-    for apk_file in sorted(os.listdir(apk_dir)):
-        if not apk_file.endswith(".apk"):
-            continue
-        apk_path = os.path.join(apk_dir, apk_file)
-        print(f"Processing: {apk_file}")
-
-        module = module_from_apk_name(apk_file)
-        meta = parse_apk(apk_path, aapt)
-        if not meta.get("pkg"):
-            raise ValueError(f"could not read package metadata from {apk_file}")
-        expected_package = EXPECTED_RELEASES[module]["package"]
-        if meta["pkg"] != expected_package:
+    # All reads and validation happen before the existing output is touched.
+    bundle_validator(str(apk_input), catalog)
+    release_by_module = releases_by_module(catalog)
+    extensions: list[dict] = []
+    prepared_apks: list[tuple[Path, str]] = []
+    for apk_path in sorted(apk_input.glob("*.apk")):
+        module = module_from_apk_name(apk_path.name, catalog)
+        release = release_by_module[module]
+        metadata = metadata_reader(str(apk_path), aapt)
+        if metadata.get("pkg") != release["package"]:
             raise ValueError(
                 f"unexpected package for {module}: "
-                f"expected={expected_package}, actual={meta['pkg']}",
+                f"expected={release['package']}, actual={metadata.get('pkg')}",
             )
-
-        registry = read_registry(apk_path)
-
-        sha = sha256_file(apk_path)
-        prepared_apks.append((apk_path, apk_file))
-
-        sources = [
-            {
-                "id": source["id"],
-                "name": source["name"],
-                "lang": source["lang"],
-                "baseUrl": source["baseUrl"],
-            }
-            for source in registry["sources"]
-        ]
+        registry = read_registry(str(apk_path))
+        sources = [_index_source(source) for source in registry["sources"]]
         languages = {source["lang"] for source in sources}
-
         extensions.append({
-            "pkg":         meta["pkg"],
-            "name":        registry["name"],
-            "versionCode": meta.get("versionCode", 1),
-            "versionName": meta.get("versionName", "1.0"),
-            "lang":        next(iter(languages)) if len(languages) == 1 else "",
-            "apkName":     apk_file,
-            "iconName":    f"{meta['pkg']}.png",
-            "sha256":      sha,
-            "sources":     sources,
+            "pkg": metadata["pkg"],
+            "name": registry["name"],
+            "versionCode": metadata["versionCode"],
+            "versionName": metadata["versionName"],
+            "lang": next(iter(languages)) if len(languages) == 1 else "",
+            "apkName": apk_path.name,
+            "iconName": release["icon"]["name"],
+            "sha256": sha256_file(apk_path),
+            "sources": sources,
         })
-        print(f"  OK: {meta['pkg']} v{meta.get('versionName','?')}, sources={len(sources)}")
+        prepared_apks.append((apk_path, apk_path.name))
 
-    packages = [extension["pkg"] for extension in extensions]
-    if len(packages) != len(set(packages)):
-        raise ValueError(f"duplicate packages in release input: {packages}")
-
-    os.makedirs(os.path.join(output_dir, "apk"), exist_ok=True)
-    os.makedirs(os.path.join(output_dir, "icon"), exist_ok=True)
-    for old_apk in os.listdir(os.path.join(output_dir, "apk")):
-        if old_apk.endswith(".apk"):
-            os.remove(os.path.join(output_dir, "apk", old_apk))
-    for apk_path, apk_file in prepared_apks:
-        shutil.copy2(apk_path, os.path.join(output_dir, "apk", apk_file))
-
-    # Destructive publication: the supplied bundles are the complete index.
-    index_path = os.path.join(output_dir, "index.json")
     extensions.sort(key=lambda extension: extension["pkg"])
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="extensions-candidate-", dir=output.parent) as stage_name:
+        stage = Path(stage_name)
+        (stage / "apk").mkdir()
+        (stage / "icon").mkdir()
+        for source, name in prepared_apks:
+            shutil.copy2(source, stage / "apk" / name)
+        catalog_root = Path(catalog["_root"])
+        for release in catalog["releases"]:
+            shutil.copy2(
+                catalog_root / release["icon"]["source"],
+                stage / "icon" / release["icon"]["name"],
+            )
+        (stage / "index.json").write_text(
+            json.dumps(extensions, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        (stage / "index.min.json").write_text(
+            json.dumps(extensions, ensure_ascii=False, separators=(",", ":")) + "\n",
+            encoding="utf-8",
+        )
 
-    with open(index_path, "w", encoding="utf-8") as f:
-        json.dump(extensions, f, ensure_ascii=False, indent=2)
-    print(f"\nWritten index.json: {len(extensions)} extensions")
-
-    # Also write index.min.json (minified, same content)
-    min_path = os.path.join(output_dir, "index.min.json")
-    with open(min_path, "w", encoding="utf-8") as f:
-        json.dump(extensions, f, ensure_ascii=False, separators=(",", ":"))
-    print(f"Written index.min.json")
+        baseline = None
+        if (output / "index.json").is_file() and (output / "index.min.json").is_file():
+            baseline = str(output)
+        distribution_validator(
+            str(stage),
+            catalog,
+            aapt=aapt,
+            apksigner=apksigner,
+            expected_signing_cert_sha256=expected_signing_cert_sha256,
+            baseline_dir=baseline,
+            metadata_reader=metadata_reader,
+            signature_reader=signature_reader,
+        )
+        _publish_staged_tree(stage, output)
     return extensions
 
 
-def main():
-    if len(sys.argv) != 3:
-        print(f"Usage: {sys.argv[0]} <apk_dir> <output_dir>")
-        sys.exit(1)
-    apk_dir, output_dir = sys.argv[1:]
-
-    aapt = find_aapt()
-    print(f"Using aapt: {aapt}")
-    generate_index(apk_dir, output_dir, aapt)
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("apk_dir")
+    parser.add_argument("output_dir")
+    parser.add_argument("--catalog", default=str(DEFAULT_CATALOG_PATH))
+    parser.add_argument("--aapt", default=os.environ.get("AAPT"))
+    parser.add_argument("--apksigner", default=os.environ.get("APKSIGNER"))
+    parser.add_argument(
+        "--signing-cert-sha256",
+        default=os.environ.get("SIGNING_CERT_SHA256"),
+    )
+    args = parser.parse_args()
+    if not args.signing_cert_sha256:
+        raise SystemExit("SIGNING_CERT_SHA256 is required")
+    aapt = args.aapt or find_tool("AAPT", ("aapt", "aapt2"))
+    apksigner = args.apksigner or find_tool("APKSIGNER", ("apksigner",))
+    extensions = generate_index(
+        args.apk_dir,
+        args.output_dir,
+        aapt,
+        apksigner,
+        args.signing_cert_sha256,
+        catalog=load_catalog(args.catalog),
+    )
+    print(
+        f"Published validated distribution: APKs={len(extensions)}, "
+        f"Sources={sum(len(item['sources']) for item in extensions)}",
+    )
 
 
 if __name__ == "__main__":

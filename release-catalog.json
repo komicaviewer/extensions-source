@@ -1,0 +1,108 @@
+{
+  "schemaVersion": 1,
+  "authorizedRemovals": {
+    "packages": [],
+    "sources": []
+  },
+  "releases": [
+    {
+      "module": "gamer",
+      "gradleProject": ":src:gamer",
+      "assembleTask": ":src:gamer:assembleRelease",
+      "apkOutput": "src/gamer/build/outputs/apk/release/gamer-release.apk",
+      "artifactName": "newshub-gamer-v{versionName}.apk",
+      "package": "tw.kevinzhang.newshub.extension.gamer",
+      "registry": "src/gamer/src/main/assets/newshub-extension.json",
+      "icon": {
+        "source": "release-icons/gamer.png",
+        "name": "tw.kevinzhang.newshub.extension.gamer.png"
+      },
+      "sources": [
+        {
+          "module": "gamer",
+          "testTask": ":src:gamer:testDebugUnitTest",
+          "id": "tw.kevinzhang.newshub.extension.gamer",
+          "className": "tw.kevinzhang.newshub.extension.gamer.GamerSource"
+        }
+      ]
+    },
+    {
+      "module": "komica",
+      "gradleProject": ":src:komica",
+      "assembleTask": ":src:komica:assembleRelease",
+      "apkOutput": "src/komica/build/outputs/apk/release/komica-release.apk",
+      "artifactName": "newshub-komica-v{versionName}.apk",
+      "package": "tw.kevinzhang.newshub.extension.komica",
+      "registry": "src/komica/src/main/assets/newshub-extension.json",
+      "icon": {
+        "source": "release-icons/komica.png",
+        "name": "tw.kevinzhang.newshub.extension.komica.png"
+      },
+      "sources": [
+        {
+          "module": "twocat-komica",
+          "testTask": ":src:twocat-komica:test",
+          "id": "tw.kevinzhang.komica.twocat",
+          "className": "tw.kevinzhang.newshub.extension.twocat.komica.TwocatSource"
+        },
+        {
+          "module": "sora-komica",
+          "testTask": ":src:sora-komica:test",
+          "id": "tw.kevinzhang.komica.sora",
+          "className": "tw.kevinzhang.newshub.extension.sora.komica.SoraSource"
+        },
+        {
+          "module": "akraft",
+          "testTask": ":src:akraft:test",
+          "id": "tw.kevinzhang.akraft",
+          "className": "tw.kevinzhang.newshub.extension.akraft.AkraftSource"
+        },
+        {
+          "module": "nagatoyuki",
+          "testTask": ":src:nagatoyuki:test",
+          "id": "tw.kevinzhang.nagatoyuki",
+          "className": "tw.kevinzhang.newshub.extension.nagatoyuki.NagatoyukiSource"
+        },
+        {
+          "module": "wtako",
+          "testTask": ":src:wtako:test",
+          "id": "tw.kevinzhang.wtako",
+          "className": "tw.kevinzhang.newshub.extension.wtako.WtakoSource"
+        }
+      ]
+    },
+    {
+      "module": "komica2",
+      "gradleProject": ":src:komica2",
+      "assembleTask": ":src:komica2:assembleRelease",
+      "apkOutput": "src/komica2/build/outputs/apk/release/komica2-release.apk",
+      "artifactName": "newshub-komica2-v{versionName}.apk",
+      "package": "tw.kevinzhang.newshub.extension.komica2",
+      "registry": "src/komica2/src/main/assets/newshub-extension.json",
+      "icon": {
+        "source": "release-icons/komica2.png",
+        "name": "tw.kevinzhang.newshub.extension.komica2.png"
+      },
+      "sources": [
+        {
+          "module": "twocat-komica2",
+          "testTask": ":src:twocat-komica2:test",
+          "id": "tw.kevinzhang.komica2.twocat",
+          "className": "tw.kevinzhang.newshub.extension.twocat.komica2.Komica2TwocatSource"
+        },
+        {
+          "module": "sora-komica2",
+          "testTask": ":src:sora-komica2:test",
+          "id": "tw.kevinzhang.komica2.sora",
+          "className": "tw.kevinzhang.newshub.extension.sora.komica2.Komica2SoraSource"
+        },
+        {
+          "module": "zawarudo-komica2",
+          "testTask": ":src:zawarudo-komica2:test",
+          "id": "tw.kevinzhang.komica2.zawarudo",
+          "className": "tw.kevinzhang.newshub.extension.zawarudo.komica2.Komica2ZawarudoSource"
+        }
+      ]
+    }
+  ]
+}

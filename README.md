@@ -6,9 +6,15 @@ Modeled after [keiyoushi/extensions-source](https://github.com/keiyoushi/extensi
 
 ## Architecture
 
-The release contains exactly three installable APKs and nine Sources. Source
+The current release contains three installable APKs and nine Sources. Source
 implementations are Kotlin/JVM libraries; Android application modules own the APK
 manifest, registry asset, signing version, and installation boundary.
+
+[`release-catalog.json`](release-catalog.json) is the publishing source of truth.
+It maps every Source module, ID, class, test task, owning APK, Gradle build task,
+APK output, package, registry, artifact filename, and producer-side icon asset.
+The catalog validator also requires every `:src` module in `settings.gradle.kts`
+to be registered, so a newly added module cannot be silently omitted from CI.
 
 ```text
 twocat-komica ─┐
@@ -56,7 +62,8 @@ Every bundle manifest must declare:
     android:value="newshub-extension.json" />
 ```
 
-The referenced asset is the runtime and release-index source of truth:
+The referenced asset is the runtime registry. Its Source IDs and classes must
+exactly match the owning release in `release-catalog.json`:
 
 ```json
 {
@@ -85,37 +92,40 @@ Source classes require a public no-argument constructor. Their runtime `id`,
 3. Add the Source class and metadata to the owning bundle's
    `assets/newshub-extension.json`.
 4. Add parser and request tests to that module's normal `test` source set.
-5. Update `scripts/validate_release_bundles.py` when the owning APK or expected
-   Source set changes. The release contract must still contain exactly three
-   APKs and every intended Source exactly once.
+5. Register the Source and its owning release data in `release-catalog.json`.
+   Do not add Source/APK lists to workflow or validator code; all publishing,
+   Gradle, output, registry, and icon information must be derived from the catalog.
+6. Run `python3 scripts/release_catalog.py validate`. It rejects catalog/registry
+   mismatches, duplicate IDs/classes, missing assets/projects, and Gradle modules
+   that were added to `settings.gradle.kts` without a catalog entry.
 
 ## Building
 
 ```bash
-./gradlew \
-  :src:akraft:test \
-  :src:nagatoyuki:test \
-  :src:wtako:test \
-  :src:twocat-komica:test \
-  :src:twocat-komica2:test \
-  :src:sora-komica:test \
-  :src:sora-komica2:test \
-  :src:zawarudo-komica2:test \
-  :src:gamer:testDebugUnitTest \
-  :src:gamer:assembleRelease \
-  :src:komica:assembleRelease \
-  :src:komica2:assembleRelease
+python3 scripts/release_catalog.py validate
+python3 -m unittest discover -s scripts -p 'test_*.py'
+./gradlew $(python3 scripts/release_catalog.py gradle-tasks)
 ```
 
 ## Releasing
 
-Push to `main`. GitHub Actions builds and signs exactly `gamer`, `komica`, and
-`komica2`; verifies every registry Source class is present and Komica/Komica2
-bytecode stays isolated; then regenerates `index.json` and publishes it to the
+Push to `main`. GitHub Actions derives all test, build, collection, and artifact
+operations from `release-catalog.json`, signs the APKs, and builds a staged
+distribution candidate for the
 [extensions repo](https://github.com/komicaviewer/extensions).
 
-Publication is fail-closed. Before the distribution checkout is changed, the
-scripts require the exact three-APK/nine-Source set, validate each APK package
-against its release module, and reject partial or unexpected inputs. A missing
-Gamer APK therefore fails the workflow instead of silently deleting Gamer from
-the index.
+Publication is fail-closed. Before the destination checkout is changed, admission
+validation requires the catalog-complete APK/Source set; exact registry and
+bytecode ownership; semantic equality of `index.json` and `index.min.json`;
+referenced APK/icon existence; SHA-256, package, version, registry, and signing
+certificate integrity; and comparison with the original destination `main`
+indexes to reject version rollback, same-version APK replacement, and
+unauthorized package/Source deletion. The generator works in a staging tree and
+rolls back managed paths if publication replacement fails.
+
+The workflow never pushes directly to destination `main`. It pushes an isolated
+`automation/extensions-<run>-<attempt>` candidate branch, stages only the
+`apk/`, `icon/`, `index.json`, and `index.min.json` allowlist, opens a pull
+request, and asks GitHub to auto-merge it with squash after destination branch
+protections and required checks admit the candidate. Direct publication pushes
+are prohibited.
