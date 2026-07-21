@@ -6,6 +6,27 @@
   },
   "releases": [
     {
+      "module": "eyny",
+      "gradleProject": ":src:eyny",
+      "assembleTask": ":src:eyny:assembleRelease",
+      "apkOutput": "src/eyny/build/outputs/apk/release/eyny-release.apk",
+      "artifactName": "newshub-eyny-v{versionName}.apk",
+      "package": "tw.kevinzhang.newshub.extension.eyny",
+      "registry": "src/eyny/src/main/assets/newshub-extension.json",
+      "icon": {
+        "source": "release-icons/eyny.png",
+        "name": "tw.kevinzhang.newshub.extension.eyny.png"
+      },
+      "sources": [
+        {
+          "module": "eyny-source",
+          "testTask": ":src:eyny-source:test",
+          "id": "tw.kevinzhang.eyny",
+          "className": "tw.kevinzhang.newshub.extension.eyny.EynySource"
+        }
+      ]
+    },
+    {
       "module": "gamer",
       "gradleProject": ":src:gamer",
       "assembleTask": ":src:gamer:assembleRelease",

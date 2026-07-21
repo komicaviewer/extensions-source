@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "name": "NewsHub: EYNY 伊莉討論區",
+  "sources": [{
+    "className": "tw.kevinzhang.newshub.extension.eyny.EynySource",
+    "id": "tw.kevinzhang.eyny",
+    "name": "EYNY 伊莉討論區",
+    "lang": "zh-TW",
+    "baseUrl": "https://eyny.com"
+  }]
+}

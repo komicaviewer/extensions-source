@@ -18,6 +18,8 @@ rootProject.name = "extensions-source"
 
 listOf(
     "akraft",
+    "eyny",
+    "eyny-source",
     "gamer",
     "hackernews",
     "komica",
