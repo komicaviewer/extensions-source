@@ -7,9 +7,15 @@ from pathlib import Path
 from unittest.mock import patch
 
 import generate_index as generator
-from generate_index import _publish_staged_tree, generate_index
+from generate_index import _publish_staged_tree, apk_payload_sha256, generate_index
 from release_catalog import load_catalog
-from test_support import TEST_CERT, metadata_reader_for, signature_reader, write_complete_apks
+from test_support import (
+    TEST_CERT,
+    build_distribution_tree,
+    metadata_reader_for,
+    signature_reader,
+    write_complete_apks,
+)
 
 
 def snapshot(root: Path) -> dict[str, bytes]:
@@ -56,6 +62,21 @@ class GenerateIndexTest(unittest.TestCase):
         (self.output_dir / "index.json").write_text("old-index", encoding="utf-8")
         (self.output_dir / "index.min.json").write_text("old-min", encoding="utf-8")
         (self.output_dir / "repo.json").write_text("keep", encoding="utf-8")
+
+    def test_payload_hash_ignores_signatures_and_build_provenance(self):
+        import zipfile
+
+        first = Path(self.temporary.name) / "first.apk"
+        second = Path(self.temporary.name) / "second.apk"
+        for path, marker in ((first, "first"), (second, "second")):
+            with zipfile.ZipFile(path, "w") as archive:
+                archive.writestr("classes.dex", "runtime")
+                archive.writestr("META-INF/MANIFEST.MF", marker)
+                archive.writestr("META-INF/CERT.SF", marker)
+                archive.writestr("META-INF/CERT.RSA", marker)
+                archive.writestr("META-INF/version-control-info.textproto", marker)
+
+        self.assertEqual(apk_payload_sha256(first), apk_payload_sha256(second))
 
     def test_incomplete_input_does_not_touch_existing_output(self):
         self.write_existing_output()
@@ -127,6 +148,44 @@ class GenerateIndexTest(unittest.TestCase):
         self.assertEqual(extensions, pretty)
         self.assertEqual(pretty, compact)
         self.assertEqual("keep", (self.output_dir / "repo.json").read_text(encoding="utf-8"))
+
+    def test_same_version_reuses_baseline_when_only_apk_packaging_differs(self):
+        import zipfile
+
+        baseline = build_distribution_tree(self.output_dir, self.catalog)
+        write_complete_apks(self.apk_dir, self.catalog)
+        baseline_bytes = {
+            item["pkg"]: (self.output_dir / "apk" / item["apkName"]).read_bytes()
+            for item in baseline
+        }
+        for apk_path in self.apk_dir.glob("*.apk"):
+            with zipfile.ZipFile(apk_path, "a") as archive:
+                archive.writestr("META-INF/CERT.SF", "rebuilt")
+                archive.writestr("META-INF/CERT.RSA", "rebuilt")
+                archive.writestr("META-INF/version-control-info.textproto", "rebuilt")
+
+        extensions = self.call_generate()
+
+        for item in extensions:
+            self.assertEqual(
+                baseline_bytes[item["pkg"]],
+                (self.output_dir / "apk" / item["apkName"]).read_bytes(),
+            )
+
+    def test_same_version_rejects_changed_apk_payload(self):
+        import zipfile
+
+        build_distribution_tree(self.output_dir, self.catalog)
+        write_complete_apks(self.apk_dir, self.catalog)
+        gamer_apk = next(self.apk_dir.glob("*gamer*.apk"))
+        with zipfile.ZipFile(gamer_apk, "a") as archive:
+            archive.writestr("assets/changed.txt", "changed")
+        before = snapshot(self.output_dir)
+
+        with self.assertRaisesRegex(ValueError, "APK payload changed without versionCode bump"):
+            self.call_generate()
+
+        self.assertEqual(before, snapshot(self.output_dir))
 
     def test_publish_error_rolls_back_all_managed_paths(self):
         self.write_existing_output()

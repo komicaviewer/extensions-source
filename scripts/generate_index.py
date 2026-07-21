@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
+import re
 import shutil
 import tempfile
+import zipfile
 from pathlib import Path
 from typing import Callable
 
@@ -31,6 +34,78 @@ from validate_release_bundles import (
 
 def _index_source(source: dict) -> dict:
     return {key: source[key] for key in ("id", "name", "lang", "baseUrl")}
+
+
+SIGNATURE_ENTRY_RE = re.compile(
+    r"^META-INF/(?:MANIFEST\.MF|[^/]+\.(?:SF|RSA|DSA|EC))$",
+    re.IGNORECASE,
+)
+
+
+def apk_payload_sha256(apk_path: Path) -> str:
+    """Hash APK entry names and contents without packaging/signature bytes."""
+    digest = hashlib.sha256()
+    try:
+        with zipfile.ZipFile(apk_path) as archive:
+            entries = [
+                entry for entry in archive.infolist()
+                if not entry.is_dir()
+                and not SIGNATURE_ENTRY_RE.fullmatch(entry.filename)
+                and entry.filename != "META-INF/version-control-info.textproto"
+            ]
+            names = [entry.filename for entry in entries]
+            if len(names) != len(set(names)):
+                raise ValueError(f"APK contains duplicate ZIP entries: {apk_path.name}")
+            for entry in sorted(entries, key=lambda item: item.filename):
+                name = entry.filename.encode("utf-8")
+                content = archive.read(entry)
+                digest.update(len(name).to_bytes(8, "big"))
+                digest.update(name)
+                digest.update(len(content).to_bytes(8, "big"))
+                digest.update(content)
+    except (OSError, zipfile.BadZipFile) as exc:
+        raise ValueError(f"invalid APK archive {apk_path.name}: {exc}") from exc
+    return digest.hexdigest()
+
+
+def _baseline_entries(output: Path) -> dict[str, dict]:
+    try:
+        pretty = json.loads((output / "index.json").read_text(encoding="utf-8"))
+        compact = json.loads((output / "index.min.json").read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return {}
+    if pretty != compact or not isinstance(pretty, list):
+        return {}
+    return {
+        item["pkg"]: item
+        for item in pretty
+        if isinstance(item, dict) and isinstance(item.get("pkg"), str)
+    }
+
+
+def _select_apk(
+    fresh_apk: Path,
+    metadata: dict,
+    baseline: dict | None,
+    output: Path,
+) -> tuple[Path, str]:
+    fresh_sha = sha256_file(fresh_apk)
+    if baseline is None or metadata["versionCode"] != baseline.get("versionCode"):
+        return fresh_apk, fresh_sha
+    if metadata["versionName"] != baseline.get("versionName"):
+        raise ValueError(
+            f"versionName changed without versionCode bump for {metadata['pkg']}: "
+            f"old={baseline.get('versionName')!r}, new={metadata['versionName']!r}",
+        )
+    baseline_name = baseline.get("apkName")
+    if not isinstance(baseline_name, str) or Path(baseline_name).name != baseline_name:
+        raise ValueError(f"invalid baseline APK name for {metadata['pkg']}")
+    baseline_apk = output / "apk" / baseline_name
+    if not baseline_apk.is_file() or sha256_file(baseline_apk) != baseline.get("sha256"):
+        raise ValueError(f"baseline APK is missing or corrupted for {metadata['pkg']}")
+    if apk_payload_sha256(fresh_apk) != apk_payload_sha256(baseline_apk):
+        raise ValueError(f"APK payload changed without versionCode bump for {metadata['pkg']}")
+    return baseline_apk, baseline["sha256"]
 
 
 def _remove_path(path: Path) -> None:
@@ -91,6 +166,7 @@ def generate_index(
     # All reads and validation happen before the existing output is touched.
     bundle_validator(str(apk_input), catalog)
     release_by_module = releases_by_module(catalog)
+    baseline_by_package = _baseline_entries(output)
     extensions: list[dict] = []
     prepared_apks: list[tuple[Path, str]] = []
     for apk_path in sorted(apk_input.glob("*.apk")):
@@ -102,6 +178,12 @@ def generate_index(
                 f"unexpected package for {module}: "
                 f"expected={release['package']}, actual={metadata.get('pkg')}",
             )
+        selected_apk, selected_sha = _select_apk(
+            apk_path,
+            metadata,
+            baseline_by_package.get(metadata["pkg"]),
+            output,
+        )
         registry = read_registry(str(apk_path))
         sources = [_index_source(source) for source in registry["sources"]]
         languages = {source["lang"] for source in sources}
@@ -113,10 +195,10 @@ def generate_index(
             "lang": next(iter(languages)) if len(languages) == 1 else "",
             "apkName": apk_path.name,
             "iconName": release["icon"]["name"],
-            "sha256": sha256_file(apk_path),
+            "sha256": selected_sha,
             "sources": sources,
         })
-        prepared_apks.append((apk_path, apk_path.name))
+        prepared_apks.append((selected_apk, apk_path.name))
 
     extensions.sort(key=lambda extension: extension["pkg"])
     output.parent.mkdir(parents=True, exist_ok=True)
