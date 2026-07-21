@@ -1,17 +1,33 @@
 <!doctype html>
-<section class="l-articlePage__publish" data-post-id="66984790" data-author="原作者">
-  <header><time datetime="2026-07-18 09:20:00">2026-07-18 09:20:00</time></header>
-  <div class="l-articlePage__publish__content">
-    第一樓內容<br>
-    <blockquote>引用文字</blockquote>
-    <a href="https://example.org/info">外部連結</a>
-    <a href="https://attach2.mobile01.com/original.jpg"><img src="https://attach2.mobile01.com/thumb.jpg"></a>
-  </div>
-</section>
-<section class="l-articlePage__publish" data-post-id="66998109" data-floor="2">
-  <span class="author">回覆者</span><time datetime="2026-07-18 10:00">2026-07-18 10:00</time>
-  <div class="l-articlePage__publish__content">
-    <a data-reply-to="66984790">引用首樓</a> 第二樓內容
-  </div>
-</section>
-<nav><a rel="next" href="/topicdetail.php?f=350&t=5356590&p=2">下一頁</a></nav>
+<html>
+  <head>
+    <link rel="next" href="/topicdetail.php?f=350&t=5356590&p=2">
+  </head>
+  <body>
+    <h1>螢幕選購與校色心得</h1>
+    <div class="l-articlePage">
+      <a id="name_66984790" class="u-username">原作者</a>
+      <div class="l-articlePage__publish">
+        <div class="l-navigation"><ul class="l-toolBar"><li><span class="o-fNotes">2026-07-18 09:20:00</span></li></ul></div>
+        <article id="article_66984790" class="l-publishArea topic_article">
+          <p>第一樓內容</p>
+          <blockquote>引用者 wrote:<br>引用文字</blockquote>
+          <div>區塊內容</div>
+          <div>第二段區塊內容</div>
+          <a href="https://example.org/info">外部連結</a>
+          <a href="https://attach2.mobile01.com/original.jpg"><img src="https://attach2.mobile01.com/thumb.jpg"></a>
+        </article>
+      </div>
+    </div>
+    <div class="l-articlePage">
+      <a id="name_66998109" class="u-username">回覆者</a>
+      <div class="l-articlePage__publish">
+        <article id="article_66998109" class="u-gapBottom--max c-articleLimit">
+          <blockquote>原作者 wrote:<br>首樓引用</blockquote>
+          <p>第二樓內容，曾於 <time datetime="2020-01-01 00:00">舊日期</time> 測試</p>
+        </article>
+        <div class="l-navigation"><span class="o-fNotes">2026-07-18 10:00</span><span class="o-fNotes">#2</span></div>
+      </div>
+    </div>
+  </body>
+</html>

@@ -36,7 +36,7 @@ class Mobile01SourceTest {
             sourceId = source.id,
             boardUrl = "https://www.mobile01.com/topiclist.php?f=350",
             id = "https://www.mobile01.com/topicdetail.php?f=350&t=5356590",
-            title = "螢幕選購與校色心得",
+            title = "無題",
             author = "原作者",
             createdAt = null,
             commentCount = 2,
@@ -47,9 +47,10 @@ class Mobile01SourceTest {
 
         val first = source.getThreadPage(summary, null)
         val second = source.getThreadPage(summary, first.nextPageToken)
+        val legacy = source.getThread(summary)
 
         assertEquals(summary.id, first.metadata?.id)
-        assertEquals(summary.title, first.metadata?.title)
+        assertEquals("螢幕選購與校色心得", first.metadata?.title)
         assertEquals("https://www.mobile01.com/topicdetail.php?f=350&t=5356590&p=2", first.nextPageToken)
         assertEquals(listOf("66984790", "66998109"), first.posts.map { it.id })
         assertTrue(first.posts.all { it.comments.isEmpty() })
@@ -57,6 +58,7 @@ class Mobile01SourceTest {
         assertNull(second.nextPageToken)
         assertEquals(listOf("67000123"), second.posts.map { it.id })
         assertTrue(second.posts.all { it.comments.isEmpty() })
+        assertEquals("螢幕選購與校色心得", legacy.title)
     }
 
     @Test

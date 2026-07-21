@@ -19,8 +19,8 @@ class Mobile01Source : Source {
     override val id: String = Mobile01BoardCatalog.SOURCE_ID
     override val name: String = "Mobile01"
     override val language: String = "zh-TW"
-    override val version: Int = 1
-    override val iconUrl: String = "https://www.mobile01.com/favicon.ico"
+    override val version: Int = 2
+    override val iconUrl: String = "https://attach2.mobile01.com/images/touch/apple-touch-icon-180x180.png"
     override val supportsCommentPagination: Boolean = false
     override val alwaysUseRawImage: Boolean = false
     override val needsLogin: Boolean = false
@@ -49,7 +49,7 @@ class Mobile01Source : Source {
         return Thread(
             id = thread.url,
             url = thread.url,
-            title = summary.title,
+            title = page.metadata?.title ?: summary.title,
             posts = page.posts,
         )
     }
@@ -74,7 +74,7 @@ class Mobile01Source : Source {
             metadata = if (pageToken == null) ThreadPageMetadata(
                 id = original.url,
                 url = original.url,
-                title = summary.title,
+                title = parsed.title ?: summary.title,
             ) else null,
         )
     }

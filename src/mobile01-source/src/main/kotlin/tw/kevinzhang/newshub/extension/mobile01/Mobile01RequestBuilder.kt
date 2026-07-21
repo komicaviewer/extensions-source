@@ -12,7 +12,7 @@ internal object Mobile01RequestBuilder {
 
     private fun request(url: String): Request = Request.Builder()
         .url(url)
-        .header("User-Agent", "NewsHub Mobile01 extension/0.1")
+        .header("User-Agent", "NewsHub Mobile01 extension/0.1.1")
         .header("Accept-Language", "zh-TW,zh;q=0.9")
         .header("Accept", "text/html,application/xhtml+xml")
         .build()
