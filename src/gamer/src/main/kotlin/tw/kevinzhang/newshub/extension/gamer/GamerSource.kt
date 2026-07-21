@@ -22,7 +22,10 @@ import tw.kevinzhang.gamer_api.model.GLink
 import tw.kevinzhang.gamer_api.model.GParagraph
 import tw.kevinzhang.gamer_api.model.GQuote
 import tw.kevinzhang.gamer_api.model.GReplyTo
+import tw.kevinzhang.gamer_api.model.GRichText
 import tw.kevinzhang.gamer_api.model.GText
+import tw.kevinzhang.gamer_api.model.GTextColor
+import tw.kevinzhang.gamer_api.model.GTextEmphasis
 import tw.kevinzhang.gamer_api.model.GVideoInfo
 import tw.kevinzhang.gamer_api.model.GVideoSite
 
@@ -33,7 +36,7 @@ class GamerSource : AuthenticatedSource {
     override val id = "tw.kevinzhang.newshub.extension.gamer"
     override val name = "Gamer 巴哈姆特"
     override val language = "zh-TW"
-    override val version = 3
+    override val version = 4
     override val iconUrl: String = "https://i2.bahamut.com.tw/apple-touch-icon-72x72.png"
     override val supportsCommentPagination: Boolean = false
     override val alwaysUseRawImage: Boolean = false
@@ -213,6 +216,30 @@ private fun GParagraph.toParagraph(): tw.kevinzhang.extension_api.model.Paragrap
     is GQuote   -> tw.kevinzhang.extension_api.model.Paragraph.Quote(content)
     is GReplyTo -> tw.kevinzhang.extension_api.model.Paragraph.ReplyTo(targetId = content)
     is GText    -> tw.kevinzhang.extension_api.model.Paragraph.Text(content)
+    is GRichText -> tw.kevinzhang.extension_api.model.Paragraph.RichText(
+        runs = runs.map { run ->
+            tw.kevinzhang.extension_api.model.RichTextRun(
+                text = run.text,
+                color = when (run.color) {
+                    GTextColor.DEFAULT -> tw.kevinzhang.extension_api.model.RichTextColor.DEFAULT
+                    GTextColor.BLACK -> tw.kevinzhang.extension_api.model.RichTextColor.BLACK
+                    GTextColor.RED -> tw.kevinzhang.extension_api.model.RichTextColor.RED
+                    GTextColor.GREEN -> tw.kevinzhang.extension_api.model.RichTextColor.GREEN
+                    GTextColor.YELLOW -> tw.kevinzhang.extension_api.model.RichTextColor.YELLOW
+                    GTextColor.BLUE -> tw.kevinzhang.extension_api.model.RichTextColor.BLUE
+                    GTextColor.MAGENTA -> tw.kevinzhang.extension_api.model.RichTextColor.MAGENTA
+                    GTextColor.CYAN -> tw.kevinzhang.extension_api.model.RichTextColor.CYAN
+                    GTextColor.WHITE -> tw.kevinzhang.extension_api.model.RichTextColor.WHITE
+                },
+                emphasis = when (run.emphasis) {
+                    GTextEmphasis.NORMAL -> tw.kevinzhang.extension_api.model.RichTextEmphasis.NORMAL
+                    GTextEmphasis.BRIGHT -> tw.kevinzhang.extension_api.model.RichTextEmphasis.BRIGHT
+                },
+                linkUrl = run.linkUrl,
+            )
+        },
+        layout = tw.kevinzhang.extension_api.model.RichTextLayout.PROSE,
+    )
     is GImageInfo -> tw.kevinzhang.extension_api.model.Paragraph.ImageInfo(thumb, raw)
     is GLink    -> tw.kevinzhang.extension_api.model.Paragraph.Link(content)
     is GVideoInfo -> tw.kevinzhang.extension_api.model.Paragraph.VideoInfo(

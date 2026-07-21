@@ -11,7 +11,10 @@ import tw.kevinzhang.gamer_api.model.GLink
 import tw.kevinzhang.gamer_api.model.GParagraph
 import tw.kevinzhang.gamer_api.model.GPost
 import tw.kevinzhang.gamer_api.model.GPostBuilder
-import tw.kevinzhang.gamer_api.model.GText
+import tw.kevinzhang.gamer_api.model.GRichText
+import tw.kevinzhang.gamer_api.model.GRichTextRun
+import tw.kevinzhang.gamer_api.model.GTextColor
+import tw.kevinzhang.gamer_api.model.GTextEmphasis
 import tw.kevinzhang.gamer_api.model.GVideoInfo
 import tw.kevinzhang.gamer_api.model.GVideoSite
 import tw.kevinzhang.gamer_api.model.trim
@@ -73,34 +76,10 @@ class PostParser(
     }
 
     private fun setContent(source: Element) {
-        val list: MutableList<GParagraph> = ArrayList<GParagraph>()
-        val parent = source.selectFirst("div.c-article__content")
-        for (child in parent.childNodes().flatDiv()) {
-            if (child is TextNode) {
-                val content = child.text()
-                if (content.trim().isEmpty()) {
-                    continue
-                }
-                list.add(GText(content))
-            }
-            if (child is Element) {
-                val imageInfo = child.toImageInfo()
-                if (imageInfo != null) {
-                    list.add(imageInfo)
-                } else if (child.`is`("a[href^=\"http://\"], a[href^=\"https://\"]")) {
-                    list.add(GLink(child.ownText()))
-                } else if (child.tagName() == "br") {
-                    list.add(GText(""))
-                } else if (child.tagName() == "iframe") {
-                    val dataSrc = child.attr("data-src")
-                    val videoId = extractYouTubeVideoId(dataSrc)
-                    if (videoId != null) {
-                        list.add(GVideoInfo("https://www.youtube.com/watch?v=$videoId", GVideoSite.YOUTUBE))
-                    }
-                }
-            }
-        }
-        builder.setContent(list.trim())
+        val parent = source.selectFirst("div.c-article__content") ?: return
+        val walker = ContentWalker()
+        parent.childNodes().forEach { walker.visit(it, InlineStyle()) }
+        builder.setContent(walker.build().trim())
     }
 
     private fun setRawHtml(source: Element) {
@@ -133,9 +112,8 @@ class PostParser(
     }
 
     private fun Element.toImageInfo(): GImageInfo? {
-        val image = if (tagName() == "img") this else selectFirst("img") ?: return null
-        val imageUrl = image.preferredImageUrl() ?: return null
-        val photoAnchor = image.closest("a.photoswipe-image")
+        val imageUrl = preferredImageUrl() ?: return null
+        val photoAnchor = closest("a.photoswipe-image")
         val rawUrl = photoAnchor
             ?.attr("href")
             ?.takeIf(String::isNotBlank)
@@ -150,7 +128,9 @@ class PostParser(
         val src = attr("data-src").takeIf(String::isNotBlank)
             ?: srcset?.bestSrcsetUrl()
             ?: attr("src").takeIf(String::isNotBlank)
-        return src?.let { resolveUrl(it, baseUri()) }
+        return src
+            ?.takeUnless { it.startsWith("data:", ignoreCase = true) }
+            ?.let { resolveUrl(it, baseUri()) }
     }
 
     private fun String.bestSrcsetUrl(): String? =
@@ -204,14 +184,185 @@ class PostParser(
     private fun extractYouTubeVideoId(embedUrl: String): String? =
         Regex("""/embed/([A-Za-z0-9_-]+)""").find(embedUrl)?.groupValues?.get(1)
 
-    fun List<Node>.flatDiv(): List<Node> {
-        return this.flatMap {
-            if (it is Element && it.`is`("div")){
-                it.childNodes().flatDiv()
-            } else {
-                listOf(it)
+    /**
+     * Walk the article once, in DOM order.  In particular, never call
+     * `selectFirst("img")` on a container: that would turn a whole formatted
+     * paragraph or table into its first image and discard all siblings.
+     */
+    private inner class ContentWalker {
+        private val paragraphs = mutableListOf<GParagraph>()
+        private val runs = mutableListOf<GRichTextRun>()
+
+        fun visit(node: Node, inheritedStyle: InlineStyle) {
+            when (node) {
+                is TextNode -> appendText(node.text(), inheritedStyle)
+                is Element -> visitElement(node, inheritedStyle)
             }
         }
+
+        fun build(): List<GParagraph> {
+            flushText()
+            return paragraphs
+        }
+
+        private fun visitElement(element: Element, inheritedStyle: InlineStyle) {
+            val tag = element.normalName()
+            if (tag in IGNORED_TAGS) return
+
+            when (tag) {
+                "br" -> appendLineBreak()
+                "img" -> element.toImageInfo()?.let(::appendImage)
+                "iframe" -> appendVideo(element)
+                "tr" -> visitTableRow(element, inheritedStyle)
+                else -> {
+                    val style = inheritedStyle.merge(element)
+                    val isBlock = tag in BLOCK_TAGS
+                    element.childNodes().forEach { visit(it, style) }
+                    if (isBlock) appendLineBreak()
+                }
+            }
+        }
+
+        private fun visitTableRow(row: Element, inheritedStyle: InlineStyle) {
+            val cells = row.children().filter { it.normalName() in TABLE_CELL_TAGS }
+            if (cells.isEmpty()) {
+                row.childNodes().forEach { visit(it, inheritedStyle.merge(row)) }
+            } else {
+                cells.forEachIndexed { index, cell ->
+                    cell.childNodes().forEach { visit(it, inheritedStyle.merge(row).merge(cell)) }
+                    if (index < cells.lastIndex) appendText(" | ", inheritedStyle)
+                }
+            }
+            appendLineBreak()
+        }
+
+        private fun appendImage(image: GImageInfo) {
+            flushText()
+            paragraphs += image
+        }
+
+        private fun appendVideo(iframe: Element) {
+            val embedUrl = iframe.attr("data-src").takeIf(String::isNotBlank)
+                ?: iframe.attr("src").takeIf(String::isNotBlank)
+                ?: return
+            val videoId = extractYouTubeVideoId(embedUrl) ?: return
+            flushText()
+            paragraphs += GVideoInfo("https://www.youtube.com/watch?v=$videoId", GVideoSite.YOUTUBE)
+        }
+
+        private fun appendLineBreak() {
+            if (runs.lastOrNull()?.text?.endsWith('\n') == true) return
+            appendText("\n", InlineStyle())
+        }
+
+        private fun appendText(rawText: String, style: InlineStyle) {
+            if (rawText.isBlank() && rawText != "\n") return
+            val text = rawText.replace("\r\n", "\n").replace('\r', '\n')
+            if (text.isEmpty()) return
+            val run = GRichTextRun(
+                text = text,
+                color = style.color,
+                emphasis = style.emphasis,
+                linkUrl = style.linkUrl,
+            )
+            val previous = runs.lastOrNull()
+            if (previous != null && previous.color == run.color &&
+                previous.emphasis == run.emphasis && previous.linkUrl == run.linkUrl
+            ) {
+                runs[runs.lastIndex] = previous.copy(text = previous.text + text)
+            } else {
+                runs += run
+            }
+        }
+
+        private fun flushText() {
+            if (runs.isEmpty()) return
+            paragraphs += GRichText(runs.toList())
+            runs.clear()
+        }
+    }
+
+    private data class InlineStyle(
+        val color: GTextColor = GTextColor.DEFAULT,
+        val emphasis: GTextEmphasis = GTextEmphasis.NORMAL,
+        val linkUrl: String? = null,
+    )
+
+    private fun InlineStyle.merge(element: Element): InlineStyle {
+        val tag = element.normalName()
+        val elementColor = element.attr("color").takeIf(String::isNotBlank)
+            ?: COLOR_STYLE.find(element.attr("style"))?.groupValues?.get(1)
+        val isBold = tag == "b" || tag == "strong" ||
+            FONT_WEIGHT_STYLE.find(element.attr("style"))?.groupValues?.get(1)
+                ?.let { it == "bold" || it.toIntOrNull()?.let { weight -> weight >= 600 } == true }
+                ?: false
+        val href = element.attr("href").takeIf { tag == "a" && it.isNotBlank() }
+            ?.let { resolveUrl(it, element.baseUri()) }
+        return copy(
+            color = elementColor?.toSemanticColor() ?: color,
+            emphasis = if (isBold) GTextEmphasis.BRIGHT else emphasis,
+            linkUrl = href ?: linkUrl,
+        )
+    }
+
+    private fun String.toSemanticColor(): GTextColor {
+        val value = trim().lowercase(Locale.US)
+        return when (value) {
+            "black" -> GTextColor.BLACK
+            "white" -> GTextColor.WHITE
+            "red" -> GTextColor.RED
+            "green" -> GTextColor.GREEN
+            "yellow", "olive" -> GTextColor.YELLOW
+            "blue" -> GTextColor.BLUE
+            "magenta", "fuchsia", "purple" -> GTextColor.MAGENTA
+            "cyan", "aqua", "teal" -> GTextColor.CYAN
+            else -> value.toRgb()?.toSemanticColor() ?: GTextColor.DEFAULT
+        }
+    }
+
+    private fun String.toRgb(): Triple<Int, Int, Int>? {
+        val hex = removePrefix("#")
+        val expanded = when (hex.length) {
+            3 -> hex.map { "$it$it" }.joinToString(separator = "")
+            6 -> hex
+            else -> return null
+        }
+        return expanded.toIntOrNull(16)?.let { value ->
+            Triple((value shr 16) and 0xff, (value shr 8) and 0xff, value and 0xff)
+        }
+    }
+
+    private fun Triple<Int, Int, Int>.toSemanticColor(): GTextColor {
+        val (red, green, blue) = this
+        val max = maxOf(red, green, blue)
+        val min = minOf(red, green, blue)
+        if (max - min < 24) {
+            return when {
+                max < 96 -> GTextColor.BLACK
+                min > 210 -> GTextColor.WHITE
+                else -> GTextColor.DEFAULT
+            }
+        }
+        return when {
+            red >= green * 3 / 2 && red >= blue * 3 / 2 -> GTextColor.RED
+            green >= red * 3 / 2 && green >= blue * 3 / 2 -> GTextColor.GREEN
+            blue >= red * 3 / 2 && blue >= green * 3 / 2 -> GTextColor.BLUE
+            red >= blue * 3 / 2 && green >= blue * 3 / 2 -> GTextColor.YELLOW
+            red >= green * 3 / 2 && blue >= green * 3 / 2 -> GTextColor.MAGENTA
+            else -> GTextColor.CYAN
+        }
+    }
+
+    private companion object {
+        val BLOCK_TAGS = setOf(
+            "address", "article", "aside", "blockquote", "div", "dl", "dt", "dd",
+            "figcaption", "figure", "footer", "h1", "h2", "h3", "h4", "h5", "h6",
+            "header", "hr", "li", "main", "ol", "p", "pre", "section", "table", "ul",
+        )
+        val TABLE_CELL_TAGS = setOf("td", "th")
+        val IGNORED_TAGS = setOf("script", "style", "noscript", "source", "template")
+        val COLOR_STYLE = Regex("""(?:^|;)\s*color\s*:\s*([^;]+)""", RegexOption.IGNORE_CASE)
+        val FONT_WEIGHT_STYLE = Regex("""(?:^|;)\s*font-weight\s*:\s*([^;]+)""", RegexOption.IGNORE_CASE)
     }
 
     private fun String.toTimestamp(): Long {

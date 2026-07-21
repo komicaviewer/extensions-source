@@ -1,5 +1,6 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
+  "requiredApiVersion": 2,
   "name": "NewsHub: Gamer 巴哈姆特",
   "sources": [{
     "className": "tw.kevinzhang.newshub.extension.gamer.GamerSource",
