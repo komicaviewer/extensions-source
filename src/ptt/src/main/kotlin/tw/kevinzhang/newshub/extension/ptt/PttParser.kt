@@ -7,6 +7,10 @@ import org.jsoup.nodes.TextNode
 import tw.kevinzhang.extension_api.model.Comment
 import tw.kevinzhang.extension_api.model.Paragraph
 import tw.kevinzhang.extension_api.model.Post
+import tw.kevinzhang.extension_api.model.RichTextColor
+import tw.kevinzhang.extension_api.model.RichTextEmphasis
+import tw.kevinzhang.extension_api.model.RichTextLayout
+import tw.kevinzhang.extension_api.model.RichTextRun
 import tw.kevinzhang.extension_api.model.ThreadSummary
 import java.time.Clock
 import java.time.LocalDate
@@ -68,9 +72,14 @@ internal class PttParser(private val clock: Clock = Clock.system(TAIPEI)) {
             )
         }
         val article = main.clone().apply {
-            select("div.article-metaline, div.article-metaline-right, div.push, span.f2").remove()
+            select("div.article-metaline, div.article-metaline-right, div.push").remove()
+            select("span").filter { footer ->
+                footer.hasClass("f2") && footer.ownText().trimStart().let { text ->
+                    text.startsWith(PTT_FOOTER_STATION) || text.startsWith(PTT_FOOTER_URL)
+                }
+            }.forEach(Element::remove)
         }
-        val content = paragraphs(article, safeArticleUrl)
+        val content = paragraphs(article)
         val values = main.select("div.article-metaline span.article-meta-value")
         val title = metadataValue(main, "標題")
         val author = metadataValue(main, "作者")
@@ -94,56 +103,129 @@ internal class PttParser(private val clock: Clock = Clock.system(TAIPEI)) {
         )
     }
 
-    private fun paragraphs(root: Element, articleUrl: String): List<Paragraph> = buildList {
-        root.childNodes().forEach { appendNode(it, articleUrl, this) }
-    }.compactText()
+    private fun paragraphs(root: Element): List<Paragraph> {
+        val paragraphs = mutableListOf<Paragraph>()
+        val richRuns = mutableListOf<RichTextRun>()
+        root.childNodes().forEach { appendNode(it, TextStyle(), richRuns, paragraphs) }
+        flushRichText(richRuns, paragraphs)
+        return paragraphs.trimLeadingMetadataWhitespace()
+    }
 
-    private fun appendNode(node: Node, articleUrl: String, into: MutableList<Paragraph>) {
+    private fun appendNode(
+        node: Node,
+        style: TextStyle,
+        richRuns: MutableList<RichTextRun>,
+        paragraphs: MutableList<Paragraph>,
+    ) {
         when (node) {
-            is TextNode -> appendText(node.text(), into)
+            is TextNode -> appendRun(node.wholeText, style, richRuns)
             is Element -> when (node.tagName()) {
-                "br" -> appendText("\n", into)
-                "a" -> appendAnchor(node, articleUrl, into)
+                "br" -> appendRun("\n", style, richRuns)
+                "a" -> appendAnchor(node, style, richRuns, paragraphs)
                 "img" -> {
                     val raw = PttUrlPolicy.safeExternalUrl(node.absUrl("src"))
-                    if (raw != null && isImage(raw)) into += Paragraph.ImageInfo(raw, raw)
+                    if (raw != null && isImage(raw)) {
+                        flushRichText(richRuns, paragraphs)
+                        paragraphs += Paragraph.ImageInfo(raw, raw)
+                    }
                 }
-                else -> node.childNodes().forEach { appendNode(it, articleUrl, into) }
+                else -> {
+                    val childStyle = style.withPttClasses(node.classNames())
+                    node.childNodes().forEach { appendNode(it, childStyle, richRuns, paragraphs) }
+                }
             }
         }
     }
 
-    private fun appendAnchor(anchor: Element, articleUrl: String, into: MutableList<Paragraph>) {
+    private fun appendAnchor(
+        anchor: Element,
+        style: TextStyle,
+        richRuns: MutableList<RichTextRun>,
+        paragraphs: MutableList<Paragraph>,
+    ) {
         val url = PttUrlPolicy.safeExternalUrl(anchor.absUrl("href"))
         if (url == null) {
-            anchor.childNodes().forEach { appendNode(it, articleUrl, into) }
+            val childStyle = style.withPttClasses(anchor.classNames())
+            anchor.childNodes().forEach { appendNode(it, childStyle, richRuns, paragraphs) }
             return
         }
         when {
-            isImage(url) -> into += Paragraph.ImageInfo(url, url)
-            isYoutube(url) -> into += Paragraph.VideoInfo(url, Paragraph.VideoInfo.Site.YOUTUBE)
-            else -> into += Paragraph.Link(url)
-        }
-    }
-
-    private fun appendText(value: String, into: MutableList<Paragraph>) {
-        value.splitToSequence('\n').forEachIndexed { index, line ->
-            val normalized = line.trimEnd()
-            if (normalized.isNotBlank()) {
-                val trimmed = normalized.trimStart()
-                into += if (trimmed.startsWith(">")) Paragraph.Quote(trimmed) else Paragraph.Text(normalized)
+            isImage(url) -> {
+                flushRichText(richRuns, paragraphs)
+                paragraphs += Paragraph.ImageInfo(url, url)
             }
-            if (index < value.count { it == '\n' }) into += Paragraph.Text("\n")
+            isYoutube(url) -> {
+                flushRichText(richRuns, paragraphs)
+                paragraphs += Paragraph.VideoInfo(url, Paragraph.VideoInfo.Site.YOUTUBE)
+            }
+            else -> {
+                val childStyle = style.withPttClasses(anchor.classNames()).copy(linkUrl = url)
+                anchor.childNodes().forEach { appendNode(it, childStyle, richRuns, paragraphs) }
+            }
         }
     }
 
-    private fun List<Paragraph>.compactText(): List<Paragraph> = fold(mutableListOf<Paragraph>()) { result, item ->
-        val previous = result.lastOrNull()
-        if (previous is Paragraph.Text && item is Paragraph.Text) {
-            result[result.lastIndex] = Paragraph.Text(previous.content + item.content)
-        } else result += item
-        result
-    }.filterNot { it is Paragraph.Text && it.content.isEmpty() }
+    private fun appendRun(value: String, style: TextStyle, into: MutableList<RichTextRun>) {
+        if (value.isEmpty()) return
+        val next = RichTextRun(
+            text = value,
+            color = style.color,
+            emphasis = style.emphasis,
+            linkUrl = style.linkUrl,
+        )
+        val previous = into.lastOrNull()
+        if (
+            previous != null &&
+            previous.color == next.color &&
+            previous.emphasis == next.emphasis &&
+            previous.linkUrl == next.linkUrl
+        ) {
+            into[into.lastIndex] = previous.copy(text = previous.text + value)
+        } else {
+            into += next
+        }
+    }
+
+    private fun flushRichText(richRuns: MutableList<RichTextRun>, into: MutableList<Paragraph>) {
+        if (richRuns.isEmpty()) return
+        into += Paragraph.RichText(
+            runs = richRuns.toList(),
+            layout = RichTextLayout.PREFORMATTED_WRAP,
+        )
+        richRuns.clear()
+    }
+
+    /** Metadata removal leaves PTT's delimiter newline at the very start of the cloned body. */
+    private fun List<Paragraph>.trimLeadingMetadataWhitespace(): List<Paragraph> {
+        val first = firstOrNull() as? Paragraph.RichText ?: return this
+        val runs = first.runs.toMutableList()
+        while (runs.isNotEmpty()) {
+            val text = runs.first().text
+            val trimmed = text.trimStart('\r', '\n')
+            if (trimmed.isEmpty()) {
+                runs.removeAt(0)
+            } else {
+                runs[0] = runs.first().copy(text = trimmed)
+                break
+            }
+        }
+        return when {
+            runs == first.runs -> this
+            runs.isEmpty() -> drop(1)
+            else -> listOf(first.copy(runs = runs)) + drop(1)
+        }
+    }
+
+    private data class TextStyle(
+        val color: RichTextColor = RichTextColor.DEFAULT,
+        val emphasis: RichTextEmphasis = RichTextEmphasis.NORMAL,
+        val linkUrl: String? = null,
+    ) {
+        fun withPttClasses(classes: Set<String>): TextStyle = copy(
+            color = classes.firstNotNullOfOrNull(::pttColor) ?: color,
+            emphasis = if ("hl" in classes) RichTextEmphasis.BRIGHT else emphasis,
+        )
+    }
 
     private fun metadataValue(main: Element, label: String): String? = main.select("div.article-metaline").firstNotNullOfOrNull { line ->
         line.selectFirst("span.article-meta-tag")?.text()?.trim()?.takeIf { it == label }
@@ -190,10 +272,24 @@ internal class PttParser(private val clock: Clock = Clock.system(TAIPEI)) {
         val SHORT_DATE_TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
         val FULL_DATE: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE MMM d HH:mm:ss yyyy", java.util.Locale.US)
         val IMAGE = Regex("\\.(?:jpe?g|png|gif|webp|bmp|avif)(?:$|[?#])", RegexOption.IGNORE_CASE)
+        const val PTT_FOOTER_STATION = "※ 發信站:"
+        const val PTT_FOOTER_URL = "※ 文章網址:"
         fun isImage(url: String) = IMAGE.containsMatchIn(url)
         fun isYoutube(url: String): Boolean {
             val host = url.substringAfter("://", "").substringBefore('/').substringBefore(':').lowercase()
             return host == "youtu.be" || host == "youtube.com" || host.endsWith(".youtube.com")
+        }
+
+        fun pttColor(className: String): RichTextColor? = when (className) {
+            "f0" -> RichTextColor.BLACK
+            "f1" -> RichTextColor.RED
+            "f2" -> RichTextColor.GREEN
+            "f3" -> RichTextColor.YELLOW
+            "f4" -> RichTextColor.BLUE
+            "f5" -> RichTextColor.MAGENTA
+            "f6" -> RichTextColor.CYAN
+            "f7" -> RichTextColor.WHITE
+            else -> null
         }
     }
 }

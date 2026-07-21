@@ -1,5 +1,6 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
+  "requiredApiVersion": 2,
   "name": "NewsHub: PTT",
   "sources": [{
     "className": "tw.kevinzhang.newshub.extension.ptt.PttSource",

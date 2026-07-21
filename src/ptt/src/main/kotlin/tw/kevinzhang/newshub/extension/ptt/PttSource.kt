@@ -26,7 +26,7 @@ class PttSource : AuthenticatedSource {
     override val id: String = PttBoardCatalog.SOURCE_ID
     override val name: String = "PTT 批踢踢實業坊"
     override val language: String = "zh-TW"
-    override val version: Int = 2
+    override val version: Int = 3
     override val iconUrl: String = "https://www.ptt.cc/favicon.ico"
     override val supportsCommentPagination: Boolean = false
     override val alwaysUseRawImage: Boolean = true

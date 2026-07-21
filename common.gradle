@@ -64,8 +64,8 @@ dependencies {
         testImplementation files(extensionApiJar)
     } else {
         // extension-api from the canonical NewsHub repository via JitPack
-        compileOnly 'com.github.komicaviewer.NewsHub:extension-api:fdae4bd756a62e43d22909f5de3b118a92a48426'
-        testImplementation 'com.github.komicaviewer.NewsHub:extension-api:fdae4bd756a62e43d22909f5de3b118a92a48426'
+        compileOnly 'com.github.komicaviewer.NewsHub:extension-api:aeabde818066dd31a65bf6cd253a004792819b1b'
+        testImplementation 'com.github.komicaviewer.NewsHub:extension-api:aeabde818066dd31a65bf6cd253a004792819b1b'
     }
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
     implementation 'com.squareup.okhttp3:logging-interceptor:4.12.0'

@@ -68,7 +68,7 @@ class PttSourceTest {
 
         val page = source.getThreadPage(summary, pageToken = null)
 
-        assertEquals(2, source.version)
+        assertEquals(3, source.version)
         assertEquals(1, page.posts.size)
         assertEquals(null, page.nextPageToken)
         assertEquals(

@@ -17,7 +17,8 @@ from release_catalog import (
 
 
 REGISTRY_ASSET_PATH = "assets/newshub-extension.json"
-REGISTRY_SCHEMA_VERSION = 1
+CURRENT_REGISTRY_SCHEMA_VERSION = 2
+CURRENT_EXTENSION_API_VERSION = 2
 SOURCE_FIELDS = ("className", "id", "name", "lang", "baseUrl")
 
 
@@ -30,8 +31,18 @@ def read_registry(apk_path: str) -> dict:
     except (OSError, zipfile.BadZipFile, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ValueError(f"invalid extension registry in {os.path.basename(apk_path)}: {exc}") from exc
 
-    if registry.get("schemaVersion") != REGISTRY_SCHEMA_VERSION:
-        raise ValueError(f"unsupported registry schemaVersion: {registry.get('schemaVersion')}")
+    schema_version = registry.get("schemaVersion")
+    if not isinstance(schema_version, int) or isinstance(schema_version, bool) or not 1 <= schema_version <= CURRENT_REGISTRY_SCHEMA_VERSION:
+        raise ValueError(f"unsupported registry schemaVersion: {schema_version}")
+    required_api_version = registry.get("requiredApiVersion", 1)
+    if schema_version == 1:
+        if required_api_version != 1:
+            raise ValueError(f"schemaVersion 1 requires extension API version 1: {required_api_version}")
+    elif required_api_version != CURRENT_EXTENSION_API_VERSION:
+        raise ValueError(
+            f"schemaVersion {schema_version} requires extension API version "
+            f"{CURRENT_EXTENSION_API_VERSION}: {required_api_version}",
+        )
     if not isinstance(registry.get("name"), str) or not registry["name"].strip():
         raise ValueError("registry name must be non-empty")
     sources = registry.get("sources")
