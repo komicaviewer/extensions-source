@@ -66,7 +66,7 @@ class PttParserTest {
 
         assertTrue(richParagraphs.all { it.layout == RichTextLayout.PREFORMATTED_WRAP })
         assertEquals(
-            "前綴 紅亮綠黃青\n  保留  連續空白\n\n\n連結文字\n",
+            "前綴 紅亮綠黃青\n  保留  連續空白\n\n\n連結文字\nhttps://i.imgur.com/example.jpg",
             richParagraphs.first().runs.joinToString("") { it.text },
         )
         assertTrue(runs.any { it.text == "紅" && it.color == RichTextColor.RED })
@@ -87,6 +87,42 @@ class PttParserTest {
         assertEquals(1, post.content.filterIsInstance<Paragraph.ImageInfo>().size)
         assertEquals(1, post.content.filterIsInstance<Paragraph.VideoInfo>().size)
         assertEquals("推 很好", (post.comments.single().content.single() as Paragraph.Text).content)
+    }
+
+    @Test
+    fun `thread parser keeps normalized direct image URLs clickable before rendering images`() {
+        val post = parser.parseThreadPage(
+            fixture("thread-imgur-images.html"),
+            "https://www.ptt.cc/bbs/C_Chat/M.1784831832.A.90E.html",
+            "icon",
+        ).posts.single()
+        val expectedUrls = listOf(
+            "https://i.imgur.com/4rRHUNk.jpg",
+            "https://i.imgur.com/5RiEpg7.jpg",
+            "https://i.imgur.com/3ANfpMk.jpg",
+            "https://cdn.example.com/3Y1InCJ.webp",
+        )
+        val imageUrls = post.content.filterIsInstance<Paragraph.ImageInfo>().map { it.raw }
+        val linkedRuns = post.content.filterIsInstance<Paragraph.RichText>()
+            .flatMap { it.runs }
+            .filter { it.linkUrl != null }
+
+        assertEquals(expectedUrls, imageUrls)
+        assertEquals(expectedUrls, linkedRuns.map { it.text })
+        assertEquals(expectedUrls, linkedRuns.map { it.linkUrl })
+        assertEquals(
+            expectedUrls.joinToString(separator = "\n", postfix = "\n") + "圖片後的文字\n\n",
+            post.content.filterIsInstance<Paragraph.RichText>().joinToString("") { rich ->
+                rich.runs.joinToString("") { it.text }
+            },
+        )
+        imageUrls.forEachIndexed { index, url ->
+            val imageIndex = post.content.indexOfFirst { it is Paragraph.ImageInfo && it.raw == url }
+            val preceding = post.content[imageIndex - 1] as Paragraph.RichText
+            assertEquals(url, preceding.runs.last().text)
+            assertEquals(url, preceding.runs.last().linkUrl)
+            assertEquals(index, post.content.filterIsInstance<Paragraph.ImageInfo>().indexOfFirst { it.raw == url })
+        }
     }
 
     private fun fixture(name: String): String = requireNotNull(javaClass.getResource("/ptt/$name"))

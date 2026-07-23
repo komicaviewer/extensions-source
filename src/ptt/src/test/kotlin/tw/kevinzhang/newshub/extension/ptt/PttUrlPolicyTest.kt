@@ -17,6 +17,8 @@ class PttUrlPolicyTest {
 
     @Test fun `external content only permits web URLs`() {
         assertEquals("https://example.com/a", PttUrlPolicy.safeExternalUrl("https://example.com/a"))
+        assertEquals("https://i.imgur.com/image.jpg", PttUrlPolicy.safeExternalUrl("http://i.imgur.com/image.jpg"))
+        assertEquals("http://example.com/image.jpg", PttUrlPolicy.safeExternalUrl("http://example.com/image.jpg"))
         assertNull(PttUrlPolicy.safeExternalUrl("javascript:alert(1)"))
         assertTrue(PttUrlPolicy.isBoardName("C_Chat"))
     }

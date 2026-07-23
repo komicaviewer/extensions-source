@@ -151,6 +151,13 @@ internal class PttParser(private val clock: Clock = Clock.system(TAIPEI)) {
         }
         when {
             isImage(url) -> {
+                // PTT often labels direct images as "image". Keep a usable, normalized URL
+                // instead, then place the rendered image immediately after its link.
+                appendRun(
+                    url,
+                    style.withPttClasses(anchor.classNames()).copy(linkUrl = url),
+                    richRuns,
+                )
                 flushRichText(richRuns, paragraphs)
                 paragraphs += Paragraph.ImageInfo(url, url)
             }

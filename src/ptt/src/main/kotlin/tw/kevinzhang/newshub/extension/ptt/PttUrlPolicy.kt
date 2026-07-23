@@ -6,6 +6,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 /** Keeps network requests limited to PTT while allowing safe media links in article content. */
 internal object PttUrlPolicy {
     private const val HOST = "www.ptt.cc"
+    private const val IMGUR_IMAGE_HOST = "i.imgur.com"
     private val BOARD_NAME = Regex("[A-Za-z0-9_-]{1,64}")
 
     fun isBoardName(value: String): Boolean = BOARD_NAME.matches(value)
@@ -37,9 +38,16 @@ internal object PttUrlPolicy {
     fun resolveArticle(baseUrl: String, href: String): String? =
         trustedPttUrl(baseUrl)?.resolve(href)?.toString()?.let(::articleUrl)
 
-    fun safeExternalUrl(value: String): String? = value.toHttpUrlOrNull()
-        ?.takeIf { it.scheme == "https" || it.scheme == "http" }
-        ?.toString()
+    fun safeExternalUrl(value: String): String? {
+        val url = value.toHttpUrlOrNull()
+            ?.takeIf { it.scheme == "https" || it.scheme == "http" }
+            ?: return null
+        return if (url.host == IMGUR_IMAGE_HOST && url.scheme == "http") {
+            url.newBuilder().scheme("https").build().toString()
+        } else {
+            url.toString()
+        }
+    }
 
     fun trustedPttUrl(value: String): HttpUrl? = value.toHttpUrlOrNull()?.takeIf {
         it.scheme == "https" && it.host == HOST && it.port == 443
