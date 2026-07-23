@@ -137,11 +137,16 @@ fun String.normalizeUrl(): String {
 }
 
 fun String.isImageUrl(): Boolean {
-    val imageExtensions = listOf(".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp")
-    return imageExtensions.any { lowercase().contains(it) }
+    val imageExtensions = setOf("jpg", "jpeg", "png", "gif", "webp", "bmp")
+    return pathExtension() in imageExtensions
 }
 
 fun String.isVideoUrl(): Boolean {
-    val videoExtensions = listOf(".webm")
-    return videoExtensions.any { lowercase().contains(it) }
+    val videoExtensions = setOf("mp4", "webm")
+    return pathExtension() in videoExtensions
+}
+
+private fun String.pathExtension(): String {
+    val path = substringBefore('#').substringBefore('?')
+    return path.substringAfterLast('/').substringAfterLast('.', "").lowercase()
 }
