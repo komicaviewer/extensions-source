@@ -29,13 +29,16 @@ internal class SoraPostHeadParser: PostHeadParser {
                 else -> throw IllegalArgumentException("找不到日期時間資訊")
             }
 
-            // 解析日期: "2026/04/09(四) 09:14:34.294 ID:xQMpQaFM" -> "2026/04/09"
-            val datePattern = """(\d{4}/\d{2}/\d{2})\([^)]+\)""".toRegex()
+            // 支援四位年份與站上使用的兩位年份；兩位年份固定視為 2000-2099。
+            val datePattern = """(\d{4}|\d{2})/(\d{2})/(\d{2})\([^)]+\)""".toRegex()
             val dateMatch = datePattern.find(fullText)
 
-            val dateStr = dateMatch?.groupValues?.get(1)
-                ?: nowSpan?.text()?.substringBefore("(")?.trim()
-                ?: throw IllegalArgumentException("找不到日期: $fullText")
+            val dateStr = dateMatch?.let { match ->
+                val year = match.groupValues[1].let { value ->
+                    if (value.length == 2) "20$value" else value
+                }
+                "$year/${match.groupValues[2]}/${match.groupValues[3]}"
+            } ?: throw IllegalArgumentException("找不到日期: $fullText")
 
             // 解析時間: "09:14:34.294" -> "09:14"
             val timePattern = """(\d{2}:\d{2}):\d{2}""".toRegex()

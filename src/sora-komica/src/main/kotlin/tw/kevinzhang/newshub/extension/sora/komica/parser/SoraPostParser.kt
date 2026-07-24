@@ -34,19 +34,39 @@ internal class SoraPostParser(
     }
 
     private fun setContent(source: Element) {
-        val list: MutableList<Paragraph> = ArrayList<Paragraph>()
-        val parent = source.selectFirst(".quote")
+        val list = mutableListOf<Paragraph>()
+        val text = StringBuilder()
+        val parent = source.selectFirst(".quote") ?: run {
+            builder.setContent(emptyList())
+            return
+        }
+
+        fun flushText() {
+            val content = text.toString().trim()
+            if (content.isNotEmpty()) {
+                list.add(Paragraph.Text(content))
+            }
+            text.clear()
+        }
+
+        fun addStandalone(paragraph: Paragraph) {
+            flushText()
+            list.add(paragraph)
+        }
+
         for (child in parent.childNodes()) {
             if (child is TextNode) {
                 val content = child.text()
-                if (content.trim().isEmpty()) {
-                    continue
-                }
-                list.add(Paragraph.Text(content))
+                text.append(if (text.lastOrNull() == '\n') content.trimStart() else content)
             }
             if (child is Element) {
                 if (child.tagName() == "br") {
-                    list.add(Paragraph.Text(""))
+                    if (text.isNotBlank()) {
+                        while (text.lastOrNull()?.let { it.isWhitespace() && it != '\n' } == true) {
+                            text.deleteCharAt(text.lastIndex)
+                        }
+                        text.append('\n')
+                    }
                 }
                 if (child.`is`("span.resquote")) {
                     val qlink = child.selectFirst("a.qlink")
@@ -54,17 +74,28 @@ internal class SoraPostParser(
                         val replyTo = qlink.text()
                             .replace(">".toRegex(), "") // for sora.komica.org
                             .replace("No.", "") // for 2cat.komica.org
-                        list.add(Paragraph.ReplyTo(replyTo))
+                            .trim()
+                        if (replyTo.isNotEmpty()) {
+                            addStandalone(Paragraph.ReplyTo(replyTo))
+                        }
                     } else {
-                        val quote = child.ownText().replace(">".toRegex(), "")
-                        list.add(Paragraph.Quote(quote))
+                        val quote = child.ownText()
+                            .replace(">".toRegex(), "")
+                            .trim()
+                        if (quote.isNotEmpty()) {
+                            addStandalone(Paragraph.Quote(quote))
+                        }
                     }
                 }
                 if (child.`is`("a[href^=\"http://\"], a[href^=\"https://\"]")) {
-                    list.add(Paragraph.Link(child.ownText()))
+                    val link = child.ownText().trim()
+                    if (link.isNotEmpty()) {
+                        addStandalone(Paragraph.Link(link))
+                    }
                 }
             }
         }
+        flushText()
         builder.setContent(list)
     }
 

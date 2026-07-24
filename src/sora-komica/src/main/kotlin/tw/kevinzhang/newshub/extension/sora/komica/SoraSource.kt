@@ -17,7 +17,7 @@ class SoraSource : Source {
     override val id = SoraBoardCatalog.SOURCE_ID
     override val name = "Sora"
     override val language = "zh-TW"
-    override val version = 3
+    override val version = 4
     override val iconUrl: String = "https://komica1.org/favicon.ico"
     override val supportsCommentPagination = false
     override val alwaysUseRawImage = true
