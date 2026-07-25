@@ -15,6 +15,8 @@ import tw.kevinzhang.extension_api.model.Comment
 import tw.kevinzhang.extension_api.model.Paragraph
 import tw.kevinzhang.extension_api.model.Post
 import tw.kevinzhang.extension_api.model.Thread
+import tw.kevinzhang.extension_api.model.ThreadPage
+import tw.kevinzhang.extension_api.model.ThreadPageMetadata
 import tw.kevinzhang.extension_api.model.ThreadSummary
 import tw.kevinzhang.gamer_api.GamerApi
 import tw.kevinzhang.gamer_api.model.GImageInfo
@@ -36,7 +38,7 @@ class GamerSource : AuthenticatedSource {
     override val id = "tw.kevinzhang.newshub.extension.gamer"
     override val name = "Gamer 巴哈姆特"
     override val language = "zh-TW"
-    override val version = 4
+    override val version = 5
     override val iconUrl: String = "https://i2.bahamut.com.tw/apple-touch-icon-72x72.png"
     override val supportsCommentPagination: Boolean = false
     override val alwaysUseRawImage: Boolean = false
@@ -160,6 +162,22 @@ class GamerSource : AuthenticatedSource {
                     replyCount = null,
                 )
             },
+        )
+    }
+
+    override suspend fun getThreadPage(summary: ThreadSummary, pageToken: String?): ThreadPage {
+        if (pageToken != null) {
+            throw UnsupportedOperationException("Gamer threads do not support post pagination")
+        }
+        val thread = getThread(summary)
+        return ThreadPage(
+            posts = thread.posts,
+            nextPageToken = null,
+            metadata = ThreadPageMetadata(
+                id = thread.id,
+                url = thread.url,
+                title = thread.title,
+            ),
         )
     }
 
