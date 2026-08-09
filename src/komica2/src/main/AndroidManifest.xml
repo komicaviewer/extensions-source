@@ -1,10 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <uses-permission android:name="android.permission.INTERNET" />
     <application android:label="${bundleName}">
-        <meta-data android:name="newshub.extension" android:value="true" />
-        <meta-data
-            android:name="newshub.extension.registry"
-            android:value="newshub-extension.json" />
+        <service android:name=".TwocatExtensionService" android:exported="true" android:isolatedProcess="true" android:permission="tw.kevinzhang.newshub.permission.BIND_EXTENSION" android:process=":source_twocat">
+            <intent-filter><action android:name="tw.kevinzhang.newshub.extension.SERVICE" /></intent-filter>
+            <meta-data android:name="newshub.extension.protocol" android:value="1" />
+            <meta-data android:name="newshub.extension.source_id" android:value="tw.kevinzhang.komica2.twocat" />
+            <meta-data android:name="newshub.extension.source_name" android:value="Komica2 Twocat" />
+            <meta-data android:name="newshub.extension.source_lang" android:value="zh-TW" />
+            <meta-data android:name="newshub.extension.source_base_url" android:value="https://2cat.org" />
+        </service>
+        <service android:name=".SoraExtensionService" android:exported="true" android:isolatedProcess="true" android:permission="tw.kevinzhang.newshub.permission.BIND_EXTENSION" android:process=":source_sora">
+            <intent-filter><action android:name="tw.kevinzhang.newshub.extension.SERVICE" /></intent-filter>
+            <meta-data android:name="newshub.extension.protocol" android:value="1" />
+            <meta-data android:name="newshub.extension.source_id" android:value="tw.kevinzhang.komica2.sora" />
+            <meta-data android:name="newshub.extension.source_name" android:value="Komica2 Sora" />
+            <meta-data android:name="newshub.extension.source_lang" android:value="zh-TW" />
+            <meta-data android:name="newshub.extension.source_base_url" android:value="https://komica1.org" />
+        </service>
+        <service android:name=".ZawarudoExtensionService" android:exported="true" android:isolatedProcess="true" android:permission="tw.kevinzhang.newshub.permission.BIND_EXTENSION" android:process=":source_zawarudo">
+            <intent-filter><action android:name="tw.kevinzhang.newshub.extension.SERVICE" /></intent-filter>
+            <meta-data android:name="newshub.extension.protocol" android:value="1" />
+            <meta-data android:name="newshub.extension.source_id" android:value="tw.kevinzhang.komica2.zawarudo" />
+            <meta-data android:name="newshub.extension.source_name" android:value="Komica2 Zawarudo" />
+            <meta-data android:name="newshub.extension.source_lang" android:value="zh-TW" />
+            <meta-data android:name="newshub.extension.source_base_url" android:value="https://majeur.zawarudo.org" />
+        </service>
     </application>
 </manifest>

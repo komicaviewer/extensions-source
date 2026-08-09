@@ -2,7 +2,8 @@ package tw.kevinzhang.newshub.extension.nagatoyuki
 
 import okhttp3.OkHttpClient
 import ru.gildor.coroutines.okhttp.await
-import tw.kevinzhang.extension_api.Source
+import tw.kevinzhang.extension_api.SessionAwareSource
+import tw.kevinzhang.extension_api.SourceRuntime
 import tw.kevinzhang.extension_api.model.Board
 import tw.kevinzhang.extension_api.model.BoardPage
 import tw.kevinzhang.extension_api.model.BoardPageRequest
@@ -11,8 +12,9 @@ import tw.kevinzhang.extension_api.model.Paragraph
 import tw.kevinzhang.extension_api.model.Thread
 import tw.kevinzhang.extension_api.model.ThreadSummary
 import java.io.IOException
+import tw.kevinzhang.newshub.extension.runtime.brokerBackedHttpClient
 
-class NagatoyukiSource : Source {
+class NagatoyukiSource : SessionAwareSource {
     override val id = NagatoyukiBoardCatalog.SOURCE_ID
     override val name = "Nagatoyuki"
     override val language = "zh-TW"
@@ -24,8 +26,8 @@ class NagatoyukiSource : Source {
     private lateinit var client: OkHttpClient
     private val parser = NagatoyukiParser()
 
-    override fun onAttach(client: OkHttpClient) {
-        this.client = client
+    override fun onAttach(runtime: SourceRuntime) {
+        client = runtime.brokerBackedHttpClient()
     }
 
     override suspend fun getBoardPage(request: BoardPageRequest): BoardPage =
@@ -57,7 +59,7 @@ class NagatoyukiSource : Source {
         }
     }
 
-    override fun getWebUrl(summary: ThreadSummary) = summary.id
+    override suspend fun getWebUrl(summary: ThreadSummary) = summary.id
 
     private fun NagatoyukiParsedPost.toSummary(board: Board): ThreadSummary {
         val image = content.filterIsInstance<Paragraph.ImageInfo>().firstOrNull()

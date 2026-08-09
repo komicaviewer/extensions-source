@@ -13,6 +13,7 @@ import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import tw.kevinzhang.extension_api.model.ThreadSummary
+import tw.kevinzhang.newshub.extension.runtime.asTestSourceRuntime
 
 class Mobile01SourceTest {
     @Test
@@ -29,7 +30,7 @@ class Mobile01SourceTest {
                         .message("OK")
                         .body(html.toResponseBody("text/html".toMediaType()))
                         .build()
-                }).build(),
+                }).build().asTestSourceRuntime(),
             )
         }
         val summary = ThreadSummary(

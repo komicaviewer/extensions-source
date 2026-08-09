@@ -16,6 +16,7 @@ import tw.kevinzhang.extension_api.AuthSpec
 import tw.kevinzhang.extension_api.AuthState
 import tw.kevinzhang.extension_api.AuthenticationSession
 import tw.kevinzhang.extension_api.SourceRuntime
+import tw.kevinzhang.newshub.extension.runtime.asTestSourceNetwork
 
 class GamerSourceAuthenticationTest {
 
@@ -53,7 +54,7 @@ class GamerSourceAuthenticationTest {
         val authentication = FakeAuthenticationSession()
         val source = GamerSource().apply {
             onAttach(object : SourceRuntime {
-                override val httpClient = client
+                override val network = client.asTestSourceNetwork()
                 override val authentication = authentication
             })
         }
@@ -126,7 +127,7 @@ class GamerSourceAuthenticationTest {
             .build()
         return GamerSource().apply {
             onAttach(object : SourceRuntime {
-                override val httpClient = client
+                override val network = client.asTestSourceNetwork()
                 override val authentication = authentication
             })
         }

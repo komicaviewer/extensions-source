@@ -3,7 +3,8 @@ package tw.kevinzhang.newshub.extension.mobile01
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import ru.gildor.coroutines.okhttp.await
-import tw.kevinzhang.extension_api.Source
+import tw.kevinzhang.extension_api.SessionAwareSource
+import tw.kevinzhang.extension_api.SourceRuntime
 import tw.kevinzhang.extension_api.model.Board
 import tw.kevinzhang.extension_api.model.BoardCategory
 import tw.kevinzhang.extension_api.model.BoardPage
@@ -13,9 +14,10 @@ import tw.kevinzhang.extension_api.model.ThreadPage
 import tw.kevinzhang.extension_api.model.ThreadPageMetadata
 import tw.kevinzhang.extension_api.model.ThreadSummary
 import java.io.IOException
+import tw.kevinzhang.newshub.extension.runtime.brokerBackedHttpClient
 
 /** Public, anonymous, read-only Mobile01 source. It deliberately declines access-control challenges. */
-class Mobile01Source : Source {
+class Mobile01Source : SessionAwareSource {
     override val id: String = Mobile01BoardCatalog.SOURCE_ID
     override val name: String = "Mobile01"
     override val language: String = "zh-TW"
@@ -25,11 +27,11 @@ class Mobile01Source : Source {
     override val alwaysUseRawImage: Boolean = false
     override val needsLogin: Boolean = false
 
-    private var client = OkHttpClient().withMobile01NetworkPolicy()
+    private lateinit var client: OkHttpClient
     private val parser = Mobile01Parser()
 
-    override fun onAttach(client: OkHttpClient) {
-        this.client = client.withMobile01NetworkPolicy()
+    override fun onAttach(runtime: SourceRuntime) {
+        client = runtime.brokerBackedHttpClient().withMobile01NetworkPolicy()
     }
 
     override suspend fun getBoardCategories(): List<BoardCategory> = Mobile01BoardCatalog.categories()
@@ -79,7 +81,7 @@ class Mobile01Source : Source {
         )
     }
 
-    override fun getWebUrl(summary: ThreadSummary): String? = Mobile01UrlPolicy.thread(summary.id)?.url
+    override suspend fun getWebUrl(summary: ThreadSummary): String? = Mobile01UrlPolicy.thread(summary.id)?.url
 
     private suspend fun requestText(request: Request): String {
         val response = client.newCall(request).await()

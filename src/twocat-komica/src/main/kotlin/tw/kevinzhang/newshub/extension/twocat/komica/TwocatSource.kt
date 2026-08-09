@@ -3,7 +3,8 @@ package tw.kevinzhang.newshub.extension.twocat.komica
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import ru.gildor.coroutines.okhttp.await
-import tw.kevinzhang.extension_api.Source
+import tw.kevinzhang.extension_api.SessionAwareSource
+import tw.kevinzhang.extension_api.SourceRuntime
 import tw.kevinzhang.extension_api.model.Post
 import tw.kevinzhang.extension_api.model.BoardCategory
 import tw.kevinzhang.extension_api.model.BoardPage
@@ -13,8 +14,9 @@ import tw.kevinzhang.extension_api.model.ThreadSummary
 import tw.kevinzhang.extension_api.model.Paragraph
 import tw.kevinzhang.newshub.extension.twocat.komica.request.TwocatRequestBuilder
 import tw.kevinzhang.extension_api.model.Board as ExtBoard
+import tw.kevinzhang.newshub.extension.runtime.brokerBackedHttpClient
 
-class TwocatSource : Source {
+class TwocatSource : SessionAwareSource {
     override val id = TwocatBoardCatalog.SOURCE_ID
     override val name = "Twocat"
     override val language = "zh-TW"
@@ -25,8 +27,8 @@ class TwocatSource : Source {
     override val needsLogin = false
     private lateinit var client: OkHttpClient
 
-    override fun onAttach(client: OkHttpClient) {
-        this.client = client
+    override fun onAttach(runtime: SourceRuntime) {
+        client = runtime.brokerBackedHttpClient()
     }
 
     override suspend fun getBoardCategories(): List<BoardCategory> = TWOCAT_CATEGORIES
@@ -104,7 +106,7 @@ class TwocatSource : Source {
         )
     }
 
-    override fun getWebUrl(summary: ThreadSummary): String = summary.id
+    override suspend fun getWebUrl(summary: ThreadSummary): String = summary.id
 }
 
 private val TWOCAT_CATEGORIES = listOf(

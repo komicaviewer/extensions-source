@@ -15,6 +15,7 @@ import org.junit.Test
 import tw.kevinzhang.extension_api.AuthState
 import tw.kevinzhang.extension_api.AuthenticationSession
 import tw.kevinzhang.extension_api.SourceRuntime
+import tw.kevinzhang.newshub.extension.runtime.asTestSourceNetwork
 import tw.kevinzhang.extension_api.model.Board
 import tw.kevinzhang.extension_api.model.BoardPageRequest
 import tw.kevinzhang.extension_api.model.BoardQuery
@@ -131,7 +132,7 @@ class PttSourceTest {
     private fun attachedSource(handler: (Interceptor.Chain) -> Response): PttSource = PttSource().also { source ->
         val client = OkHttpClient.Builder().addInterceptor(handler).build()
         source.onAttach(object : SourceRuntime {
-            override val httpClient: OkHttpClient = client
+            override val network = client.asTestSourceNetwork()
             override val authentication: AuthenticationSession = FakeAuthenticationSession()
         })
     }

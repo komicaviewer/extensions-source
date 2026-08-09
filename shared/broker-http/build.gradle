@@ -1,0 +1,35 @@
+apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
+
+android {
+    namespace 'tw.kevinzhang.newshub.extension.runtime'
+    compileSdk 34
+    defaultConfig { minSdk 29 }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions { jvmTarget = '17' }
+}
+
+dependencies {
+    def newshubDir = providers.gradleProperty('newshubDir').orNull
+    if (newshubDir != null) {
+        def extensionApiAar = file("${newshubDir}/extension-api/build/outputs/aar/extension-api-debug.aar")
+        if (!extensionApiAar.exists()) {
+            throw new GradleException("Local extension-api AAR not found at ${extensionApiAar}")
+        }
+        def extensionApiJar = layout.buildDirectory.file('local-extension-api/extension-api.jar')
+        def extractExtensionApi = tasks.register('extractLocalExtensionApiJar', Copy) {
+            from(zipTree(extensionApiAar)) { include 'classes.jar'; rename { 'extension-api.jar' } }
+            into(layout.buildDirectory.dir('local-extension-api'))
+            inputs.file(extensionApiAar)
+            outputs.file(extensionApiJar)
+        }
+        compileOnly files(extensionApiJar).builtBy(extractExtensionApi)
+    } else {
+        compileOnly 'com.github.komicaviewer.NewsHub:extension-api:aeabde818066dd31a65bf6cd253a004792819b1b'
+    }
+    api 'com.squareup.okhttp3:okhttp:4.12.0'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+}

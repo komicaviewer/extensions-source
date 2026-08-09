@@ -10,7 +10,6 @@ import generate_index as generator
 from generate_index import _publish_staged_tree, apk_payload_sha256, generate_index
 from release_catalog import load_catalog
 from test_support import (
-    TEST_CERT,
     build_distribution_tree,
     metadata_reader_for,
     signature_reader,
@@ -50,7 +49,6 @@ class GenerateIndexTest(unittest.TestCase):
             str(self.output_dir),
             "unused-aapt",
             "unused-apksigner",
-            TEST_CERT,
             **arguments,
         )
 

@@ -3,7 +3,8 @@ package tw.kevinzhang.newshub.extension.sora.komica
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import ru.gildor.coroutines.okhttp.await
-import tw.kevinzhang.extension_api.Source
+import tw.kevinzhang.extension_api.SessionAwareSource
+import tw.kevinzhang.extension_api.SourceRuntime
 import tw.kevinzhang.extension_api.model.Post
 import tw.kevinzhang.extension_api.model.BoardCategory
 import tw.kevinzhang.extension_api.model.BoardPage
@@ -12,8 +13,9 @@ import tw.kevinzhang.extension_api.model.Thread
 import tw.kevinzhang.extension_api.model.ThreadSummary
 import tw.kevinzhang.extension_api.model.Paragraph
 import tw.kevinzhang.extension_api.model.Board as ExtBoard
+import tw.kevinzhang.newshub.extension.runtime.brokerBackedHttpClient
 
-class SoraSource : Source {
+class SoraSource : SessionAwareSource {
     override val id = SoraBoardCatalog.SOURCE_ID
     override val name = "Sora"
     override val language = "zh-TW"
@@ -24,8 +26,8 @@ class SoraSource : Source {
     override val needsLogin = false
     private lateinit var client: OkHttpClient
 
-    override fun onAttach(client: OkHttpClient) {
-        this.client = client
+    override fun onAttach(runtime: SourceRuntime) {
+        client = runtime.brokerBackedHttpClient()
     }
 
     override suspend fun getBoardCategories(): List<BoardCategory> = KOMICA_CATEGORIES
@@ -97,7 +99,7 @@ class SoraSource : Source {
         )
     }
 
-    override fun getWebUrl(summary: ThreadSummary): String = summary.id
+    override suspend fun getWebUrl(summary: ThreadSummary): String = summary.id
 }
 
 private val KOMICA_CATEGORIES = listOf(

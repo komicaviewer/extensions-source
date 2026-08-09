@@ -10,7 +10,7 @@ android {
 
     defaultConfig {
         applicationId "tw.kevinzhang.newshub.extension.${project.name.replace('-', '_')}"
-        minSdk 21
+        minSdk 29
         targetSdk 34
         versionCode bundleVersionCode
         versionName bundleVersionName ?: "1.0"
@@ -20,21 +20,9 @@ android {
         ]
     }
 
-    signingConfigs {
-        release {
-            storeFile = file("${rootProject.projectDir}/keystore.jks")
-            storePassword = System.getenv("KEY_STORE_PASSWORD") ?: ""
-            keyAlias = System.getenv("KEY_ALIAS") ?: ""
-            keyPassword = System.getenv("KEY_PASSWORD") ?: ""
-        }
-    }
-
     buildTypes {
         release {
             minifyEnabled false
-            if (new File("${rootProject.projectDir}/keystore.jks").exists()) {
-                signingConfig signingConfigs.release
-            }
         }
     }
 
@@ -51,15 +39,17 @@ android {
 dependencies {
     def newshubDir = providers.gradleProperty('newshubDir').orNull
     if (newshubDir != null) {
-        def extensionApiJar = file("${newshubDir}/extension-api/build/libs/extension-api.jar")
-        if (!extensionApiJar.exists()) {
+        def extensionApiAar = file("${newshubDir}/extension-api/build/outputs/aar/extension-api-debug.aar")
+        if (!extensionApiAar.exists()) {
             throw new GradleException(
-                "Local extension-api JAR not found at ${extensionApiJar}. " +
-                    "Build it first with: cd ${newshubDir} && ./gradlew :extension-api:jar"
+                "Local extension-api AAR not found at ${extensionApiAar}. " +
+                    "Build it first with: cd ${newshubDir} && ./gradlew :extension-api:assembleDebug"
             )
         }
-        compileOnly files(extensionApiJar)
+        implementation files(extensionApiAar)
     } else {
-        compileOnly 'com.github.komicaviewer.NewsHub:extension-api:aeabde818066dd31a65bf6cd253a004792819b1b'
+        implementation 'com.github.komicaviewer.NewsHub:extension-api:aeabde818066dd31a65bf6cd253a004792819b1b'
     }
+    implementation 'com.google.code.gson:gson:2.10.1'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
 }

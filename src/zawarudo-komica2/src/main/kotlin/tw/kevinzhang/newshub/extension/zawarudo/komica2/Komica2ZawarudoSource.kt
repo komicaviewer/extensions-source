@@ -2,7 +2,8 @@ package tw.kevinzhang.newshub.extension.zawarudo.komica2
 
 import okhttp3.OkHttpClient
 import ru.gildor.coroutines.okhttp.await
-import tw.kevinzhang.extension_api.Source
+import tw.kevinzhang.extension_api.SessionAwareSource
+import tw.kevinzhang.extension_api.SourceRuntime
 import tw.kevinzhang.extension_api.model.Board
 import tw.kevinzhang.extension_api.model.BoardCategory
 import tw.kevinzhang.extension_api.model.BoardPage
@@ -11,8 +12,9 @@ import tw.kevinzhang.extension_api.model.Post
 import tw.kevinzhang.extension_api.model.Thread
 import tw.kevinzhang.extension_api.model.ThreadSummary
 import tw.kevinzhang.extension_api.model.Paragraph
+import tw.kevinzhang.newshub.extension.runtime.brokerBackedHttpClient
 
-class Komica2ZawarudoSource : Source {
+class Komica2ZawarudoSource : SessionAwareSource {
     override val id = ZawarudoBoards.SOURCE_ID
     override val name = "Komica2 Zawarudo"
     override val language = "zh-TW"
@@ -25,8 +27,8 @@ class Komica2ZawarudoSource : Source {
     private val crawler = ZawarudoCrawler()
     private lateinit var client: OkHttpClient
 
-    override fun onAttach(client: OkHttpClient) {
-        this.client = client
+    override fun onAttach(runtime: SourceRuntime) {
+        client = runtime.brokerBackedHttpClient()
     }
 
     override suspend fun getBoardCategories(): List<BoardCategory> = listOf(
@@ -71,7 +73,7 @@ class Komica2ZawarudoSource : Source {
         )
     }
 
-    override fun getWebUrl(summary: ThreadSummary): String = summary.id
+    override suspend fun getWebUrl(summary: ThreadSummary): String = summary.id
 
     private suspend fun <T> OkHttpClient.execute(
         request: okhttp3.Request,

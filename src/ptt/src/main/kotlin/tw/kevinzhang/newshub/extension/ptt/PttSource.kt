@@ -20,6 +20,7 @@ import tw.kevinzhang.extension_api.model.ThreadPageMetadata
 import tw.kevinzhang.extension_api.model.ThreadSummary
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
+import tw.kevinzhang.newshub.extension.runtime.brokerBackedHttpClient
 
 /** Read-only PTT source. PTT's over-18 confirmation is host-managed WebCookie authentication. */
 class PttSource : AuthenticatedSource {
@@ -39,7 +40,7 @@ class PttSource : AuthenticatedSource {
         cookieDomains = setOf("ptt.cc"),
     )
 
-    private var client = OkHttpClient()
+    private lateinit var client: OkHttpClient
     private var authentication: AuthenticationSession? = null
     private val parser = PttParser()
     private val paging = ConcurrentHashMap<String, PttBoardPagingState>()
@@ -48,7 +49,7 @@ class PttSource : AuthenticatedSource {
     private var popularBoardsCachedAt = 0L
 
     override fun onAttach(runtime: SourceRuntime) {
-        client = runtime.httpClient.newBuilder()
+        client = runtime.brokerBackedHttpClient().newBuilder()
             .addNetworkInterceptor { chain ->
                 val hasConsentCookie = chain.request().header("Cookie").orEmpty()
                     .split(';')
@@ -127,7 +128,7 @@ class PttSource : AuthenticatedSource {
         false
     }
 
-    override fun getWebUrl(summary: ThreadSummary): String? = PttUrlPolicy.articleUrl(summary.id)
+    override suspend fun getWebUrl(summary: ThreadSummary): String? = PttUrlPolicy.articleUrl(summary.id)
 
     private suspend fun loadPopularBoards(): List<Board> = popularBoardsMutex.withLock {
         val now = System.currentTimeMillis()

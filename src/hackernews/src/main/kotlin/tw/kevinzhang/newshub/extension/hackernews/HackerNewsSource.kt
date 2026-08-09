@@ -1,6 +1,5 @@
 package tw.kevinzhang.newshub.extension.hackernews
 
-import okhttp3.OkHttpClient
 import tw.kevinzhang.extension_api.SessionAwareSource
 import tw.kevinzhang.extension_api.SourceRuntime
 import tw.kevinzhang.extension_api.model.Board
@@ -14,14 +13,13 @@ import tw.kevinzhang.extension_api.model.ThreadPageMetadata
 import tw.kevinzhang.extension_api.model.ThreadSummary
 import java.io.IOException
 import java.net.URI
+import tw.kevinzhang.newshub.extension.runtime.brokerBackedHttpClient
 
 class HackerNewsSource : SessionAwareSource {
-    private var api: HackerNewsApi
+    private lateinit var api: HackerNewsApi
     private val htmlParser = HackerNewsHtmlParser()
 
-    constructor() {
-        api = HackerNewsApi(OkHttpClient())
-    }
+    constructor()
 
     internal constructor(api: HackerNewsApi) {
         this.api = api
@@ -37,7 +35,7 @@ class HackerNewsSource : SessionAwareSource {
     override val needsLogin = false
 
     override fun onAttach(runtime: SourceRuntime) {
-        api = HackerNewsApi(runtime.httpClient)
+        api = HackerNewsApi(runtime.brokerBackedHttpClient())
     }
 
     override suspend fun getBoardPage(request: BoardPageRequest): BoardPage {
@@ -101,7 +99,7 @@ class HackerNewsSource : SessionAwareSource {
         )
     }
 
-    override fun getWebUrl(summary: ThreadSummary): String? =
+    override suspend fun getWebUrl(summary: ThreadSummary): String? =
         summary.id.toLongOrNull()?.takeIf { it > 0 }?.let(::discussionUrl)
 
     private fun HackerNewsItem.toSummary(boardUrl: String): ThreadSummary {

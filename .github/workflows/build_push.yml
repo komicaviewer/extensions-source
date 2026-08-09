@@ -9,20 +9,26 @@ concurrency:
   group: extensions-release-candidate-${{ github.ref }}
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
         with:
           java-version: "17"
           distribution: temurin
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v3
+        uses: gradle/actions/setup-gradle@d9c87d481d55275bb5441eef3fe0e46805f9ef70 # v3
 
       - name: Install Android build-tools
         run: |
@@ -30,7 +36,69 @@ jobs:
           echo "AAPT=$ANDROID_SDK_ROOT/build-tools/34.0.0/aapt" >> "$GITHUB_ENV"
           echo "APKSIGNER=$ANDROID_SDK_ROOT/build-tools/34.0.0/apksigner" >> "$GITHUB_ENV"
 
-      - name: Validate signing secrets and set up keystore
+      - name: Validate catalog and toolchain tests
+        run: |
+          python3 scripts/release_catalog.py validate
+          python3 scripts/validate_source_manifests.py
+          python3 -m unittest discover -s scripts -p 'test_*.py'
+
+      - name: Test Sources and assemble unsigned release APKs from catalog
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t gradle_tasks < <(python3 scripts/release_catalog.py gradle-tasks)
+          test "${#gradle_tasks[@]}" -gt 0
+          ./gradlew "${gradle_tasks[@]}"
+
+      - name: Collect unsigned release set
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p output/unsigned
+          while IFS=$'\t' read -r module apk; do
+            test -f "${apk}"
+            version=$("${AAPT}" dump badging "${apk}" 2>/dev/null | \
+              sed -n "s/^package: name='[^']*' versionCode='[0-9]*' versionName='\([^']*\)'.*/\1/p" | head -n 1)
+            test -n "${version}"
+            apk_name=$(python3 scripts/release_catalog.py artifact-name "${module}" "${version}")
+            cp "${apk}" "output/unsigned/${apk_name}"
+          done < <(python3 scripts/release_catalog.py artifact-rows)
+
+      - name: Upload unsigned APK artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: extensions-unsigned
+          path: output/unsigned/
+          if-no-files-found: error
+          retention-days: 1
+
+  # Each matrix cell is bound to a different protected GitHub Environment. A
+  # signer can access exactly one bundle key, never the complete key set.
+  sign:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [eyny, gamer, hackernews, komica, komica2, mobile01, ptt]
+    environment: extension-sign-${{ matrix.module }}
+    permissions:
+      contents: read
+    steps:
+      - name: Download unsigned APKs
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: extensions-unsigned
+          path: input
+
+      - name: Install Android build-tools
+        run: |
+          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" "build-tools;34.0.0" >/dev/null 2>&1 || true
+          echo "APKSIGNER=$ANDROID_SDK_ROOT/build-tools/34.0.0/apksigner" >> "$GITHUB_ENV"
+
+      - name: Sign one bundle
+        shell: bash
         env:
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
           KEY_STORE_PASSWORD_INPUT: ${{ secrets.KEY_STORE_PASSWORD }}
@@ -38,76 +106,53 @@ jobs:
           KEY_PASSWORD_INPUT: ${{ secrets.KEY_PASSWORD }}
           SIGNING_CERT_SHA256: ${{ secrets.SIGNING_CERT_SHA256 }}
         run: |
+          set -euo pipefail
           for secret_name in SIGNING_KEY KEY_STORE_PASSWORD_INPUT KEY_ALIAS_INPUT KEY_PASSWORD_INPUT SIGNING_CERT_SHA256; do
-            if [ -z "${!secret_name}" ]; then
-              echo "Required signing secret is missing: ${secret_name}" >&2
-              exit 1
-            fi
+            test -n "${!secret_name}" || { echo "Missing ${secret_name}" >&2; exit 1; }
           done
-          printf '%s' "${SIGNING_KEY}" | base64 --decode > keystore.jks
-          keytool -list -keystore keystore.jks -storepass "${KEY_STORE_PASSWORD_INPUT}" \
+          shopt -s nullglob
+          apks=(input/newshub-${{ matrix.module }}-v*.apk)
+          test "${#apks[@]}" -eq 1
+          mkdir -p output
+          apk="output/$(basename "${apks[0]}")"
+          cp "${apks[0]}" "${apk}"
+          signing_keystore="${RUNNER_TEMP}/${{ matrix.module }}.jks"
+          trap 'rm -f "${signing_keystore}"' EXIT
+          printf '%s' "${SIGNING_KEY}" | base64 --decode > "${signing_keystore}"
+          keytool -list -keystore "${signing_keystore}" -storepass "${KEY_STORE_PASSWORD_INPUT}" \
             -alias "${KEY_ALIAS_INPUT}" >/dev/null
-          echo "KEY_STORE_PASSWORD=${KEY_STORE_PASSWORD_INPUT}" >> "$GITHUB_ENV"
-          echo "KEY_ALIAS=${KEY_ALIAS_INPUT}" >> "$GITHUB_ENV"
-          echo "KEY_PASSWORD=${KEY_PASSWORD_INPUT}" >> "$GITHUB_ENV"
+          "${APKSIGNER}" sign --ks "${signing_keystore}" --ks-key-alias "${KEY_ALIAS_INPUT}" \
+            --ks-pass env:KEY_STORE_PASSWORD_INPUT --key-pass env:KEY_PASSWORD_INPUT "${apk}"
+          expected=$(printf '%s' "${SIGNING_CERT_SHA256}" | tr -d '[:space:]:' | tr '[:lower:]' '[:upper:]')
+          actual=$("${APKSIGNER}" verify --verbose --print-certs "${apk}" | \
+            sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n 1 | \
+            tr -d '[:space:]:' | tr '[:lower:]' '[:upper:]')
+          test -n "${actual}" && test "${actual}" = "${expected}"
 
-      - name: Validate catalog and toolchain tests
-        run: |
-          python3 scripts/release_catalog.py validate
-          python3 -m unittest discover -s scripts -p 'test_*.py'
-
-      - name: Test Sources and assemble release APKs from catalog
-        shell: bash
-        run: |
-          mapfile -t gradle_tasks < <(python3 scripts/release_catalog.py gradle-tasks)
-          test "${#gradle_tasks[@]}" -gt 0
-          ./gradlew "${gradle_tasks[@]}"
-
-      - name: Collect and validate complete release set
-        shell: bash
-        env:
-          SIGNING_CERT_SHA256: ${{ secrets.SIGNING_CERT_SHA256 }}
-        run: |
-          mkdir -p output/apk
-          expected_fingerprint=$(printf '%s' "${SIGNING_CERT_SHA256}" | tr -d '[:space:]:' | tr '[:lower:]' '[:upper:]')
-          while IFS=$'\t' read -r module apk; do
-            test -f "${apk}"
-            actual_fingerprint=$("${APKSIGNER}" verify --verbose --print-certs "${apk}" | \
-              sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n 1 | \
-              tr -d '[:space:]:' | tr '[:lower:]' '[:upper:]')
-            if [ -z "${actual_fingerprint}" ] || [ "${actual_fingerprint}" != "${expected_fingerprint}" ]; then
-              echo "Unexpected signing certificate for ${apk}" >&2
-              exit 1
-            fi
-            version=$("${AAPT}" dump badging "${apk}" 2>/dev/null | \
-              sed -n "s/^package: name='[^']*' versionCode='[0-9]*' versionName='\([^']*\)'.*/\1/p" | head -n 1)
-            test -n "${version}"
-            apk_name=$(python3 scripts/release_catalog.py artifact-name "${module}" "${version}")
-            cp "${apk}" "output/apk/${apk_name}"
-          done < <(python3 scripts/release_catalog.py artifact-rows)
-          python3 scripts/validate_release_bundles.py output/apk
-
-      - name: Upload APK artifacts
-        uses: actions/upload-artifact@v4
+      - name: Upload signed bundle
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: extensions-apk
-          path: output/apk/
+          name: extension-signed-${{ matrix.module }}
+          path: output/*.apk
           if-no-files-found: error
           retention-days: 14
 
   candidate:
-    needs: build
+    needs: sign
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout extensions-source
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           path: extensions-source
+          persist-credentials: false
 
       - name: Download APK artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: extensions-apk
+          pattern: extension-signed-*
+          merge-multiple: true
           path: apks
 
       - name: Install Android build-tools
@@ -117,17 +162,17 @@ jobs:
           echo "APKSIGNER=$ANDROID_SDK_ROOT/build-tools/34.0.0/apksigner" >> "$GITHUB_ENV"
 
       - name: Checkout current distribution
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: komicaviewer/extensions
           token: ${{ secrets.EXTENSIONS_REPO_TOKEN }}
           path: extensions-repo
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Generate and validate candidate distribution
-        env:
-          SIGNING_CERT_SHA256: ${{ secrets.SIGNING_CERT_SHA256 }}
         run: |
+          python3 extensions-source/scripts/validate_release_bundles.py apks
           baseline_dir="${RUNNER_TEMP}/extensions-main-baseline"
           mkdir -p "${baseline_dir}"
           cp extensions-repo/index.json extensions-repo/index.min.json "${baseline_dir}/"
@@ -141,6 +186,7 @@ jobs:
         shell: bash
         run: |
           cd extensions-repo
+          gh auth setup-git
           if [ -z "$(git status --porcelain -- apk icon index.json index.min.json)" ]; then
             echo "Distribution is already current; no candidate PR is needed."
             exit 0

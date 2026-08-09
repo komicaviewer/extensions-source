@@ -13,8 +13,12 @@ import java.io.IOException
 internal const val EYNY_USER_AGENT = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36"
 
 /** Handles only EYNY's documented browser-work challenge and safe in-site redirects. */
-internal class EynyGateway(client: OkHttpClient) {
-    private var client = withoutRedirects(client)
+internal class EynyGateway() {
+    internal constructor(client: OkHttpClient) : this() {
+        updateClient(client)
+    }
+
+    private lateinit var client: OkHttpClient
 
     @Volatile var activeHost: String = "eyny.com"
         private set

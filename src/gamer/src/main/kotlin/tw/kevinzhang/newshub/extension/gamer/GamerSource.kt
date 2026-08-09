@@ -1,7 +1,6 @@
 package tw.kevinzhang.newshub.extension.gamer
 
 import okhttp3.HttpUrl.Companion.toHttpUrl
-import okhttp3.OkHttpClient
 import tw.kevinzhang.extension_api.AuthSpec
 import tw.kevinzhang.extension_api.AuthenticatedSource
 import tw.kevinzhang.extension_api.AuthenticationRequiredException
@@ -30,9 +29,10 @@ import tw.kevinzhang.gamer_api.model.GTextColor
 import tw.kevinzhang.gamer_api.model.GTextEmphasis
 import tw.kevinzhang.gamer_api.model.GVideoInfo
 import tw.kevinzhang.gamer_api.model.GVideoSite
+import tw.kevinzhang.newshub.extension.runtime.brokerBackedHttpClient
 
 class GamerSource : AuthenticatedSource {
-    private var gamerApi = GamerApi(OkHttpClient())
+    private lateinit var gamerApi: GamerApi
     private var authenticationSession: AuthenticationSession? = null
 
     override val id = "tw.kevinzhang.newshub.extension.gamer"
@@ -59,7 +59,7 @@ class GamerSource : AuthenticatedSource {
 
     /** Uses the host's source-scoped client, so Gamer cookies cannot leak to another source. */
     override fun onAttach(runtime: SourceRuntime) {
-        gamerApi = GamerApi(runtime.httpClient)
+        gamerApi = GamerApi(runtime.brokerBackedHttpClient())
         authenticationSession = runtime.authentication
     }
 
@@ -198,7 +198,7 @@ class GamerSource : AuthenticatedSource {
         }
     }
 
-    override fun getWebUrl(summary: ThreadSummary): String = summary.id
+    override suspend fun getWebUrl(summary: ThreadSummary): String = summary.id
 
     private suspend fun <T> withAuthenticationExpiry(block: suspend () -> T): T = try {
         block()

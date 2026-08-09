@@ -1,4 +1,24 @@
-apply plugin: 'org.jetbrains.kotlin.jvm'
+apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
+
+android {
+    compileSdk 34
+    namespace "tw.kevinzhang.newshub.extension.lib.${project.name.replace('-', '_')}"
+
+    defaultConfig {
+        minSdk 29
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = "17"
+        freeCompilerArgs += ['-Xjspecify-annotations=ignore']
+    }
+    sourceSets.test.java.srcDir rootProject.file('shared/broker-http/src/test/kotlin')
+}
 
 kotlin {
     jvmToolchain(17)
@@ -8,17 +28,29 @@ kotlin {
 }
 
 dependencies {
+    implementation project(':shared:broker-http')
     def newshubDir = providers.gradleProperty('newshubDir').orNull
     if (newshubDir != null) {
-        def extensionApiJar = file("${newshubDir}/extension-api/build/libs/extension-api.jar")
-        if (!extensionApiJar.exists()) {
+        def extensionApiAar = file("${newshubDir}/extension-api/build/outputs/aar/extension-api-debug.aar")
+        if (!extensionApiAar.exists()) {
             throw new GradleException(
-                "Local extension-api JAR not found at ${extensionApiJar}. " +
-                    "Build it first with: cd ${newshubDir} && ./gradlew :extension-api:jar"
+                "Local extension-api AAR not found at ${extensionApiAar}. " +
+                    "Build it first with: cd ${newshubDir} && ./gradlew :extension-api:assembleDebug"
             )
         }
-        compileOnly files(extensionApiJar)
-        testImplementation files(extensionApiJar)
+        // Android library modules cannot publish an AAR that directly embeds another
+        // local AAR. Extract the API bytecode only; the owning APK supplies the full
+        // extension-api AAR (including AIDL and manifest) at the application boundary.
+        def extensionApiJar = layout.buildDirectory.file('local-extension-api/extension-api.jar')
+        def extractExtensionApi = tasks.register('extractLocalExtensionApiJar', Copy) {
+            from(zipTree(extensionApiAar)) { include 'classes.jar'; rename { 'extension-api.jar' } }
+            into(layout.buildDirectory.dir('local-extension-api'))
+            inputs.file(extensionApiAar)
+            outputs.file(extensionApiJar)
+        }
+        def extensionApiFiles = files(extensionApiJar).builtBy(extractExtensionApi)
+        compileOnly extensionApiFiles
+        testImplementation extensionApiFiles
     } else {
         compileOnly 'com.github.komicaviewer.NewsHub:extension-api:aeabde818066dd31a65bf6cd253a004792819b1b'
         testImplementation 'com.github.komicaviewer.NewsHub:extension-api:aeabde818066dd31a65bf6cd253a004792819b1b'
@@ -26,6 +58,8 @@ dependencies {
 
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
     implementation 'com.squareup.okhttp3:logging-interceptor:4.12.0'
+    implementation 'com.google.code.gson:gson:2.10.1'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
     implementation 'org.jsoup:jsoup:1.17.2'
     implementation 'ru.gildor.coroutines:kotlin-coroutines-okhttp:1.0'
 

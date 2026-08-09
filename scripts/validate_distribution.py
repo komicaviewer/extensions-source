@@ -16,10 +16,9 @@ from release_catalog import (
     DEFAULT_CATALOG_PATH,
     artifact_name,
     load_catalog,
-    registry_for_release,
+    metadata_for_release,
     releases_by_package,
 )
-from validate_release_bundles import read_registry
 
 
 PACKAGE_RE = re.compile(r"package: name='([^']+)' versionCode='(\d+)' versionName='([^']*)'")
@@ -171,7 +170,6 @@ def validate_distribution_tree(
     *,
     aapt: str,
     apksigner: str,
-    expected_signing_cert_sha256: str,
     baseline_dir: str | None = None,
     metadata_reader: Callable[[str, str], dict] = read_apk_metadata,
     signature_reader: Callable[[str, str], str] = read_signing_fingerprint,
@@ -191,10 +189,6 @@ def validate_distribution_tree(
         )
 
     referenced_apks: set[str] = set()
-    expected_fingerprint = normalize_fingerprint(expected_signing_cert_sha256)
-    if len(expected_fingerprint) != 64:
-        raise ValueError("expected signing certificate SHA-256 must contain 64 hexadecimal digits")
-
     for item in index:
         package = item["pkg"]
         release = expected_by_package[package]
@@ -222,21 +216,18 @@ def validate_distribution_tree(
         if apk_path.name != artifact_name(release, metadata["versionName"]):
             raise ValueError(f"unexpected APK filename for {package}: {apk_path.name}")
 
-        registry = read_registry(str(apk_path))
-        expected_registry = registry_for_release(catalog, release)
-        if registry != expected_registry:
-            raise ValueError(f"APK registry does not match catalog registry for {release['module']}")
-        expected_index_sources = [_source_index_descriptor(source) for source in registry["sources"]]
-        if item.get("name") != registry["name"] or item.get("sources") != expected_index_sources:
-            raise ValueError(f"index registry metadata mismatch for {release['module']}")
-        languages = {source["lang"] for source in registry["sources"]}
+        metadata = metadata_for_release(catalog, release)
+        expected_index_sources = [_source_index_descriptor(source) for source in metadata["sources"]]
+        if item.get("name") != metadata["name"] or item.get("sources") != expected_index_sources:
+            raise ValueError(f"index metadata mismatch for {release['module']}")
+        languages = {source["lang"] for source in metadata["sources"]}
         expected_language = next(iter(languages)) if len(languages) == 1 else ""
         if item.get("lang") != expected_language:
             raise ValueError(f"index language mismatch for {release['module']}")
 
         actual_fingerprint = signature_reader(str(apk_path), apksigner)
-        if normalize_fingerprint(actual_fingerprint) != expected_fingerprint:
-            raise ValueError(f"unexpected signing certificate for {apk_path.name}")
+        if len(normalize_fingerprint(actual_fingerprint)) != 64:
+            raise ValueError(f"invalid signing certificate for {apk_path.name}")
 
     actual_apks = {path.name for path in (tree / "apk").glob("*.apk")}
     if actual_apks != referenced_apks:
@@ -257,21 +248,14 @@ def main() -> None:
     parser.add_argument("--baseline-dir")
     parser.add_argument("--aapt", default=os.environ.get("AAPT"))
     parser.add_argument("--apksigner", default=os.environ.get("APKSIGNER"))
-    parser.add_argument(
-        "--signing-cert-sha256",
-        default=os.environ.get("SIGNING_CERT_SHA256"),
-    )
     args = parser.parse_args()
     aapt = args.aapt or find_tool("AAPT", ("aapt", "aapt2"))
     apksigner = args.apksigner or find_tool("APKSIGNER", ("apksigner",))
-    if not args.signing_cert_sha256:
-        raise SystemExit("SIGNING_CERT_SHA256 is required")
     index = validate_distribution_tree(
         args.tree_dir,
         load_catalog(args.catalog),
         aapt=aapt,
         apksigner=apksigner,
-        expected_signing_cert_sha256=args.signing_cert_sha256,
         baseline_dir=args.baseline_dir,
     )
     print(

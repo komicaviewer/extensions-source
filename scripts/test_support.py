@@ -5,7 +5,7 @@ import shutil
 import zipfile
 from pathlib import Path
 
-from release_catalog import artifact_name, registry_for_release
+from release_catalog import artifact_name, metadata_for_release
 from validate_distribution import sha256_file
 
 
@@ -18,21 +18,22 @@ def write_release_apk(
     release: dict,
     *,
     version_name: str = "1.0.0",
-    registry: dict | None = None,
+    legacy_registry: dict | None = None,
     include_dex: bool = True,
 ) -> Path:
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / artifact_name(release, version_name)
-    release_registry = registry or registry_for_release(catalog, release)
+    release_metadata = metadata_for_release(catalog, release)
     with zipfile.ZipFile(path, "w") as apk:
-        write_deterministic_zip_entry(
-            apk,
-            "assets/newshub-extension.json",
-            json.dumps(release_registry),
-        )
+        if legacy_registry is not None:
+            write_deterministic_zip_entry(
+                apk,
+                "assets/newshub-extension.json",
+                json.dumps(legacy_registry),
+            )
         if include_dex:
             markers = "\n".join(
-                source["className"].replace(".", "/") for source in release_registry["sources"]
+                source["className"].replace(".", "/") for source in release_metadata["sources"]
             )
             write_deterministic_zip_entry(apk, "classes.dex", markers)
     return path
@@ -92,19 +93,19 @@ def build_distribution_tree(
     catalog_root = Path(catalog["_root"])
     for release in catalog["releases"]:
         apk = write_release_apk(apk_dir, catalog, release, version_name=version_name)
-        registry = registry_for_release(catalog, release)
+        metadata = metadata_for_release(catalog, release)
         shutil.copy2(
             catalog_root / release["icon"]["source"],
             icon_dir / release["icon"]["name"],
         )
         sources = [
             {key: source[key] for key in ("id", "name", "lang", "baseUrl")}
-            for source in registry["sources"]
+            for source in metadata["sources"]
         ]
         languages = {source["lang"] for source in sources}
         entries.append({
             "pkg": release["package"],
-            "name": registry["name"],
+            "name": metadata["name"],
             "versionCode": version_code,
             "versionName": version_name,
             "lang": next(iter(languages)) if len(languages) == 1 else "",

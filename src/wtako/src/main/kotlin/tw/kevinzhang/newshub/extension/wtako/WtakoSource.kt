@@ -2,7 +2,8 @@ package tw.kevinzhang.newshub.extension.wtako
 
 import okhttp3.OkHttpClient
 import ru.gildor.coroutines.okhttp.await
-import tw.kevinzhang.extension_api.Source
+import tw.kevinzhang.extension_api.SessionAwareSource
+import tw.kevinzhang.extension_api.SourceRuntime
 import tw.kevinzhang.extension_api.model.Board
 import tw.kevinzhang.extension_api.model.BoardPage
 import tw.kevinzhang.extension_api.model.BoardPageRequest
@@ -11,8 +12,9 @@ import tw.kevinzhang.extension_api.model.Paragraph
 import tw.kevinzhang.extension_api.model.Thread
 import tw.kevinzhang.extension_api.model.ThreadSummary
 import java.io.IOException
+import tw.kevinzhang.newshub.extension.runtime.brokerBackedHttpClient
 
-class WtakoSource : Source {
+class WtakoSource : SessionAwareSource {
     override val id = WtakoBoardCatalog.SOURCE_ID
     override val name = "Wtako"
     override val language = "zh-TW"
@@ -25,8 +27,8 @@ class WtakoSource : Source {
     private lateinit var client: OkHttpClient
     private val parser = WtakoParser()
 
-    override fun onAttach(client: OkHttpClient) {
-        this.client = client.newBuilder()
+    override fun onAttach(runtime: SourceRuntime) {
+        client = runtime.brokerBackedHttpClient().newBuilder()
             .addNetworkInterceptor(WtakoHttpsRedirectInterceptor())
             .build()
     }
@@ -85,7 +87,7 @@ class WtakoSource : Source {
         )
     }
 
-    override fun getWebUrl(summary: ThreadSummary): String = WtakoUrlPolicy.canonicalize(summary.id)
+    override suspend fun getWebUrl(summary: ThreadSummary): String = WtakoUrlPolicy.canonicalize(summary.id)
 }
 
 private fun List<Board>.toBoardPage(request: BoardPageRequest): BoardPage {

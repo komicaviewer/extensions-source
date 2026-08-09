@@ -2,7 +2,6 @@ package tw.kevinzhang.newshub.extension.eyny
 
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import okhttp3.OkHttpClient
 import tw.kevinzhang.extension_api.AuthSpec
 import tw.kevinzhang.extension_api.AuthenticatedSource
 import tw.kevinzhang.extension_api.AuthenticationRequiredException
@@ -18,6 +17,7 @@ import tw.kevinzhang.extension_api.model.ThreadPage
 import tw.kevinzhang.extension_api.model.ThreadPageMetadata
 import tw.kevinzhang.extension_api.model.ThreadSummary
 import java.io.IOException
+import tw.kevinzhang.newshub.extension.runtime.brokerBackedHttpClient
 
 class EynySource : AuthenticatedSource, WebLoginUserAgentProvider {
     override val id = SOURCE_ID
@@ -42,11 +42,14 @@ class EynySource : AuthenticatedSource, WebLoginUserAgentProvider {
 
     private var authentication: AuthenticationSession? = null
     private val parser = EynyParser()
-    private val gateway = EynyGateway(OkHttpClient())
+    private val gateway = EynyGateway()
     private val catalogMutex = Mutex()
     private var catalog: EynyCatalog? = null
 
-    override fun onAttach(runtime: SourceRuntime) { gateway.updateClient(runtime.httpClient); authentication = runtime.authentication }
+    override fun onAttach(runtime: SourceRuntime) {
+        gateway.updateClient(runtime.brokerBackedHttpClient())
+        authentication = runtime.authentication
+    }
 
     override suspend fun getBoardCategories(): List<BoardCategory> = loadCatalog().categories
     override suspend fun getBoardPage(request: BoardPageRequest): BoardPage {
@@ -87,7 +90,7 @@ class EynySource : AuthenticatedSource, WebLoginUserAgentProvider {
         val html = gateway.get("https://eyny.com/home.php?mod=spacecp")
         parser.signedIn(html).also { if (it) clearCatalog() }
     } catch (_: AuthenticationRequiredException) { false }
-    override fun getWebUrl(summary: ThreadSummary): String? = EynyUrlPolicy.thread(summary.id)?.url
+    override suspend fun getWebUrl(summary: ThreadSummary): String? = EynyUrlPolicy.thread(summary.id)?.url
 
     private suspend fun loadCatalog(): EynyCatalog = catalogMutex.withLock {
         catalog?.let { return@withLock it }

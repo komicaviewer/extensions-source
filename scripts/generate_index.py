@@ -16,6 +16,7 @@ from typing import Callable
 from release_catalog import (
     DEFAULT_CATALOG_PATH,
     load_catalog,
+    metadata_for_release,
     releases_by_module,
 )
 from validate_distribution import (
@@ -27,7 +28,6 @@ from validate_distribution import (
 )
 from validate_release_bundles import (
     module_from_apk_name,
-    read_registry,
     validate_release_bundles,
 )
 
@@ -151,7 +151,6 @@ def generate_index(
     output_dir: str,
     aapt: str,
     apksigner: str,
-    expected_signing_cert_sha256: str,
     *,
     catalog: dict | None = None,
     metadata_reader: Callable[[str, str], dict] = read_apk_metadata,
@@ -172,26 +171,26 @@ def generate_index(
     for apk_path in sorted(apk_input.glob("*.apk")):
         module = module_from_apk_name(apk_path.name, catalog)
         release = release_by_module[module]
-        metadata = metadata_reader(str(apk_path), aapt)
-        if metadata.get("pkg") != release["package"]:
+        apk_metadata = metadata_reader(str(apk_path), aapt)
+        if apk_metadata.get("pkg") != release["package"]:
             raise ValueError(
                 f"unexpected package for {module}: "
-                f"expected={release['package']}, actual={metadata.get('pkg')}",
+                f"expected={release['package']}, actual={apk_metadata.get('pkg')}",
             )
         selected_apk, selected_sha = _select_apk(
             apk_path,
-            metadata,
-            baseline_by_package.get(metadata["pkg"]),
+            apk_metadata,
+            baseline_by_package.get(apk_metadata["pkg"]),
             output,
         )
-        registry = read_registry(str(apk_path))
-        sources = [_index_source(source) for source in registry["sources"]]
+        release_metadata = metadata_for_release(catalog, release)
+        sources = [_index_source(source) for source in release_metadata["sources"]]
         languages = {source["lang"] for source in sources}
         extensions.append({
-            "pkg": metadata["pkg"],
-            "name": registry["name"],
-            "versionCode": metadata["versionCode"],
-            "versionName": metadata["versionName"],
+            "pkg": apk_metadata["pkg"],
+            "name": release_metadata["name"],
+            "versionCode": apk_metadata["versionCode"],
+            "versionName": apk_metadata["versionName"],
             "lang": next(iter(languages)) if len(languages) == 1 else "",
             "apkName": apk_path.name,
             "iconName": release["icon"]["name"],
@@ -231,7 +230,6 @@ def generate_index(
             catalog,
             aapt=aapt,
             apksigner=apksigner,
-            expected_signing_cert_sha256=expected_signing_cert_sha256,
             baseline_dir=baseline,
             metadata_reader=metadata_reader,
             signature_reader=signature_reader,
@@ -247,13 +245,7 @@ def main() -> None:
     parser.add_argument("--catalog", default=str(DEFAULT_CATALOG_PATH))
     parser.add_argument("--aapt", default=os.environ.get("AAPT"))
     parser.add_argument("--apksigner", default=os.environ.get("APKSIGNER"))
-    parser.add_argument(
-        "--signing-cert-sha256",
-        default=os.environ.get("SIGNING_CERT_SHA256"),
-    )
     args = parser.parse_args()
-    if not args.signing_cert_sha256:
-        raise SystemExit("SIGNING_CERT_SHA256 is required")
     aapt = args.aapt or find_tool("AAPT", ("aapt", "aapt2"))
     apksigner = args.apksigner or find_tool("APKSIGNER", ("apksigner",))
     extensions = generate_index(
@@ -261,7 +253,6 @@ def main() -> None:
         args.output_dir,
         aapt,
         apksigner,
-        args.signing_cert_sha256,
         catalog=load_catalog(args.catalog),
     )
     print(

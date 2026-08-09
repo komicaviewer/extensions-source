@@ -16,6 +16,8 @@ dependencyResolutionManagement {
 
 rootProject.name = "extensions-source"
 
+include(":shared:broker-http")
+
 listOf(
     "akraft",
     "eyny",

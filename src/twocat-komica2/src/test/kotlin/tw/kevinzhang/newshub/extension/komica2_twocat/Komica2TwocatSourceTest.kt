@@ -11,6 +11,7 @@ import tw.kevinzhang.extension_api.model.BoardPageRequest
 import tw.kevinzhang.extension_api.model.BoardQuery
 import tw.kevinzhang.extension_api.model.ThreadSummary
 import tw.kevinzhang.newshub.extension.twocat.komica2.model.Komica2TwocatBoards
+import tw.kevinzhang.newshub.extension.runtime.asTestSourceRuntime
 
 class Komica2TwocatSourceTest {
     private val board = Komica2TwocatBoards.all.single()
@@ -28,8 +29,8 @@ class Komica2TwocatSourceTest {
     }
 
     @Test
-    fun `summary and thread HTTP errors report the effective response URL`() = runBlocking {
-        val source = Komica2TwocatSource().apply { onAttach(notFoundClient()) }
+    fun `summary and thread HTTP errors report the brokered request URL`() = runBlocking {
+        val source = Komica2TwocatSource().apply { onAttach(notFoundClient().asTestSourceRuntime()) }
         val summary = ThreadSummary(
             sourceId = source.id,
             boardUrl = board.url,
@@ -44,11 +45,11 @@ class Komica2TwocatSourceTest {
         )
 
         assertEquals(
-            "HTTP 404: https://2cat.uk/pixmicat.php/",
+            "HTTP 404: https://2cat.org/touhoux/pixmicat.php",
             assertHttpException { source.getThreadSummaries(board, page = 1) }.message,
         )
         assertEquals(
-            "HTTP 404: https://2cat.uk/pixmicat.php/",
+            "HTTP 404: https://2cat.org/touhoux/pixmicat.php?res=42",
             assertHttpException { source.getThread(summary) }.message,
         )
     }

@@ -16,7 +16,7 @@ SOURCE_KEYS = {"module", "testTask", "id", "className"}
 ICON_KEYS = {"source", "name"}
 RELEASE_KEYS = {
     "module", "gradleProject", "assembleTask", "apkOutput", "artifactName",
-    "package", "registry", "icon", "sources",
+    "package", "metadata", "icon", "sources",
 }
 
 
@@ -105,9 +105,9 @@ def load_catalog(path: str | os.PathLike[str] = DEFAULT_CATALOG_PATH) -> dict:
             raise ValueError(f"producer icon for {module} is not a PNG file: {icon_path}")
         if release["artifactName"].count("{versionName}") != 1:
             raise ValueError(f"artifactName for {module} must contain exactly one {{versionName}}")
-        registry_path = (root / release["registry"]).resolve()
-        if not registry_path.is_relative_to(root) or not registry_path.is_file():
-            raise ValueError(f"registry for {module} does not exist inside the repository: {registry_path}")
+        metadata_path = (root / release["metadata"]).resolve()
+        if not metadata_path.is_relative_to(root) or not metadata_path.is_file():
+            raise ValueError(f"metadata for {module} does not exist inside the repository: {metadata_path}")
         gradle_dir = root / release["gradleProject"].removeprefix(":").replace(":", "/")
         if not (gradle_dir / "build.gradle.kts").is_file():
             raise ValueError(f"Gradle project for {module} does not exist: {gradle_dir}")
@@ -138,13 +138,13 @@ def load_catalog(path: str | os.PathLike[str] = DEFAULT_CATALOG_PATH) -> dict:
             class_names.add(source["className"])
             source_modules.add(source_module)
 
-        registry = json.loads(registry_path.read_text(encoding="utf-8"))
-        actual = {(source["id"], source["className"]) for source in registry.get("sources", [])}
+        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        actual = {(source["id"], source["className"]) for source in metadata.get("sources", [])}
         expected = {(source["id"], source["className"]) for source in sources}
         if actual != expected:
             raise ValueError(
-                f"catalog/registry Source mismatch for {module}: "
-                f"catalog={sorted(expected)}, registry={sorted(actual)}",
+                f"catalog/metadata Source mismatch for {module}: "
+                f"catalog={sorted(expected)}, metadata={sorted(actual)}",
             )
 
     settings_modules = _settings_modules(root)
@@ -168,8 +168,8 @@ def releases_by_package(catalog: dict) -> dict[str, dict]:
     return {release["package"]: release for release in catalog["releases"]}
 
 
-def registry_for_release(catalog: dict, release: dict) -> dict:
-    path = Path(catalog["_root"]) / release["registry"]
+def metadata_for_release(catalog: dict, release: dict) -> dict:
+    path = Path(catalog["_root"]) / release["metadata"]
     return json.loads(path.read_text(encoding="utf-8"))
 
 

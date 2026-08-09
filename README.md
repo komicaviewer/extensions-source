@@ -6,13 +6,15 @@ Modeled after [keiyoushi/extensions-source](https://github.com/keiyoushi/extensi
 
 ## Architecture
 
-The current release contains seven installable APKs and thirteen Sources. Source
-implementations are Kotlin/JVM libraries; Android application modules own the APK
-manifest, registry asset, signing version, and installation boundary.
+The current release contains seven installable APKs and thirteen Sources. Every
+Source runs in its own Android isolated-process service. Extension APKs declare
+no permissions; network and authentication capabilities are supplied by the
+NewsHub host through a source-scoped Binder broker.
 
 [`release-catalog.json`](release-catalog.json) is the publishing source of truth.
 It maps every Source module, ID, class, test task, owning APK, Gradle build task,
-APK output, package, registry, artifact filename, and producer-side icon asset.
+APK output, package, build-only release metadata, artifact filename, and
+producer-side icon asset.
 The catalog validator also requires every `:src` module in `settings.gradle.kts`
 to be registered, so a newly added module cannot be silently omitted from CI.
 
@@ -36,23 +38,23 @@ ptt ──────────────→ ptt.apk (1 Source)
 
 | Module | Type | Responsibility |
 |---|---|---|
-| `src/twocat-komica` | Kotlin/JVM library | Twocat Komica Source |
-| `src/sora-komica` | Kotlin/JVM library | Sora Komica Source |
-| `src/akraft` | Kotlin/JVM library | Akraft Source |
-| `src/nagatoyuki` | Kotlin/JVM library | Nagatoyuki Source |
-| `src/wtako` | Kotlin/JVM library | Wtako Source |
-| `src/twocat-komica2` | Kotlin/JVM library | Twocat Komica2 Source |
-| `src/sora-komica2` | Kotlin/JVM library | Sora Komica2 Source |
-| `src/zawarudo-komica2` | Kotlin/JVM library | Zawarudo Komica2 Source |
-| `src/komica` | Android application | Komica bundle APK and five-Source registry |
-| `src/komica2` | Android application | Komica2 bundle APK and three-Source registry |
-| `src/gamer` | Android application | Gamer APK and one-Source registry |
-| `src/hackernews` | Android application | Hacker News APK and one-Source registry |
-| `src/eyny-source` | Kotlin/JVM library | EYNY 伊莉討論區 Source with paginated forum posts |
-| `src/eyny` | Android application | EYNY 伊莉討論區 APK and one-Source registry |
-| `src/mobile01-source` | Kotlin/JVM library | Mobile01 Source with paginated forum posts |
-| `src/mobile01` | Android application | Mobile01 APK and one-Source registry |
-| `src/ptt` | Android application | PTT APK and one-Source registry |
+| `src/twocat-komica` | Android library | Twocat Komica Source |
+| `src/sora-komica` | Android library | Sora Komica Source |
+| `src/akraft` | Android library | Akraft Source |
+| `src/nagatoyuki` | Android library | Nagatoyuki Source |
+| `src/wtako` | Android library | Wtako Source |
+| `src/twocat-komica2` | Android library | Twocat Komica2 Source |
+| `src/sora-komica2` | Android library | Sora Komica2 Source |
+| `src/zawarudo-komica2` | Android library | Zawarudo Komica2 Source |
+| `src/komica` | Android application | Komica bundle with five isolated Source services |
+| `src/komica2` | Android application | Komica2 bundle with three isolated Source services |
+| `src/gamer` | Android application | Gamer isolated Source service |
+| `src/hackernews` | Android application | Hacker News isolated Source service |
+| `src/eyny-source` | Android library | EYNY 伊莉討論區 Source with paginated forum posts |
+| `src/eyny` | Android application | EYNY isolated Source service |
+| `src/mobile01-source` | Android library | Mobile01 Source with paginated forum posts |
+| `src/mobile01` | Android application | Mobile01 isolated Source service |
+| `src/ptt` | Android application | PTT isolated Source service |
 
 Parsers use `extension-api` models directly. There is no shared Komica parser or
 intermediate `KPost`/`KParagraph` model: site-specific parsing code stays inside
@@ -66,58 +68,55 @@ separate from the current `Thread` adapter so it can adopt the planned host
 Every Source ID belongs to exactly one release APK. Moving a Source between APKs
 must preserve its ID so subscriptions and cached board references remain valid.
 
-## APK registry
+## Isolated Source service contract
 
-Every bundle manifest must declare:
+Each Source has exactly one exported Service. The Service is callable only by
+the NewsHub signature permission and executes under a unique isolated UID:
 
 ```xml
-<meta-data android:name="newshub.extension" android:value="true" />
-<meta-data
-    android:name="newshub.extension.registry"
-    android:value="newshub-extension.json" />
+<service
+    android:name=".ExampleExtensionService"
+    android:exported="true"
+    android:isolatedProcess="true"
+    android:permission="tw.kevinzhang.newshub.permission.BIND_EXTENSION"
+    android:process=":source_example">
+    <intent-filter>
+        <action android:name="tw.kevinzhang.newshub.extension.SERVICE" />
+    </intent-filter>
+    <meta-data android:name="newshub.extension.protocol" android:value="1" />
+    <meta-data android:name="newshub.extension.source_id" android:value="example" />
+    <meta-data android:name="newshub.extension.source_name" android:value="Example" />
+    <meta-data android:name="newshub.extension.source_lang" android:value="en" />
+    <meta-data android:name="newshub.extension.source_base_url" android:value="https://example.com" />
+</service>
 ```
 
-The referenced asset is the runtime registry. Its Source IDs and classes must
-exactly match the owning release in `release-catalog.json`:
-
-```json
-{
-  "schemaVersion": 1,
-  "name": "NewsHub: Komica",
-  "sources": [
-    {
-      "className": "tw.kevinzhang.newshub.extension.twocat.komica.TwocatSource",
-      "id": "tw.kevinzhang.komica.twocat",
-      "name": "Twocat",
-      "lang": "zh-TW",
-      "baseUrl": "https://2cat.org"
-    }
-  ]
-}
-```
-
-Source classes require a public no-argument constructor. Their runtime `id`,
-`name`, and `language` must exactly match the registry descriptor.
+`assets/newshub-extension.json`, the old application marker, `PathClassLoader`,
+and direct extension networking are forbidden. CI compares service metadata to
+`release-metadata/`, rejects every declared APK permission, and rejects any APK
+that still packages the legacy registry asset.
 
 ## Adding a Source
 
-1. Add the implementation to the appropriate Kotlin/JVM Source module.
+1. Add the implementation to the appropriate Android Source module.
 2. Return `ThreadSummary`, `Thread`, `Post`, and `Paragraph` from `extension-api`
    directly; site-specific intermediate models must be `internal`.
-3. Add the Source class and metadata to the owning bundle's
-   `assets/newshub-extension.json`.
+3. Add an `IsolatedSourceService` wrapper and the complete service declaration
+   to the owning bundle manifest.
 4. Add parser and request tests to that module's normal `test` source set.
 5. Register the Source and its owning release data in `release-catalog.json`.
    Do not add Source/APK lists to workflow or validator code; all publishing,
-   Gradle, output, registry, and icon information must be derived from the catalog.
-6. Run `python3 scripts/release_catalog.py validate`. It rejects catalog/registry
-   mismatches, duplicate IDs/classes, missing assets/projects, and Gradle modules
+   Gradle, output, metadata, and icon information must be derived from the catalog.
+6. Run `python3 scripts/release_catalog.py validate` and
+   `python3 scripts/validate_source_manifests.py`. They reject metadata/service
+   mismatches, permissions, duplicate IDs/classes, missing assets/projects, and Gradle modules
    that were added to `settings.gradle.kts` without a catalog entry.
 
 ## Building
 
 ```bash
 python3 scripts/release_catalog.py validate
+python3 scripts/validate_source_manifests.py
 python3 -m unittest discover -s scripts -p 'test_*.py'
 ./gradlew $(python3 scripts/release_catalog.py gradle-tasks)
 ```
@@ -129,10 +128,16 @@ operations from `release-catalog.json`, signs the APKs, and builds a staged
 distribution candidate for the
 [extensions repo](https://github.com/komicaviewer/extensions).
 
+Signing is deliberately split across seven protected GitHub Environments named
+`extension-sign-<module>`. Each environment must have required reviewers and
+holds only that bundle's `SIGNING_KEY`, `KEY_STORE_PASSWORD`, `KEY_ALIAS`,
+`KEY_PASSWORD`, and `SIGNING_CERT_SHA256`. The unsigned build job receives no
+signing or distribution credential; no job can read more than one APK key.
+
 Publication is fail-closed. Before the destination checkout is changed, admission
-validation requires the catalog-complete APK/Source set; exact registry and
-bytecode ownership; semantic equality of `index.json` and `index.min.json`;
-referenced APK/icon existence; SHA-256, package, version, registry, and signing
+validation requires the catalog-complete APK/Source set; exact service metadata
+and bytecode ownership; semantic equality of `index.json` and `index.min.json`;
+referenced APK/icon existence; SHA-256, package, version, and signing
 certificate integrity; and comparison with the original destination `main`
 indexes to reject version rollback, same-version APK replacement, and
 unauthorized package/Source deletion. The generator works in a staging tree and

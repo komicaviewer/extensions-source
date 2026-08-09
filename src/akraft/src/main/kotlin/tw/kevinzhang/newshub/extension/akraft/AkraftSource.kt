@@ -2,7 +2,8 @@ package tw.kevinzhang.newshub.extension.akraft
 
 import okhttp3.OkHttpClient
 import ru.gildor.coroutines.okhttp.await
-import tw.kevinzhang.extension_api.Source
+import tw.kevinzhang.extension_api.SessionAwareSource
+import tw.kevinzhang.extension_api.SourceRuntime
 import tw.kevinzhang.extension_api.model.Board
 import tw.kevinzhang.extension_api.model.BoardPage
 import tw.kevinzhang.extension_api.model.BoardPageRequest
@@ -11,8 +12,9 @@ import tw.kevinzhang.extension_api.model.Paragraph
 import tw.kevinzhang.extension_api.model.Thread
 import tw.kevinzhang.extension_api.model.ThreadSummary
 import java.io.IOException
+import tw.kevinzhang.newshub.extension.runtime.brokerBackedHttpClient
 
-class AkraftSource : Source {
+class AkraftSource : SessionAwareSource {
     override val id = AkraftBoards.SOURCE_ID
     override val name = "Akraft"
     override val language = "zh-TW"
@@ -25,8 +27,8 @@ class AkraftSource : Source {
     private lateinit var client: OkHttpClient
     private val parser = AkraftParser()
 
-    override fun onAttach(client: OkHttpClient) {
-        this.client = client
+    override fun onAttach(runtime: SourceRuntime) {
+        client = runtime.brokerBackedHttpClient()
     }
 
     override suspend fun getBoardPage(request: BoardPageRequest): BoardPage =
@@ -78,7 +80,7 @@ class AkraftSource : Source {
         )
     }
 
-    override fun getWebUrl(summary: ThreadSummary): String = summary.id
+    override suspend fun getWebUrl(summary: ThreadSummary): String = summary.id
 
     private suspend fun <T> execute(request: okhttp3.Request, parse: (String) -> T): T {
         client.newCall(request).await().use { response ->

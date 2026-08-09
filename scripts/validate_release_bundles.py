@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Validate release APK registries and bytecode against release-catalog.json."""
+"""Validate release APK contents against the in-repository release catalog."""
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import zipfile
 
@@ -11,59 +10,21 @@ from release_catalog import (
     DEFAULT_CATALOG_PATH,
     artifact_name,
     load_catalog,
-    registry_for_release,
+    metadata_for_release,
     releases_by_module,
 )
 
 
 REGISTRY_ASSET_PATH = "assets/newshub-extension.json"
-CURRENT_REGISTRY_SCHEMA_VERSION = 2
-CURRENT_EXTENSION_API_VERSION = 2
-SOURCE_FIELDS = ("className", "id", "name", "lang", "baseUrl")
-
-
-def read_registry(apk_path: str) -> dict:
+def reject_legacy_registry(apk_path: str) -> None:
     try:
         with zipfile.ZipFile(apk_path) as apk:
-            registry = json.loads(apk.read(REGISTRY_ASSET_PATH).decode("utf-8"))
-    except KeyError as exc:
-        raise ValueError(f"missing {REGISTRY_ASSET_PATH} in {os.path.basename(apk_path)}") from exc
-    except (OSError, zipfile.BadZipFile, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise ValueError(f"invalid extension registry in {os.path.basename(apk_path)}: {exc}") from exc
-
-    schema_version = registry.get("schemaVersion")
-    if not isinstance(schema_version, int) or isinstance(schema_version, bool) or not 1 <= schema_version <= CURRENT_REGISTRY_SCHEMA_VERSION:
-        raise ValueError(f"unsupported registry schemaVersion: {schema_version}")
-    required_api_version = registry.get("requiredApiVersion", 1)
-    if schema_version == 1:
-        if required_api_version != 1:
-            raise ValueError(f"schemaVersion 1 requires extension API version 1: {required_api_version}")
-    elif required_api_version != CURRENT_EXTENSION_API_VERSION:
-        raise ValueError(
-            f"schemaVersion {schema_version} requires extension API version "
-            f"{CURRENT_EXTENSION_API_VERSION}: {required_api_version}",
-        )
-    if not isinstance(registry.get("name"), str) or not registry["name"].strip():
-        raise ValueError("registry name must be non-empty")
-    sources = registry.get("sources")
-    if not isinstance(sources, list) or not sources:
-        raise ValueError("registry sources must be a non-empty array")
-
-    source_ids: set[str] = set()
-    class_names: set[str] = set()
-    for index, source in enumerate(sources):
-        if not isinstance(source, dict):
-            raise ValueError(f"sources[{index}] must be an object")
-        for field in SOURCE_FIELDS:
-            if not isinstance(source.get(field), str) or not source[field].strip():
-                raise ValueError(f"sources[{index}].{field} must be non-empty")
-        if source["id"] in source_ids:
-            raise ValueError(f"duplicate source id: {source['id']}")
-        if source["className"] in class_names:
-            raise ValueError(f"duplicate source className: {source['className']}")
-        source_ids.add(source["id"])
-        class_names.add(source["className"])
-    return registry
+            if REGISTRY_ASSET_PATH in apk.namelist():
+                raise ValueError(
+                    f"legacy extension registry is forbidden: {os.path.basename(apk_path)}",
+                )
+    except (OSError, zipfile.BadZipFile) as exc:
+        raise ValueError(f"invalid extension APK {os.path.basename(apk_path)}: {exc}") from exc
 
 
 def module_from_apk_name(apk_name: str, catalog: dict) -> str:
@@ -113,36 +74,31 @@ def validate_release_bundles(
 ) -> dict[str, dict]:
     catalog = catalog or load_catalog()
     releases = releases_by_module(catalog)
-    registries: dict[str, dict] = {}
+    metadata_by_module: dict[str, dict] = {}
     all_source_ids: set[str] = set()
     apk_names = sorted(name for name in os.listdir(apk_dir) if name.endswith(".apk"))
 
     for apk_name in apk_names:
         module = module_from_apk_name(apk_name, catalog)
-        if module in registries:
+        if module in metadata_by_module:
             raise ValueError(f"duplicate release APK module: {module}")
         release = releases[module]
         apk_path = os.path.join(apk_dir, apk_name)
-        registry = read_registry(apk_path)
-        expected_registry = registry_for_release(catalog, release)
-        if registry != expected_registry:
-            raise ValueError(
-                f"APK registry does not match catalog registry for {module}: "
-                f"expected={expected_registry}, actual={registry}",
-            )
+        reject_legacy_registry(apk_path)
+        metadata = metadata_for_release(catalog, release)
 
-        source_ids = {source["id"] for source in registry["sources"]}
+        source_ids = {source["id"] for source in metadata["sources"]}
         duplicates = all_source_ids.intersection(source_ids)
         if duplicates:
             raise ValueError(f"Source ids belong to multiple APKs: {sorted(duplicates)}")
         all_source_ids.update(source_ids)
         if verify_dex:
             _validate_dex(apk_path, release, catalog)
-        registries[module] = registry
+        metadata_by_module[module] = metadata
 
-    if set(registries) != set(releases):
+    if set(metadata_by_module) != set(releases):
         raise ValueError(
-            f"incomplete release APK set: expected={sorted(releases)}, actual={sorted(registries)}",
+            f"incomplete release APK set: expected={sorted(releases)}, actual={sorted(metadata_by_module)}",
         )
     expected_source_ids = {
         source["id"] for release in catalog["releases"] for source in release["sources"]
@@ -152,7 +108,7 @@ def validate_release_bundles(
             f"incomplete release Source set: expected={sorted(expected_source_ids)}, "
             f"actual={sorted(all_source_ids)}",
         )
-    return registries
+    return metadata_by_module
 
 
 def main() -> None:
@@ -162,10 +118,10 @@ def main() -> None:
     parser.add_argument("--skip-dex", action="store_true")
     args = parser.parse_args()
     catalog = load_catalog(args.catalog)
-    registries = validate_release_bundles(args.apk_dir, catalog, verify_dex=not args.skip_dex)
+    metadata = validate_release_bundles(args.apk_dir, catalog, verify_dex=not args.skip_dex)
     print(
         "Complete release validation passed: "
-        f"APKs={len(registries)}, Sources={sum(len(r['sources']) for r in registries.values())}",
+        f"APKs={len(metadata)}, Sources={sum(len(r['sources']) for r in metadata.values())}",
     )
 
 

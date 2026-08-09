@@ -1,14 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <uses-permission android:name="android.permission.INTERNET" />
-
     <application
         android:icon="@drawable/ic_launcher"
         android:label="${bundleName}"
         android:roundIcon="@drawable/ic_launcher">
-        <meta-data android:name="newshub.extension" android:value="true" />
-        <meta-data
-            android:name="newshub.extension.registry"
-            android:value="newshub-extension.json" />
+        <service
+            android:name=".EynyExtensionService"
+            android:exported="true"
+            android:isolatedProcess="true"
+            android:permission="tw.kevinzhang.newshub.permission.BIND_EXTENSION"
+            android:process=":source_eyny">
+            <intent-filter><action android:name="tw.kevinzhang.newshub.extension.SERVICE" /></intent-filter>
+            <meta-data android:name="newshub.extension.protocol" android:value="1" />
+            <meta-data android:name="newshub.extension.source_id" android:value="tw.kevinzhang.eyny" />
+            <meta-data android:name="newshub.extension.source_name" android:value="EYNY 伊莉討論區" />
+            <meta-data android:name="newshub.extension.source_lang" android:value="zh-TW" />
+            <meta-data android:name="newshub.extension.source_base_url" android:value="https://eyny.com" />
+        </service>
     </application>
 </manifest>

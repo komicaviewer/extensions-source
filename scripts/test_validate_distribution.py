@@ -7,7 +7,6 @@ from pathlib import Path
 
 from release_catalog import load_catalog
 from test_support import (
-    TEST_CERT,
     build_distribution_tree,
     metadata_reader_for,
     signature_reader,
@@ -30,7 +29,6 @@ class DistributionValidationTest(unittest.TestCase):
         arguments = {
             "aapt": "unused-aapt",
             "apksigner": "unused-apksigner",
-            "expected_signing_cert_sha256": TEST_CERT,
             "metadata_reader": metadata_reader_for(self.catalog),
             "signature_reader": signature_reader,
         }
@@ -84,9 +82,9 @@ class DistributionValidationTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "APK/index pkg mismatch"):
             self.validate(metadata_reader=wrong_package)
 
-    def test_rejects_unexpected_signer(self):
-        with self.assertRaisesRegex(ValueError, "unexpected signing certificate"):
-            self.validate(signature_reader=lambda *_args: "CD" * 32)
+    def test_rejects_invalid_signer_output(self):
+        with self.assertRaisesRegex(ValueError, "invalid signing certificate"):
+            self.validate(signature_reader=lambda *_args: "invalid")
 
     def test_rejects_version_code_rollback_against_main_baseline(self):
         build_distribution_tree(self.baseline, self.catalog, version_code=2)
@@ -132,7 +130,6 @@ class DistributionValidationTest(unittest.TestCase):
             catalog,
             aapt="unused-aapt",
             apksigner="unused-apksigner",
-            expected_signing_cert_sha256=TEST_CERT,
             baseline_dir=str(self.baseline),
             metadata_reader=metadata_reader_for(self.catalog),
             signature_reader=signature_reader,
