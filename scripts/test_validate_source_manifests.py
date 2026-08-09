@@ -11,7 +11,14 @@ class SourceManifestValidationTest(unittest.TestCase):
     def setUp(self):
         self.catalog = load_catalog()
         self.release = self.catalog["releases"][0]
-        self.expected = metadata_for_release(self.catalog, self.release)["sources"]
+        metadata_by_id = {
+            source["id"]: source
+            for source in metadata_for_release(self.catalog, self.release)["sources"]
+        }
+        self.expected = [
+            {**metadata_by_id[source["id"]], **source}
+            for source in self.release["sources"]
+        ]
         self.manifest = (
             Path(self.catalog["_root"])
             / "src" / self.release["module"] / "src/main/AndroidManifest.xml"
@@ -52,7 +59,7 @@ class SourceManifestValidationTest(unittest.TestCase):
             self.assertIn(old, contents)
             target.write_text(contents.replace(old, new, 1), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, error):
-                validate_manifest(target, self.expected)
+                validate_manifest(target, self.release["package"], self.expected)
 
 
 if __name__ == "__main__":

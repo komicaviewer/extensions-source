@@ -8,13 +8,14 @@ import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
 import tw.kevinzhang.extension_api.SourceNetworkRequest
 import tw.kevinzhang.extension_api.SourceRuntime
+import tw.kevinzhang.extension_api.NetworkOperations
 
 /**
  * Keeps existing request builders and parsers while removing their ambient network authority.
  * The terminal interceptor never calls the OkHttp transport; every request crosses the
  * source-scoped Host broker supplied to the isolated Service session.
  */
-fun SourceRuntime.brokerBackedHttpClient(operation: String = "source.read"): OkHttpClient =
+fun SourceRuntime.brokerBackedHttpClient(operation: String = NetworkOperations.SOURCE_READ): OkHttpClient =
     OkHttpClient.Builder()
         .addInterceptor { chain ->
             val request = chain.request()

@@ -30,7 +30,7 @@ def _attr(element: ET.Element, name: str) -> str | None:
     return element.get(ANDROID + name)
 
 
-def validate_manifest(path: Path, expected_sources: list[dict]) -> None:
+def validate_manifest(path: Path, expected_package: str, expected_sources: list[dict]) -> None:
     root = ET.parse(path).getroot()
     permissions = [_attr(node, "name") for node in root.findall("uses-permission")]
     if permissions:
@@ -79,6 +79,12 @@ def validate_manifest(path: Path, expected_sources: list[dict]) -> None:
         if source_id in actual_sources:
             raise ValueError(f"duplicate Source id in manifest: {source_id}")
         actual_sources[source_id] = descriptor
+        expected_source = next((item for item in expected_sources if item["id"] == source_id), None)
+        resolved_name = expected_package + name if name.startswith(".") else name
+        if expected_source is None or resolved_name != expected_source["service"]:
+            raise ValueError(f"Source service class mismatch: {source_id}: {resolved_name}")
+        if int(values[PROTOCOL_KEY]) != expected_source["protocol"]:
+            raise ValueError(f"Source service protocol mismatch: {source_id}")
         service_names.add(name)
         processes.add(process)
 
@@ -96,7 +102,15 @@ def validate_all(catalog: dict) -> None:
     root = Path(catalog["_root"])
     for release in catalog["releases"]:
         manifest = root / "src" / release["module"] / "src/main/AndroidManifest.xml"
-        validate_manifest(manifest, metadata_for_release(catalog, release)["sources"])
+        metadata_by_id = {
+            source["id"]: source
+            for source in metadata_for_release(catalog, release)["sources"]
+        }
+        expected_sources = [
+            {**metadata_by_id[source["id"]], **source}
+            for source in release["sources"]
+        ]
+        validate_manifest(manifest, release["package"], expected_sources)
 
 
 def main() -> None:

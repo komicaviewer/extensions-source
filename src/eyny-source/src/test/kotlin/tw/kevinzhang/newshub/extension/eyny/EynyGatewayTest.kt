@@ -1,17 +1,15 @@
 package tw.kevinzhang.newshub.extension.eyny
 
 import kotlinx.coroutines.runBlocking
-import okhttp3.Cookie
-import okhttp3.CookieJar
-import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Protocol
 import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
+import tw.kevinzhang.extension_api.EynyChallengeProof
+import tw.kevinzhang.extension_api.NamedCookieCapability
 import java.io.IOException
 
 class EynyGatewayTest {
@@ -25,16 +23,16 @@ class EynyGatewayTest {
                 .protocol(Protocol.HTTP_1_1)
                 .code(200)
                 .message("OK")
-                .body("<base href='https://www53.eyny.com/'><main>EYNY</main>".toResponseBody())
+                .body("<base href='https://www.eyny.com/'><main>EYNY</main>".toResponseBody())
                 .build()
         }.build()
-        val gateway = EynyGateway(client)
+        val gateway = EynyGateway(client, RecordingNamedCookies())
 
         gateway.get("https://eyny.com/")
         gateway.get("https://eyny.com/forum-27-1.html")
 
-        assertEquals("www53.eyny.com", gateway.activeHost)
-        assertEquals(listOf("eyny.com", "www53.eyny.com"), requestedHosts)
+        assertEquals("www.eyny.com", gateway.activeHost)
+        assertEquals(listOf("eyny.com", "www.eyny.com"), requestedHosts)
     }
 
     @Test
@@ -48,7 +46,7 @@ class EynyGatewayTest {
                 .body("<base href='https://evil.example/'><main>EYNY</main>".toResponseBody())
                 .build()
         }.build()
-        val gateway = EynyGateway(client)
+        val gateway = EynyGateway(client, RecordingNamedCookies())
 
         gateway.get("https://eyny.com/")
 
@@ -60,7 +58,7 @@ class EynyGatewayTest {
         var calls = 0
         val client = OkHttpClient.Builder().addInterceptor { chain ->
             calls++
-            val nextHost = if (chain.request().url.host == "eyny.com") "www53.eyny.com" else "eyny.com"
+            val nextHost = if (chain.request().url.host == "eyny.com") "www.eyny.com" else "eyny.com"
             Response.Builder()
                 .request(chain.request())
                 .protocol(Protocol.HTTP_1_1)
@@ -72,7 +70,7 @@ class EynyGatewayTest {
         }.build()
 
         try {
-            EynyGateway(client).get("https://eyny.com/")
+            EynyGateway(client, RecordingNamedCookies()).get("https://eyny.com/")
             fail("expected redirect bound")
         } catch (error: IOException) {
             assertEquals("Too many EYNY redirects", error.message)
@@ -81,18 +79,10 @@ class EynyGatewayTest {
     }
 
     @Test
-    fun `challenge refreshes host-only and shared-domain cookie identities with one proof`() = runBlocking {
+    fun `challenge delegates one constrained proof to the host capability`() = runBlocking {
         var calls = 0
-        var savedCookies = emptyList<Cookie>()
-        val cookieJar = object : CookieJar {
-            override fun loadForRequest(url: HttpUrl): List<Cookie> = emptyList()
-
-            override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
-                savedCookies = cookies
-            }
-        }
+        val namedCookies = RecordingNamedCookies()
         val client = OkHttpClient.Builder()
-            .cookieJar(cookieJar)
             .addInterceptor { chain ->
                 calls++
                 when (calls) {
@@ -101,7 +91,7 @@ class EynyGatewayTest {
                         .protocol(Protocol.HTTP_1_1)
                         .code(302)
                         .message("Found")
-                        .header("Location", "https://www53.eyny.com/")
+                        .header("Location", "https://www.eyny.com/")
                         .body("".toResponseBody())
                         .build()
                     2 -> Response.Builder()
@@ -129,18 +119,28 @@ class EynyGatewayTest {
             }
             .build()
 
-        EynyGateway(client).get("https://eyny.com/")
+        EynyGateway(client, namedCookies).get("https://eyny.com/")
 
         assertEquals(3, calls)
         assertEquals(
-            setOf("9bd3f9c_n", "9bd3f9c_ts", "9bd3f9c_ch"),
-            savedCookies.mapTo(linkedSetOf()) { it.name },
+            EynyChallengeProof(
+                host = "www.eyny.com",
+                cookiePrefix = "9bd3f9c",
+                nonce = 5,
+                timestamp = "1784585056",
+                challenge = "abcdeffedcba1234",
+            ),
+            namedCookies.proofs.single(),
         )
-        savedCookies.groupBy { it.name }.values.forEach { sameName ->
-            assertEquals(2, sameName.size)
-            assertEquals(1, sameName.mapTo(linkedSetOf()) { it.value }.size)
-            assertTrue(sameName.any { it.hostOnly && it.domain == "www53.eyny.com" })
-            assertTrue(sameName.any { !it.hostOnly && it.domain == "eyny.com" })
+    }
+
+    private class RecordingNamedCookies : NamedCookieCapability {
+        val proofs = mutableListOf<EynyChallengeProof>()
+
+        override suspend fun hasPttAdultConsent(): Boolean = false
+
+        override suspend fun storeEynyChallengeProof(proof: EynyChallengeProof) {
+            proofs += proof
         }
     }
 }

@@ -1,5 +1,11 @@
 {
   "schemaVersion": 1,
+  "repository": {
+    "name": "NewsHub Extensions",
+    "description": "Official extension repository for NewsHub",
+    "iconUrl": "https://avatars.githubusercontent.com/u/270819710",
+    "website": "https://github.com/komicaviewer/extensions"
+  },
   "authorizedRemovals": {
     "packages": [],
     "sources": []
@@ -9,7 +15,7 @@
       "module": "eyny",
       "gradleProject": ":src:eyny",
       "assembleTask": ":src:eyny:assembleRelease",
-      "apkOutput": "src/eyny/build/outputs/apk/release/eyny-release.apk",
+      "apkOutput": "src/eyny/build/outputs/apk/release/eyny-release-unsigned.apk",
       "artifactName": "newshub-eyny-v{versionName}.apk",
       "package": "tw.kevinzhang.newshub.extension.eyny",
       "metadata": "release-metadata/eyny.json",
@@ -22,7 +28,12 @@
           "module": "eyny-source",
           "testTask": ":src:eyny-source:testDebugUnitTest",
           "id": "tw.kevinzhang.eyny",
-          "className": "tw.kevinzhang.newshub.extension.eyny.EynySource"
+          "className": "tw.kevinzhang.newshub.extension.eyny.EynySource",
+          "service": "tw.kevinzhang.newshub.extension.eyny.EynyExtensionService",
+          "protocol": 1,
+          "exactHosts": ["eyny.com", "www.eyny.com"],
+          "namedCapabilities": ["external_link", "eyny_challenge_proof", "resource_read"],
+          "policyHash": "55d8493383fc9ba611b304aea6f87ad709249f6d2c3ffb94148a91c0c03e5c38"
         }
       ]
     },
@@ -30,7 +41,7 @@
       "module": "gamer",
       "gradleProject": ":src:gamer",
       "assembleTask": ":src:gamer:assembleRelease",
-      "apkOutput": "src/gamer/build/outputs/apk/release/gamer-release.apk",
+      "apkOutput": "src/gamer/build/outputs/apk/release/gamer-release-unsigned.apk",
       "artifactName": "newshub-gamer-v{versionName}.apk",
       "package": "tw.kevinzhang.newshub.extension.gamer",
       "metadata": "release-metadata/gamer.json",
@@ -43,7 +54,12 @@
           "module": "gamer",
           "testTask": ":src:gamer:testDebugUnitTest",
           "id": "tw.kevinzhang.newshub.extension.gamer",
-          "className": "tw.kevinzhang.newshub.extension.gamer.GamerSource"
+          "className": "tw.kevinzhang.newshub.extension.gamer.GamerSource",
+          "service": "tw.kevinzhang.newshub.extension.gamer.GamerExtensionService",
+          "protocol": 1,
+          "exactHosts": ["forum.gamer.com.tw"],
+          "namedCapabilities": ["external_link", "resource_read"],
+          "policyHash": "44c7faba37268bad86cd1db6bcfa69358a413e81a3cc3657d96fa88f2050f4aa"
         }
       ]
     },
@@ -51,7 +67,7 @@
       "module": "hackernews",
       "gradleProject": ":src:hackernews",
       "assembleTask": ":src:hackernews:assembleRelease",
-      "apkOutput": "src/hackernews/build/outputs/apk/release/hackernews-release.apk",
+      "apkOutput": "src/hackernews/build/outputs/apk/release/hackernews-release-unsigned.apk",
       "artifactName": "newshub-hackernews-v{versionName}.apk",
       "package": "tw.kevinzhang.newshub.extension.hackernews",
       "metadata": "release-metadata/hackernews.json",
@@ -64,7 +80,12 @@
           "module": "hackernews",
           "testTask": ":src:hackernews:testDebugUnitTest",
           "id": "tw.kevinzhang.newshub.extension.hackernews",
-          "className": "tw.kevinzhang.newshub.extension.hackernews.HackerNewsSource"
+          "className": "tw.kevinzhang.newshub.extension.hackernews.HackerNewsSource",
+          "service": "tw.kevinzhang.newshub.extension.hackernews.HackerNewsExtensionService",
+          "protocol": 1,
+          "exactHosts": ["news.ycombinator.com"],
+          "namedCapabilities": ["external_link", "resource_read"],
+          "policyHash": "7916aa87fa766710f2cd0b56e41bfa36a7f2c61ef0f92891e2956aff64ef3fa5"
         }
       ]
     },
@@ -72,7 +93,7 @@
       "module": "komica",
       "gradleProject": ":src:komica",
       "assembleTask": ":src:komica:assembleRelease",
-      "apkOutput": "src/komica/build/outputs/apk/release/komica-release.apk",
+      "apkOutput": "src/komica/build/outputs/apk/release/komica-release-unsigned.apk",
       "artifactName": "newshub-komica-v{versionName}.apk",
       "package": "tw.kevinzhang.newshub.extension.komica",
       "metadata": "release-metadata/komica.json",
@@ -85,31 +106,56 @@
           "module": "twocat-komica",
           "testTask": ":src:twocat-komica:testDebugUnitTest",
           "id": "tw.kevinzhang.komica.twocat",
-          "className": "tw.kevinzhang.newshub.extension.twocat.komica.TwocatSource"
+          "className": "tw.kevinzhang.newshub.extension.twocat.komica.TwocatSource",
+          "service": "tw.kevinzhang.newshub.extension.komica.TwocatExtensionService",
+          "protocol": 1,
+          "exactHosts": ["2cat.org"],
+          "namedCapabilities": ["external_link", "resource_read"],
+          "policyHash": "db153a26ef1aebe7bf820365cf4a98a75ab8ff24dae5ff9f692eefd1223f5c61"
         },
         {
           "module": "sora-komica",
           "testTask": ":src:sora-komica:testDebugUnitTest",
           "id": "tw.kevinzhang.komica.sora",
-          "className": "tw.kevinzhang.newshub.extension.sora.komica.SoraSource"
+          "className": "tw.kevinzhang.newshub.extension.sora.komica.SoraSource",
+          "service": "tw.kevinzhang.newshub.extension.komica.SoraExtensionService",
+          "protocol": 1,
+          "exactHosts": ["komica1.org"],
+          "namedCapabilities": ["external_link", "resource_read"],
+          "policyHash": "b26b519357aa738070c201224de6504db983de86292337689d19109d321c81df"
         },
         {
           "module": "akraft",
           "testTask": ":src:akraft:testDebugUnitTest",
           "id": "tw.kevinzhang.akraft",
-          "className": "tw.kevinzhang.newshub.extension.akraft.AkraftSource"
+          "className": "tw.kevinzhang.newshub.extension.akraft.AkraftSource",
+          "service": "tw.kevinzhang.newshub.extension.komica.AkraftExtensionService",
+          "protocol": 1,
+          "exactHosts": ["www.akraft.net"],
+          "namedCapabilities": ["external_link", "resource_read"],
+          "policyHash": "2db8bd4fb0b7ca6e0a2d03df289480b7c8521ebbf8a1c50be83bad45de08a3d5"
         },
         {
           "module": "nagatoyuki",
           "testTask": ":src:nagatoyuki:testDebugUnitTest",
           "id": "tw.kevinzhang.nagatoyuki",
-          "className": "tw.kevinzhang.newshub.extension.nagatoyuki.NagatoyukiSource"
+          "className": "tw.kevinzhang.newshub.extension.nagatoyuki.NagatoyukiSource",
+          "service": "tw.kevinzhang.newshub.extension.komica.NagatoyukiExtensionService",
+          "protocol": 1,
+          "exactHosts": ["eclair.nagatoyuki.org"],
+          "namedCapabilities": ["external_link", "resource_read"],
+          "policyHash": "8bc5bff3501d90bafc9220ac99c10136debb166a9cbacc757f48c715462be6ab"
         },
         {
           "module": "wtako",
           "testTask": ":src:wtako:testDebugUnitTest",
           "id": "tw.kevinzhang.wtako",
-          "className": "tw.kevinzhang.newshub.extension.wtako.WtakoSource"
+          "className": "tw.kevinzhang.newshub.extension.wtako.WtakoSource",
+          "service": "tw.kevinzhang.newshub.extension.komica.WtakoExtensionService",
+          "protocol": 1,
+          "exactHosts": ["kemono.wtako.net"],
+          "namedCapabilities": ["external_link", "resource_read"],
+          "policyHash": "0a8a01a3cc0e438718522f134c456f0eff91ed1a7d1bafff7b5bdfbd6ec1349d"
         }
       ]
     },
@@ -117,7 +163,7 @@
       "module": "komica2",
       "gradleProject": ":src:komica2",
       "assembleTask": ":src:komica2:assembleRelease",
-      "apkOutput": "src/komica2/build/outputs/apk/release/komica2-release.apk",
+      "apkOutput": "src/komica2/build/outputs/apk/release/komica2-release-unsigned.apk",
       "artifactName": "newshub-komica2-v{versionName}.apk",
       "package": "tw.kevinzhang.newshub.extension.komica2",
       "metadata": "release-metadata/komica2.json",
@@ -130,19 +176,34 @@
           "module": "twocat-komica2",
           "testTask": ":src:twocat-komica2:testDebugUnitTest",
           "id": "tw.kevinzhang.komica2.twocat",
-          "className": "tw.kevinzhang.newshub.extension.twocat.komica2.Komica2TwocatSource"
+          "className": "tw.kevinzhang.newshub.extension.twocat.komica2.Komica2TwocatSource",
+          "service": "tw.kevinzhang.newshub.extension.komica2.TwocatExtensionService",
+          "protocol": 1,
+          "exactHosts": ["2cat.org"],
+          "namedCapabilities": ["external_link", "resource_read"],
+          "policyHash": "db153a26ef1aebe7bf820365cf4a98a75ab8ff24dae5ff9f692eefd1223f5c61"
         },
         {
           "module": "sora-komica2",
           "testTask": ":src:sora-komica2:testDebugUnitTest",
           "id": "tw.kevinzhang.komica2.sora",
-          "className": "tw.kevinzhang.newshub.extension.sora.komica2.Komica2SoraSource"
+          "className": "tw.kevinzhang.newshub.extension.sora.komica2.Komica2SoraSource",
+          "service": "tw.kevinzhang.newshub.extension.komica2.SoraExtensionService",
+          "protocol": 1,
+          "exactHosts": ["komica1.org"],
+          "namedCapabilities": ["external_link", "resource_read"],
+          "policyHash": "b26b519357aa738070c201224de6504db983de86292337689d19109d321c81df"
         },
         {
           "module": "zawarudo-komica2",
           "testTask": ":src:zawarudo-komica2:testDebugUnitTest",
           "id": "tw.kevinzhang.komica2.zawarudo",
-          "className": "tw.kevinzhang.newshub.extension.zawarudo.komica2.Komica2ZawarudoSource"
+          "className": "tw.kevinzhang.newshub.extension.zawarudo.komica2.Komica2ZawarudoSource",
+          "service": "tw.kevinzhang.newshub.extension.komica2.ZawarudoExtensionService",
+          "protocol": 1,
+          "exactHosts": ["majeur.zawarudo.org"],
+          "namedCapabilities": ["external_link", "resource_read"],
+          "policyHash": "4216bdb005a9941ba8dac80f329f3812b02357113fa7adf707ca1a4ea7152a19"
         }
       ]
     },
@@ -150,7 +211,7 @@
       "module": "mobile01",
       "gradleProject": ":src:mobile01",
       "assembleTask": ":src:mobile01:assembleRelease",
-      "apkOutput": "src/mobile01/build/outputs/apk/release/mobile01-release.apk",
+      "apkOutput": "src/mobile01/build/outputs/apk/release/mobile01-release-unsigned.apk",
       "artifactName": "newshub-mobile01-v{versionName}.apk",
       "package": "tw.kevinzhang.newshub.extension.mobile01",
       "metadata": "release-metadata/mobile01.json",
@@ -163,7 +224,12 @@
           "module": "mobile01-source",
           "testTask": ":src:mobile01-source:testDebugUnitTest",
           "id": "tw.kevinzhang.mobile01",
-          "className": "tw.kevinzhang.newshub.extension.mobile01.Mobile01Source"
+          "className": "tw.kevinzhang.newshub.extension.mobile01.Mobile01Source",
+          "service": "tw.kevinzhang.newshub.extension.mobile01.Mobile01ExtensionService",
+          "protocol": 1,
+          "exactHosts": ["www.mobile01.com"],
+          "namedCapabilities": ["external_link", "resource_read"],
+          "policyHash": "126c66cc51e96db1ab85520b90d702f8876dab5841eef90463e13c69d6ba5196"
         }
       ]
     },
@@ -171,7 +237,7 @@
       "module": "ptt",
       "gradleProject": ":src:ptt",
       "assembleTask": ":src:ptt:assembleRelease",
-      "apkOutput": "src/ptt/build/outputs/apk/release/ptt-release.apk",
+      "apkOutput": "src/ptt/build/outputs/apk/release/ptt-release-unsigned.apk",
       "artifactName": "newshub-ptt-v{versionName}.apk",
       "package": "tw.kevinzhang.newshub.extension.ptt",
       "metadata": "release-metadata/ptt.json",
@@ -184,7 +250,12 @@
           "module": "ptt",
           "testTask": ":src:ptt:testDebugUnitTest",
           "id": "tw.kevinzhang.newshub.extension.ptt",
-          "className": "tw.kevinzhang.newshub.extension.ptt.PttSource"
+          "className": "tw.kevinzhang.newshub.extension.ptt.PttSource",
+          "service": "tw.kevinzhang.newshub.extension.ptt.PttExtensionService",
+          "protocol": 1,
+          "exactHosts": ["www.ptt.cc"],
+          "namedCapabilities": ["external_link", "ptt_adult_consent_status", "resource_read"],
+          "policyHash": "55abd09358e1aea13fa214bb1959f28b0701e27a88c6bf7ea566987c972f3750"
         }
       ]
     }

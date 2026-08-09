@@ -11,6 +11,7 @@ import tw.kevinzhang.extension_api.AuthenticatedSource
 import tw.kevinzhang.extension_api.AuthenticationRequiredException
 import tw.kevinzhang.extension_api.AuthenticationSession
 import tw.kevinzhang.extension_api.SourceRuntime
+import tw.kevinzhang.extension_api.NamedCookieCapability
 import tw.kevinzhang.extension_api.model.Board
 import tw.kevinzhang.extension_api.model.BoardPage
 import tw.kevinzhang.extension_api.model.BoardPageRequest
@@ -41,6 +42,7 @@ class PttSource : AuthenticatedSource {
     )
 
     private lateinit var client: OkHttpClient
+    private lateinit var namedCookies: NamedCookieCapability
     private var authentication: AuthenticationSession? = null
     private val parser = PttParser()
     private val paging = ConcurrentHashMap<String, PttBoardPagingState>()
@@ -49,16 +51,8 @@ class PttSource : AuthenticatedSource {
     private var popularBoardsCachedAt = 0L
 
     override fun onAttach(runtime: SourceRuntime) {
-        client = runtime.brokerBackedHttpClient().newBuilder()
-            .addNetworkInterceptor { chain ->
-                val hasConsentCookie = chain.request().header("Cookie").orEmpty()
-                    .split(';')
-                    .any { it.trim() == "over18=1" }
-                chain.proceed(chain.request()).newBuilder()
-                    .header(CONSENT_MARKER_HEADER, if (hasConsentCookie) "1" else "0")
-                    .build()
-            }
-            .build()
+        client = runtime.brokerBackedHttpClient()
+        namedCookies = runtime.namedCookies
         authentication = runtime.authentication
     }
 
@@ -181,14 +175,9 @@ class PttSource : AuthenticatedSource {
         val response = client.newCall(request).await()
         response.use {
             val body = it.body?.string().orEmpty()
-            if (
-                it.code == 401 || it.code == 403 ||
-                PttConsentGate.isRequired(
-                    body,
-                    it.request.url.toString(),
-                    cookieHeader = "over18=1".takeIf { _ -> it.header(CONSENT_MARKER_HEADER) == "1" },
-                )
-            ) {
+            val consentRequired = PttConsentGate.isUnconditionallyRequired(body, it.request.url.toString()) ||
+                (PttConsentGate.hasCookieRedirect(body) && !namedCookies.hasPttAdultConsent())
+            if (it.code == 401 || it.code == 403 || consentRequired) {
                 authentication?.markExpired()
                 throw AuthenticationRequiredException("PTT requires over-18 confirmation")
             }
@@ -205,7 +194,6 @@ class PttSource : AuthenticatedSource {
     }
 
     private companion object {
-        const val CONSENT_MARKER_HEADER = "X-NewsHub-Ptt-Over18"
         const val POPULAR_CACHE_MILLIS = 5 * 60 * 1_000L
         val EMPTY_LISTING = PttBoardListing(emptyList(), null)
     }

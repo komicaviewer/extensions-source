@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -12,7 +13,10 @@ from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CATALOG_PATH = REPO_ROOT / "release-catalog.json"
-SOURCE_KEYS = {"module", "testTask", "id", "className"}
+SOURCE_KEYS = {
+    "module", "testTask", "id", "className", "service", "protocol", "policyHash",
+    "exactHosts", "namedCapabilities",
+}
 ICON_KEYS = {"source", "name"}
 RELEASE_KEYS = {
     "module", "gradleProject", "assembleTask", "apkOutput", "artifactName",
@@ -59,6 +63,13 @@ def load_catalog(path: str | os.PathLike[str] = DEFAULT_CATALOG_PATH) -> dict:
 
     if catalog.get("schemaVersion") != 1:
         raise ValueError(f"unsupported catalog schemaVersion: {catalog.get('schemaVersion')}")
+    repository = catalog.get("repository")
+    if not isinstance(repository, dict) or set(repository) != {"name", "description", "iconUrl", "website"}:
+        raise ValueError("catalog repository display metadata is not exact")
+    for key, value in repository.items():
+        _non_empty_string(value, f"repository.{key}")
+    if not repository["iconUrl"].startswith("https://") or not repository["website"].startswith("https://"):
+        raise ValueError("repository display URLs must use HTTPS")
     releases = catalog.get("releases")
     if not isinstance(releases, list) or not releases:
         raise ValueError("catalog releases must be a non-empty array")
@@ -120,8 +131,42 @@ def load_catalog(path: str | os.PathLike[str] = DEFAULT_CATALOG_PATH) -> dict:
                 raise ValueError(
                     f"{module}.sources[{source_index}] must contain exactly {sorted(SOURCE_KEYS)}",
                 )
-            for key in SOURCE_KEYS:
+            for key in SOURCE_KEYS - {"protocol", "exactHosts", "namedCapabilities"}:
                 _non_empty_string(source[key], f"{module}.sources[{source_index}].{key}")
+            if source["protocol"] != 1:
+                raise ValueError(f"unsupported protocol for {source['id']}: {source['protocol']}")
+            if not re.fullmatch(r"[0-9a-f]{64}", source["policyHash"]):
+                raise ValueError(f"invalid policyHash for {source['id']}")
+            for key in ("exactHosts", "namedCapabilities"):
+                values = source[key]
+                if (
+                    not isinstance(values, list) or not values
+                    or values != sorted(set(values))
+                    or any(not isinstance(value, str) or not value for value in values)
+                ):
+                    raise ValueError(f"{key} for {source['id']} must be a sorted unique string array")
+            policy = {
+                "exactHosts": source["exactHosts"],
+                "operations": [{
+                    "name": "source_read",
+                    "methods": ["GET", "HEAD"],
+                    "pathPrefixes": ["/"],
+                    "credentialed": True,
+                }],
+                "namedCapabilities": source["namedCapabilities"],
+            }
+            canonical = json.dumps(
+                policy,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            ).encode("utf-8")
+            actual_policy_hash = hashlib.sha256(canonical).hexdigest()
+            if actual_policy_hash != source["policyHash"]:
+                raise ValueError(
+                    f"policyHash mismatch for {source['id']}: {actual_policy_hash}",
+                )
             if source["id"] in source_ids:
                 raise ValueError(f"duplicate Source id: {source['id']}")
             if source["className"] in class_names:

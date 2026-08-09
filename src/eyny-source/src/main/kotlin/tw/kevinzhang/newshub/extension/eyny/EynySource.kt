@@ -47,7 +47,7 @@ class EynySource : AuthenticatedSource, WebLoginUserAgentProvider {
     private var catalog: EynyCatalog? = null
 
     override fun onAttach(runtime: SourceRuntime) {
-        gateway.updateClient(runtime.brokerBackedHttpClient())
+        gateway.updateRuntime(runtime.brokerBackedHttpClient(), runtime.namedCookies)
         authentication = runtime.authentication
     }
 
@@ -116,10 +116,6 @@ class EynySource : AuthenticatedSource, WebLoginUserAgentProvider {
     companion object {
         const val SOURCE_ID = "tw.kevinzhang.eyny"
 
-        /** EYNY currently rotates login across two-digit www mirrors; every entry remains exact. */
-        private val AUTH_HOSTS = buildSet {
-            add("eyny.com")
-            (0..99).forEach { add("www%02d.eyny.com".format(it)) }
-        }
+        private val AUTH_HOSTS = setOf("eyny.com", "www.eyny.com")
     }
 }

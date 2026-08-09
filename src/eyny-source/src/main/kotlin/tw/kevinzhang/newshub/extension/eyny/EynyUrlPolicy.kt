@@ -3,15 +3,15 @@ package tw.kevinzhang.newshub.extension.eyny
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
-/** Canonical URLs never contain EYNY's rotating wwwNN mirror host. */
+/** Only hosts authorized by the Host policy and named-cookie capability are requestable. */
 internal object EynyUrlPolicy {
     private const val ROOT = "eyny.com"
-    private val MIRROR = Regex("www\\d{1,3}\\.eyny\\.com")
+    private const val WWW = "www.eyny.com"
     private val THREAD = Regex("/thread-(\\d+)-(\\d+)-([A-Za-z0-9_-]+)\\.html")
     private val BOARD = Regex("/forum-(\\d+)-(\\d+)\\.html")
     private val EXTRA = Regex("[A-Za-z0-9_-]{1,64}")
 
-    fun isAllowedHost(host: String): Boolean = host == ROOT || MIRROR.matches(host)
+    fun isAllowedHost(host: String): Boolean = host == ROOT || host == WWW
     fun canonicalBoard(fid: Int, page: Int = 1): String {
         require(fid > 0 && page > 0)
         return "https://$ROOT/forum-$fid-$page.html"

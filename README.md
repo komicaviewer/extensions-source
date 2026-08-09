@@ -133,6 +133,23 @@ Signing is deliberately split across seven protected GitHub Environments named
 holds only that bundle's `SIGNING_KEY`, `KEY_STORE_PASSWORD`, `KEY_ALIAS`,
 `KEY_PASSWORD`, and `SIGNING_CERT_SHA256`. The unsigned build job receives no
 signing or distribution credential; no job can read more than one APK key.
+There is no repository-global APK certificate: the signed repository metadata
+binds each package to its stable `lineageRootSha256` and its currently accepted
+`apkSignerPins` set.
+
+`release-catalog.json` also owns each isolated service class, protocol, exact
+network hosts, named host capabilities, and canonical `SourceNetworkPolicy`
+SHA-256. Signed targets metadata binds those values to the package and Source ID.
+For local emulator E2E, `scripts/generate_test_trust_fixture.py` creates fresh
+P-256 root/targets/snapshot/timestamp keys, threshold-signs versioned metadata,
+and copies the seven package-signed APKs under `targets/apk/`. Its private keys
+and APK signer keystores are ephemeral test fixtures and must never be committed.
+
+Production remains fail-closed until maintainers provision seven independent
+protected package-signing environments and offline TUF role keys. The embedded
+`metadata/root.json` bytes must be reviewed and copied unchanged into the
+NewsHub client trust resource before the corresponding remote metadata is made
+reachable; no legacy global certificate or unversioned metadata fallback is allowed.
 
 Publication is fail-closed. Before the destination checkout is changed, admission
 validation requires the catalog-complete APK/Source set; exact service metadata

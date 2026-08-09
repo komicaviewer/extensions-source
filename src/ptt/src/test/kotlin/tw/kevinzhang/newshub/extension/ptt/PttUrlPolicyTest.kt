@@ -28,7 +28,7 @@ class PttUrlPolicyTest {
         assertTrue(!PttConsentGate.isRequired(
             fixture("over18-script.html"),
             "https://www.ptt.cc/bbs/C_Chat/index.html",
-            "over18=1",
+            true,
         ))
         assertTrue(PttConsentGate.isRequired("<form action='/ask/over18'>十八歲</form>", "https://www.ptt.cc/ask/over18"))
         assertTrue(!PttConsentGate.isRequired(fixture("board.html"), "https://www.ptt.cc/bbs/Stock/index.html"))
