@@ -21,6 +21,14 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Checkout pinned NewsHub extension API source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: komicaviewer/NewsHub
+          ref: 53d421492614c13e2a5984b4991513d993d44246
+          path: .trusted-newshub
+          persist-credentials: false
+
       - name: Validate Gradle wrapper
         uses: gradle/actions/wrapper-validation@d9c87d481d55275bb5441eef3fe0e46805f9ef70 # v3
 
@@ -32,6 +40,9 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@d9c87d481d55275bb5441eef3fe0e46805f9ef70 # v3
+
+      - name: Build pinned extension API locally
+        run: ./.trusted-newshub/gradlew -p .trusted-newshub --no-daemon :extension-api:assembleDebug
 
       - name: Install Android build-tools
         run: |
@@ -51,7 +62,7 @@ jobs:
           set -euo pipefail
           mapfile -t gradle_tasks < <(python3 scripts/release_catalog.py gradle-tasks)
           test "${#gradle_tasks[@]}" -gt 0
-          ./gradlew "${gradle_tasks[@]}"
+          ./gradlew -PnewshubDir="$GITHUB_WORKSPACE/.trusted-newshub" "${gradle_tasks[@]}"
 
       - name: Collect unsigned release set
         shell: bash

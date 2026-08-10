@@ -21,6 +21,11 @@ reviewer, and keeps its AI Brain bearer token and logs private. This repository
 contains only deterministic policy scripts and zero-secret pull-request
 candidate CI.
 
+Until the isolation-era `extension-api` commit reaches NewsHub's default
+branch, CI checks out commit `53d421492614c13e2a5984b4991513d993d44246`,
+builds its AAR locally, and supplies it through `-PnewshubDir`. This avoids a
+mutable branch dependency and does not rely on an unpublished JitPack artifact.
+
 The private fixer receives no website login, signing, push, or merge
 credentials. Its patch is transferred to a fresh job for fail-closed path
 validation, deterministic version bump, tests, and publication.

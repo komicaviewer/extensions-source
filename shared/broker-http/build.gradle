@@ -28,7 +28,7 @@ dependencies {
         }
         compileOnly files(extensionApiJar).builtBy(extractExtensionApi)
     } else {
-        compileOnly 'com.github.komicaviewer.NewsHub:extension-api:aeabde818066dd31a65bf6cd253a004792819b1b'
+        compileOnly 'com.github.komicaviewer.NewsHub:extension-api:53d421492614c13e2a5984b4991513d993d44246'
     }
     api 'com.squareup.okhttp3:okhttp:4.12.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'

@@ -65,6 +65,17 @@ jobs:
         with:
           cache-read-only: true
 
+      - name: Checkout pinned NewsHub extension API source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: komicaviewer/NewsHub
+          ref: 53d421492614c13e2a5984b4991513d993d44246
+          path: .trusted-newshub
+          persist-credentials: false
+
+      - name: Build pinned extension API locally
+        run: ./.trusted-newshub/gradlew -p .trusted-newshub --no-daemon :extension-api:assembleDebug
+
       - name: Install Android build-tools
         run: |
           yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" "build-tools;34.0.0" >/dev/null 2>&1 || true
@@ -74,7 +85,7 @@ jobs:
         env:
           TEST_TASK: ${{ steps.health.outputs.test_task }}
           ASSEMBLE_TASK: ${{ steps.health.outputs.assemble_task }}
-        run: ./gradlew --no-daemon "${TEST_TASK}" "${ASSEMBLE_TASK}"
+        run: ./gradlew --no-daemon -PnewshubDir="$GITHUB_WORKSPACE/.trusted-newshub" "${TEST_TASK}" "${ASSEMBLE_TASK}"
 
       - name: Create exact-head ephemeral test-signed candidate
         env:
