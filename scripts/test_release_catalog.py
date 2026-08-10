@@ -48,6 +48,8 @@ class ReleaseCatalogTest(unittest.TestCase):
 
         self.assertIn("release_catalog.py gradle-tasks", workflow)
         self.assertIn("release_catalog.py artifact-rows", workflow)
+        self.assertIn("Detect release-affecting changes", workflow)
+        self.assertIn("if: needs.build.outputs.release-needed == 'true'", workflow)
         self.assertIn("gh pr create", workflow)
         self.assertIn("gh pr merge", workflow)
         self.assertIn("--baseline-dir", workflow)

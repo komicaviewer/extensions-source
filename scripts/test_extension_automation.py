@@ -175,6 +175,58 @@ class ExtensionAutomationTest(unittest.TestCase):
             self.assertIn('set("extVersionName", "0.0.6")', build.read_text(encoding="utf-8"))
             self.assertEqual(source.read_text(encoding="utf-8"), "override val version: Int = 6\n")
 
+    def test_deterministic_bump_supports_multi_source_bundle_release(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            build = root / "src/komica/build.gradle.kts"
+            source = root / "src/akraft/src/main/kotlin/example/AkraftSource.kt"
+            build.parent.mkdir(parents=True)
+            source.parent.mkdir(parents=True)
+            (root / "release-catalog.json").write_text(
+                json.dumps(
+                    {
+                        "releases": [
+                            {
+                                "module": "komica",
+                                "assembleTask": ":src:komica:assembleRelease",
+                                "apkOutput": "out.apk",
+                                "sources": [
+                                    {
+                                        "id": "akraft-id",
+                                        "module": "akraft",
+                                        "className": "example.AkraftSource",
+                                        "testTask": ":src:akraft:testDebugUnitTest",
+                                        "exactHosts": ["example.com"],
+                                    }
+                                ],
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            build.write_text(
+                'set("bundleVersionCode", 5)\nset("bundleVersionName", "0.3.2")\n',
+                encoding="utf-8",
+            )
+            source.write_text("override val version = 2\n", encoding="utf-8")
+            previous = bump_release_version.ROOT
+            bump_release_version.ROOT = root
+            try:
+                bump_release_version.bump(
+                    {
+                        "sourceId": "akraft-id",
+                        "sourceModule": "akraft",
+                        "sourceClassName": "example.AkraftSource",
+                        "releaseModule": "komica",
+                    }
+                )
+            finally:
+                bump_release_version.ROOT = previous
+            self.assertIn('set("bundleVersionCode", 6)', build.read_text(encoding="utf-8"))
+            self.assertIn('set("bundleVersionName", "0.3.3")', build.read_text(encoding="utf-8"))
+            self.assertEqual(source.read_text(encoding="utf-8"), "override val version = 3\n")
+
     def test_pre_bump_agent_policy_allows_only_code_and_test(self):
         with tempfile.TemporaryDirectory() as temp:
             repo = Path(temp)

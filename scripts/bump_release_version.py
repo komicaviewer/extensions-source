@@ -45,15 +45,17 @@ def bump(issue: dict) -> tuple[Path, Path]:
     build_text = build_path.read_text(encoding="utf-8")
     build_text = _replace_one(
         build_text,
-        re.compile(r'set\("extVersionCode",\s*([0-9]+)\)'),
-        lambda match: f'set("extVersionCode", {int(match.group(1)) + 1})',
+        re.compile(r'set\("((?:ext|bundle)VersionCode)",\s*([0-9]+)\)'),
+        lambda match: f'set("{match.group(1)}", {int(match.group(2)) + 1})',
     )
     build_text = _replace_one(
         build_text,
-        re.compile(r'set\("extVersionName",\s*"([0-9]+)\.([0-9]+)\.([0-9]+)"\)'),
+        re.compile(
+            r'set\("((?:ext|bundle)VersionName)",\s*"([0-9]+)\.([0-9]+)\.([0-9]+)"\)'
+        ),
         lambda match: (
-            f'set("extVersionName", "{match.group(1)}.{match.group(2)}.'
-            f'{int(match.group(3)) + 1}")'
+            f'set("{match.group(1)}", "{match.group(2)}.{match.group(3)}.'
+            f'{int(match.group(4)) + 1}")'
         ),
     )
     source_text = source_path.read_text(encoding="utf-8")

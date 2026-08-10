@@ -222,8 +222,10 @@ def _validate_version_diff(base: str, head: str | None, path: str) -> None:
         for line in diff.splitlines()
         if line.startswith(("+", "-")) and not line.startswith(("+++", "---"))
     ]
-    version_code = re.compile(r'^set\("extVersionCode",\s*[0-9]+\)$')
-    version_name = re.compile(r'^set\("extVersionName",\s*"[0-9A-Za-z._+-]+"\)$')
+    version_code = re.compile(r'^set\("(?:ext|bundle)VersionCode",\s*[0-9]+\)$')
+    version_name = re.compile(
+        r'^set\("(?:ext|bundle)VersionName",\s*"[0-9A-Za-z._+-]+"\)$'
+    )
     if not changed or any(not (version_code.fullmatch(line) or version_name.fullmatch(line)) for line in changed):
         raise PolicyError(f"{path} may change only versionCode/versionName assignments")
 

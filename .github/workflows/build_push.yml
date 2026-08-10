@@ -16,10 +16,33 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    outputs:
+      release-needed: ${{ steps.release-needed.outputs.value }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+
+      - id: release-needed
+        name: Detect release-affecting changes
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          EVENT_NAME: ${{ github.event_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] || [ -z "$BEFORE_SHA" ] || [[ "$BEFORE_SHA" =~ ^0+$ ]]; then
+            echo "value=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git cat-file -e "${BEFORE_SHA}^{commit}" 2>/dev/null || git fetch --no-tags --depth=1 origin "$BEFORE_SHA"
+          paths="$(git diff --name-only "$BEFORE_SHA" "$GITHUB_SHA")"
+          if printf '%s\n' "$paths" | grep -Eq '^(src/|shared/|release-catalog\.json$|release-metadata/|release-icons/|build\.gradle\.kts$|settings\.gradle\.kts$|bundle\.gradle$|extension\.gradle$|gradle/|gradle\.properties$)'; then
+            echo "value=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=false" >> "$GITHUB_OUTPUT"
+            echo "No release-affecting paths changed; build verification will run without signing or publication."
+          fi
 
       - name: Checkout pinned NewsHub extension API source
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -90,6 +113,7 @@ jobs:
   # signer can access exactly one bundle key, never the complete key set.
   sign:
     needs: build
+    if: needs.build.outputs.release-needed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
