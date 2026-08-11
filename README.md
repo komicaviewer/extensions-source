@@ -109,7 +109,9 @@ NEWSHUB_API_CHECKOUT=/absolute/path/to/pinned/NewsHub
 - `cloudbuild/pr-candidate.yaml`：驗證單一精確 PR head，以 pinned NewsHub extension API 建置，產生暫時 test-signed APK，並將 candidate 與 SHA-256 manifest 寫入 private GCS bucket。它沒有 Secret Manager 或 `secretEnv` 宣告。
 - `cloudbuild/publish.yaml`：由 `release-catalog.json` 產生完整七 APK build，在不同 step 簽署每個 package，執行 distribution admission，再以短效 GitHub App installation token 建立並精確 head squash-merge distribution PR。
 
-兩個 build 都固定使用 `E2_STANDARD_2`、10 分鐘 queue TTL、45／50 分鐘 hard timeout、有限 step timeout、`CLOUD_LOGGING_ONLY`，且不自動重試。Publication 只能在私有 controller 確認 exact-SHA merge 後，以 manual Cloud Build trigger dispatch；它不是 repository push trigger。
+`publish.yaml` 的 38 個 Secret Manager `versionName` 全部以 `_SECRET_PREFIX` 組成完整 secret ID。控制面的 trigger 必須顯式傳入 `newshub-extension-ops`；檔案內的 `REQUIRED_SECRET_PREFIX` 預設值刻意無法對應 production secret，避免直接 submit 時意外讀取其他 namespace。
+
+兩個 build 都固定使用 `E2_STANDARD_2`、10 分鐘 queue TTL、45／50 分鐘 hard timeout、有限 step timeout、`CLOUD_LOGGING_ONLY`，且不自動重試。Publication 只能在私有 controller 驗證 merge gate 寫入 GCS 的 exact squash-merge commit SHA 後，以 manual Cloud Build trigger dispatch。`_SOURCE_SHA` 不得從當下 branch HEAD 或 `$COMMIT_SHA` 推導；它不是 repository push trigger。
 
 這些檔案只定義 build。Service accounts、buckets、triggers、secrets 與 IAM 由獨立的私有 IaC 管理。
 

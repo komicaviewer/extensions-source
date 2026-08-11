@@ -20,6 +20,8 @@ ALLOWED_PATH_RE = re.compile(
     r"^(?:apk/|icon/|targets/apk/[^/]+\.apk$|metadata/timestamp\.json$|"
     r"metadata/[1-9][0-9]*\.(?:root|snapshot|targets)\.json$|index\.json$|index\.min\.json$)"
 )
+ADMISSION_STATUS_CONTEXT = "GCP distribution admission / verify"
+ADMISSION_STATUS_DESCRIPTION = "GCP distribution admission passed for exact candidate"
 
 
 def validate_staged_paths(paths: list[str]) -> None:
@@ -118,6 +120,17 @@ def publish(repo: Path, repository: str, token_file: Path, build_id: str, source
     number = pr.get("number")
     if not isinstance(number, int):
         raise ValueError("GitHub did not return a pull request number")
+    _api(
+        repository,
+        token,
+        "POST",
+        f"/statuses/{head_sha}",
+        {
+            "state": "success",
+            "context": ADMISSION_STATUS_CONTEXT,
+            "description": ADMISSION_STATUS_DESCRIPTION,
+        },
+    )
     merged = _api(
         repository,
         token,

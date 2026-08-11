@@ -1,5 +1,6 @@
 import base64
 import json
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -7,6 +8,7 @@ from types import SimpleNamespace
 from unittest import mock
 
 import github_app_token
+import publish_distribution_pr
 from cloudbuild_export_context import export_context
 from extension_automation import PolicyError
 from publish_distribution_pr import validate_staged_paths
@@ -102,6 +104,64 @@ class CloudBuildAutomationTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "outside the allowlist"):
             validate_staged_paths([".github/workflows/publish.yml"])
 
+    def test_distribution_status_is_exact_head_after_admission_and_before_merge(self):
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            token_file = directory / "token"
+            token_file.write_text("installation-token")
+            calls = []
+
+            def fake_git(_repo, *args, **_kwargs):
+                calls.append(("git", args, None))
+                if args[:3] == ("diff", "--cached", "--name-only"):
+                    return "index.json"
+                if args[:2] == ("rev-parse", "HEAD"):
+                    return "d" * 40
+                return ""
+
+            def fake_api(_repository, _token, method, route, payload=None):
+                calls.append((method, route, payload))
+                if method == "POST" and route == "/pulls":
+                    return {"number": 17}
+                if method == "PUT":
+                    return {"merged": True}
+                return {}
+
+            with mock.patch.object(publish_distribution_pr, "_git", side_effect=fake_git), mock.patch.object(
+                publish_distribution_pr, "_api", side_effect=fake_api
+            ):
+                result = publish_distribution_pr.publish(
+                    directory,
+                    "komicaviewer/extensions",
+                    token_file,
+                    "build-12345678",
+                    "a" * 40,
+                )
+
+        self.assertEqual("17", result)
+        status_index = next(
+            index for index, call in enumerate(calls)
+            if call[0] == "POST" and call[1] == "/statuses/" + "d" * 40
+        )
+        pr_index = next(index for index, call in enumerate(calls) if call[0] == "POST" and call[1] == "/pulls")
+        merge_index = next(index for index, call in enumerate(calls) if call[0] == "PUT")
+        self.assertLess(pr_index, status_index)
+        self.assertLess(status_index, merge_index)
+        self.assertEqual(
+            {
+                "state": "success",
+                "context": "GCP distribution admission / verify",
+                "description": "GCP distribution admission passed for exact candidate",
+            },
+            calls[status_index][2],
+        )
+        config = (ROOT / "cloudbuild/publish.yaml").read_text(encoding="utf-8")
+        self.assertLess(
+            config.index("id: generate-and-admit-distribution"),
+            config.index("id: publish-exact-distribution-pr"),
+        )
+        self.assertIn("waitFor: [generate-and-admit-distribution]", config)
+
     def test_pr_candidate_is_zero_secret_and_bounded(self):
         config = (ROOT / "cloudbuild/pr-candidate.yaml").read_text(encoding="utf-8")
         self.assertNotIn("secretEnv:", config)
@@ -121,6 +181,27 @@ class CloudBuildAutomationTest(unittest.TestCase):
         self.assertNotIn("retry", config.lower())
         for module in ("eyny", "gamer", "hackernews", "komica", "komica2", "mobile01", "ptt"):
             self.assertIn(f"id: sign-{module}", config)
+
+    def test_publish_prefixes_every_secret_manager_reference(self):
+        config = (ROOT / "cloudbuild/publish.yaml").read_text(encoding="utf-8")
+        version_names = [
+            value.strip() for value in re.findall(r"versionName:\s*([^,\n]+)", config)
+        ]
+        self.assertEqual(38, len(version_names))
+        self.assertIn("_SECRET_PREFIX: REQUIRED_SECRET_PREFIX", config)
+        self.assertTrue(
+            all(
+                value.startswith("projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-")
+                and value.endswith("/versions/latest")
+                for value in version_names
+            )
+        )
+        self.assertNotIn("/secrets/extensions-", config)
+
+    def test_publish_requires_controller_supplied_exact_merge_commit(self):
+        config = (ROOT / "cloudbuild/publish.yaml").read_text(encoding="utf-8")
+        self.assertIn("_SOURCE_SHA: REQUIRED_EXACT_MERGE_COMMIT_SHA", config)
+        self.assertNotIn("_SOURCE_SHA: $COMMIT_SHA", config)
 
     def test_repository_has_no_active_github_action_workflow(self):
         workflows = ROOT / ".github/workflows"

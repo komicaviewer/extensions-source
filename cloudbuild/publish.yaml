@@ -14,13 +14,16 @@ serviceAccount: projects/$PROJECT_ID/serviceAccounts/${_PUBLISH_SERVICE_ACCOUNT}
 
 substitutions:
   _REPOSITORY_URL: https://github.com/komicaviewer/extensions-source.git
-  _SOURCE_SHA: $COMMIT_SHA
+  # Controller must override this with the exact squash merge commit emitted by
+  # the independently authorized merge gate. Direct/manual submission fails closed.
+  _SOURCE_SHA: REQUIRED_EXACT_MERGE_COMMIT_SHA
   _NEWSHUB_API_SHA: 53d421492614c13e2a5984b4991513d993d44246
   _DISTRIBUTION_REPOSITORY: komicaviewer/extensions
   _DISTRIBUTION_URL: https://github.com/komicaviewer/extensions.git
   _ANDROID_BUILDER_IMAGE: REQUIRED_DIGEST_PINNED_ANDROID_IMAGE
   _OPS_BUILDER_IMAGE: REQUIRED_DIGEST_PINNED_OPS_IMAGE
   _PUBLISH_SERVICE_ACCOUNT: extensions-publisher@$PROJECT_ID.iam.gserviceaccount.com
+  _SECRET_PREFIX: REQUIRED_SECRET_PREFIX
 
 steps:
   - id: checkout-exact-source
@@ -214,41 +217,41 @@ steps:
 
 availableSecrets:
   secretManager:
-    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-eyny-key-b64/versions/latest, env: EYNY_SIGNING_KEY_B64}
-    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-eyny-store-password/versions/latest, env: EYNY_KEY_STORE_PASSWORD}
-    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-eyny-alias/versions/latest, env: EYNY_KEY_ALIAS}
-    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-eyny-key-password/versions/latest, env: EYNY_KEY_PASSWORD}
-    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-eyny-cert-sha256/versions/latest, env: EYNY_SIGNING_CERT_SHA256}
-    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-gamer-key-b64/versions/latest, env: GAMER_SIGNING_KEY_B64}
-    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-gamer-store-password/versions/latest, env: GAMER_KEY_STORE_PASSWORD}
-    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-gamer-alias/versions/latest, env: GAMER_KEY_ALIAS}
-    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-gamer-key-password/versions/latest, env: GAMER_KEY_PASSWORD}
-    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-gamer-cert-sha256/versions/latest, env: GAMER_SIGNING_CERT_SHA256}
-    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-hackernews-key-b64/versions/latest, env: HACKERNEWS_SIGNING_KEY_B64}
-    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-hackernews-store-password/versions/latest, env: HACKERNEWS_KEY_STORE_PASSWORD}
-    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-hackernews-alias/versions/latest, env: HACKERNEWS_KEY_ALIAS}
-    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-hackernews-key-password/versions/latest, env: HACKERNEWS_KEY_PASSWORD}
-    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-hackernews-cert-sha256/versions/latest, env: HACKERNEWS_SIGNING_CERT_SHA256}
-    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-komica-key-b64/versions/latest, env: KOMICA_SIGNING_KEY_B64}
-    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-komica-store-password/versions/latest, env: KOMICA_KEY_STORE_PASSWORD}
-    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-komica-alias/versions/latest, env: KOMICA_KEY_ALIAS}
-    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-komica-key-password/versions/latest, env: KOMICA_KEY_PASSWORD}
-    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-komica-cert-sha256/versions/latest, env: KOMICA_SIGNING_CERT_SHA256}
-    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-komica2-key-b64/versions/latest, env: KOMICA2_SIGNING_KEY_B64}
-    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-komica2-store-password/versions/latest, env: KOMICA2_KEY_STORE_PASSWORD}
-    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-komica2-alias/versions/latest, env: KOMICA2_KEY_ALIAS}
-    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-komica2-key-password/versions/latest, env: KOMICA2_KEY_PASSWORD}
-    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-komica2-cert-sha256/versions/latest, env: KOMICA2_SIGNING_CERT_SHA256}
-    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-mobile01-key-b64/versions/latest, env: MOBILE01_SIGNING_KEY_B64}
-    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-mobile01-store-password/versions/latest, env: MOBILE01_KEY_STORE_PASSWORD}
-    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-mobile01-alias/versions/latest, env: MOBILE01_KEY_ALIAS}
-    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-mobile01-key-password/versions/latest, env: MOBILE01_KEY_PASSWORD}
-    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-mobile01-cert-sha256/versions/latest, env: MOBILE01_SIGNING_CERT_SHA256}
-    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-ptt-key-b64/versions/latest, env: PTT_SIGNING_KEY_B64}
-    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-ptt-store-password/versions/latest, env: PTT_KEY_STORE_PASSWORD}
-    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-ptt-alias/versions/latest, env: PTT_KEY_ALIAS}
-    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-ptt-key-password/versions/latest, env: PTT_KEY_PASSWORD}
-    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-ptt-cert-sha256/versions/latest, env: PTT_SIGNING_CERT_SHA256}
-    - {versionName: projects/$PROJECT_ID/secrets/extensions-github-app-id/versions/latest, env: GITHUB_APP_ID}
-    - {versionName: projects/$PROJECT_ID/secrets/extensions-github-app-installation-id/versions/latest, env: GITHUB_APP_INSTALLATION_ID}
-    - {versionName: projects/$PROJECT_ID/secrets/extensions-github-app-private-key/versions/latest, env: GITHUB_APP_PRIVATE_KEY}
+    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-eyny-key-b64/versions/latest, env: EYNY_SIGNING_KEY_B64}
+    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-eyny-store-password/versions/latest, env: EYNY_KEY_STORE_PASSWORD}
+    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-eyny-alias/versions/latest, env: EYNY_KEY_ALIAS}
+    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-eyny-key-password/versions/latest, env: EYNY_KEY_PASSWORD}
+    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-eyny-cert-sha256/versions/latest, env: EYNY_SIGNING_CERT_SHA256}
+    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-gamer-key-b64/versions/latest, env: GAMER_SIGNING_KEY_B64}
+    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-gamer-store-password/versions/latest, env: GAMER_KEY_STORE_PASSWORD}
+    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-gamer-alias/versions/latest, env: GAMER_KEY_ALIAS}
+    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-gamer-key-password/versions/latest, env: GAMER_KEY_PASSWORD}
+    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-gamer-cert-sha256/versions/latest, env: GAMER_SIGNING_CERT_SHA256}
+    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-hackernews-key-b64/versions/latest, env: HACKERNEWS_SIGNING_KEY_B64}
+    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-hackernews-store-password/versions/latest, env: HACKERNEWS_KEY_STORE_PASSWORD}
+    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-hackernews-alias/versions/latest, env: HACKERNEWS_KEY_ALIAS}
+    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-hackernews-key-password/versions/latest, env: HACKERNEWS_KEY_PASSWORD}
+    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-hackernews-cert-sha256/versions/latest, env: HACKERNEWS_SIGNING_CERT_SHA256}
+    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-komica-key-b64/versions/latest, env: KOMICA_SIGNING_KEY_B64}
+    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-komica-store-password/versions/latest, env: KOMICA_KEY_STORE_PASSWORD}
+    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-komica-alias/versions/latest, env: KOMICA_KEY_ALIAS}
+    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-komica-key-password/versions/latest, env: KOMICA_KEY_PASSWORD}
+    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-komica-cert-sha256/versions/latest, env: KOMICA_SIGNING_CERT_SHA256}
+    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-komica2-key-b64/versions/latest, env: KOMICA2_SIGNING_KEY_B64}
+    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-komica2-store-password/versions/latest, env: KOMICA2_KEY_STORE_PASSWORD}
+    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-komica2-alias/versions/latest, env: KOMICA2_KEY_ALIAS}
+    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-komica2-key-password/versions/latest, env: KOMICA2_KEY_PASSWORD}
+    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-komica2-cert-sha256/versions/latest, env: KOMICA2_SIGNING_CERT_SHA256}
+    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-mobile01-key-b64/versions/latest, env: MOBILE01_SIGNING_KEY_B64}
+    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-mobile01-store-password/versions/latest, env: MOBILE01_KEY_STORE_PASSWORD}
+    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-mobile01-alias/versions/latest, env: MOBILE01_KEY_ALIAS}
+    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-mobile01-key-password/versions/latest, env: MOBILE01_KEY_PASSWORD}
+    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-mobile01-cert-sha256/versions/latest, env: MOBILE01_SIGNING_CERT_SHA256}
+    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-ptt-key-b64/versions/latest, env: PTT_SIGNING_KEY_B64}
+    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-ptt-store-password/versions/latest, env: PTT_KEY_STORE_PASSWORD}
+    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-ptt-alias/versions/latest, env: PTT_KEY_ALIAS}
+    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-ptt-key-password/versions/latest, env: PTT_KEY_PASSWORD}
+    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-ptt-cert-sha256/versions/latest, env: PTT_SIGNING_CERT_SHA256}
+    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-github-app-id/versions/latest, env: GITHUB_APP_ID}
+    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-github-app-installation-id/versions/latest, env: GITHUB_APP_INSTALLATION_ID}
+    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-github-app-private-key/versions/latest, env: GITHUB_APP_PRIVATE_KEY}
