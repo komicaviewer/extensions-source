@@ -1,0 +1,254 @@
+# Bounded main-branch release build. Signing and GitHub App material are read
+# only through Secret Manager secretEnv. No long-lived GitHub token is stored.
+timeout: 3000s
+queueTtl: 600s
+
+options:
+  machineType: E2_STANDARD_2
+  diskSizeGb: 80
+  logging: CLOUD_LOGGING_ONLY
+  dynamicSubstitutions: true
+  substitutionOption: ALLOW_LOOSE
+
+serviceAccount: projects/$PROJECT_ID/serviceAccounts/${_PUBLISH_SERVICE_ACCOUNT}
+
+substitutions:
+  _REPOSITORY_URL: https://github.com/komicaviewer/extensions-source.git
+  _SOURCE_SHA: $COMMIT_SHA
+  _NEWSHUB_API_SHA: 53d421492614c13e2a5984b4991513d993d44246
+  _DISTRIBUTION_REPOSITORY: komicaviewer/extensions
+  _DISTRIBUTION_URL: https://github.com/komicaviewer/extensions.git
+  _ANDROID_BUILDER_IMAGE: REQUIRED_DIGEST_PINNED_ANDROID_IMAGE
+  _OPS_BUILDER_IMAGE: REQUIRED_DIGEST_PINNED_OPS_IMAGE
+  _PUBLISH_SERVICE_ACCOUNT: extensions-publisher@$PROJECT_ID.iam.gserviceaccount.com
+
+steps:
+  - id: checkout-exact-source
+    name: ${_OPS_BUILDER_IMAGE}
+    entrypoint: bash
+    timeout: 300s
+    env:
+      - REPOSITORY_URL=${_REPOSITORY_URL}
+      - SOURCE_SHA=${_SOURCE_SHA}
+      - NEWSHUB_API_SHA=${_NEWSHUB_API_SHA}
+    args:
+      - -ceu
+      - |
+        [[ "$${SOURCE_SHA}" =~ ^[0-9a-f]{40}$ ]]
+        [[ "$${NEWSHUB_API_SHA}" =~ ^[0-9a-f]{40}$ ]]
+        rm -rf /workspace/source /workspace/trusted-newshub /workspace/unsigned /workspace/apks /workspace/distribution /workspace/baseline /workspace/secure
+        git init /workspace/source
+        git -C /workspace/source remote add origin "$${REPOSITORY_URL}"
+        git -C /workspace/source fetch --no-tags --depth=1 origin "$${SOURCE_SHA}"
+        git -C /workspace/source checkout --detach "$${SOURCE_SHA}"
+        git init /workspace/trusted-newshub
+        git -C /workspace/trusted-newshub remote add origin https://github.com/komicaviewer/NewsHub.git
+        git -C /workspace/trusted-newshub fetch --no-tags --depth=1 origin "$${NEWSHUB_API_SHA}"
+        git -C /workspace/trusted-newshub checkout --detach "$${NEWSHUB_API_SHA}"
+
+  - id: validate-catalog-and-tools
+    name: ${_OPS_BUILDER_IMAGE}
+    entrypoint: bash
+    dir: source
+    timeout: 300s
+    args:
+      - -ceu
+      - |
+        python3 scripts/release_catalog.py validate
+        python3 scripts/validate_source_manifests.py
+        python3 -m unittest discover -s scripts -p 'test_*.py'
+
+  - id: build-unsigned
+    name: ${_ANDROID_BUILDER_IMAGE}
+    entrypoint: bash
+    dir: source
+    timeout: 1800s
+    waitFor: [validate-catalog-and-tools]
+    args:
+      - -ceu
+      - |
+        export ANDROID_SDK_ROOT="$${ANDROID_SDK_ROOT:-$${ANDROID_HOME:-/opt/android-sdk}}"
+        aapt="$${ANDROID_SDK_ROOT}/build-tools/34.0.0/aapt"
+        test -x "$${aapt}"
+        rm -rf /workspace/android-build-tools
+        cp -a "$${ANDROID_SDK_ROOT}/build-tools/34.0.0" /workspace/android-build-tools
+        /workspace/trusted-newshub/gradlew -p /workspace/trusted-newshub --no-daemon :extension-api:assembleDebug
+        mapfile -t gradle_tasks < <(python3 scripts/release_catalog.py gradle-tasks)
+        test "$${#gradle_tasks[@]}" -gt 0
+        ./gradlew --no-daemon -PnewshubDir=/workspace/trusted-newshub "$${gradle_tasks[@]}"
+        mkdir -p /workspace/unsigned
+        while IFS=$'\t' read -r module apk; do
+          test -f "$${apk}"
+          version=$("$${aapt}" dump badging "$${apk}" 2>/dev/null | \
+            sed -n "s/^package: name='[^']*' versionCode='[0-9]*' versionName='\([^']*\)'.*/\1/p" | head -n 1)
+          test -n "$${version}"
+          apk_name=$(python3 scripts/release_catalog.py artifact-name "$${module}" "$${version}")
+          cp "$${apk}" "/workspace/unsigned/$${apk_name}"
+        done < <(python3 scripts/release_catalog.py artifact-rows)
+
+  - id: sign-eyny
+    name: ${_ANDROID_BUILDER_IMAGE}
+    entrypoint: bash
+    timeout: 300s
+    waitFor: [build-unsigned]
+    secretEnv: [EYNY_SIGNING_KEY_B64, EYNY_KEY_STORE_PASSWORD, EYNY_KEY_ALIAS, EYNY_KEY_PASSWORD, EYNY_SIGNING_CERT_SHA256]
+    args: [-ceu, 'python3 /workspace/source/scripts/sign_release_bundle.py --module eyny --input-dir /workspace/unsigned --output-dir /workspace/apks --apksigner /workspace/android-build-tools/apksigner --env-prefix EYNY']
+
+  - id: sign-gamer
+    name: ${_ANDROID_BUILDER_IMAGE}
+    entrypoint: bash
+    timeout: 300s
+    waitFor: [build-unsigned]
+    secretEnv: [GAMER_SIGNING_KEY_B64, GAMER_KEY_STORE_PASSWORD, GAMER_KEY_ALIAS, GAMER_KEY_PASSWORD, GAMER_SIGNING_CERT_SHA256]
+    args: [-ceu, 'python3 /workspace/source/scripts/sign_release_bundle.py --module gamer --input-dir /workspace/unsigned --output-dir /workspace/apks --apksigner /workspace/android-build-tools/apksigner --env-prefix GAMER']
+
+  - id: sign-hackernews
+    name: ${_ANDROID_BUILDER_IMAGE}
+    entrypoint: bash
+    timeout: 300s
+    waitFor: [build-unsigned]
+    secretEnv: [HACKERNEWS_SIGNING_KEY_B64, HACKERNEWS_KEY_STORE_PASSWORD, HACKERNEWS_KEY_ALIAS, HACKERNEWS_KEY_PASSWORD, HACKERNEWS_SIGNING_CERT_SHA256]
+    args: [-ceu, 'python3 /workspace/source/scripts/sign_release_bundle.py --module hackernews --input-dir /workspace/unsigned --output-dir /workspace/apks --apksigner /workspace/android-build-tools/apksigner --env-prefix HACKERNEWS']
+
+  - id: sign-komica
+    name: ${_ANDROID_BUILDER_IMAGE}
+    entrypoint: bash
+    timeout: 300s
+    waitFor: [build-unsigned]
+    secretEnv: [KOMICA_SIGNING_KEY_B64, KOMICA_KEY_STORE_PASSWORD, KOMICA_KEY_ALIAS, KOMICA_KEY_PASSWORD, KOMICA_SIGNING_CERT_SHA256]
+    args: [-ceu, 'python3 /workspace/source/scripts/sign_release_bundle.py --module komica --input-dir /workspace/unsigned --output-dir /workspace/apks --apksigner /workspace/android-build-tools/apksigner --env-prefix KOMICA']
+
+  - id: sign-komica2
+    name: ${_ANDROID_BUILDER_IMAGE}
+    entrypoint: bash
+    timeout: 300s
+    waitFor: [build-unsigned]
+    secretEnv: [KOMICA2_SIGNING_KEY_B64, KOMICA2_KEY_STORE_PASSWORD, KOMICA2_KEY_ALIAS, KOMICA2_KEY_PASSWORD, KOMICA2_SIGNING_CERT_SHA256]
+    args: [-ceu, 'python3 /workspace/source/scripts/sign_release_bundle.py --module komica2 --input-dir /workspace/unsigned --output-dir /workspace/apks --apksigner /workspace/android-build-tools/apksigner --env-prefix KOMICA2']
+
+  - id: sign-mobile01
+    name: ${_ANDROID_BUILDER_IMAGE}
+    entrypoint: bash
+    timeout: 300s
+    waitFor: [build-unsigned]
+    secretEnv: [MOBILE01_SIGNING_KEY_B64, MOBILE01_KEY_STORE_PASSWORD, MOBILE01_KEY_ALIAS, MOBILE01_KEY_PASSWORD, MOBILE01_SIGNING_CERT_SHA256]
+    args: [-ceu, 'python3 /workspace/source/scripts/sign_release_bundle.py --module mobile01 --input-dir /workspace/unsigned --output-dir /workspace/apks --apksigner /workspace/android-build-tools/apksigner --env-prefix MOBILE01']
+
+  - id: sign-ptt
+    name: ${_ANDROID_BUILDER_IMAGE}
+    entrypoint: bash
+    timeout: 300s
+    waitFor: [build-unsigned]
+    secretEnv: [PTT_SIGNING_KEY_B64, PTT_KEY_STORE_PASSWORD, PTT_KEY_ALIAS, PTT_KEY_PASSWORD, PTT_SIGNING_CERT_SHA256]
+    args: [-ceu, 'python3 /workspace/source/scripts/sign_release_bundle.py --module ptt --input-dir /workspace/unsigned --output-dir /workspace/apks --apksigner /workspace/android-build-tools/apksigner --env-prefix PTT']
+
+  - id: mint-short-lived-github-token
+    name: ${_ANDROID_BUILDER_IMAGE}
+    entrypoint: python3
+    timeout: 120s
+    waitFor: [sign-eyny, sign-gamer, sign-hackernews, sign-komica, sign-komica2, sign-mobile01, sign-ptt]
+    secretEnv: [GITHUB_APP_ID, GITHUB_APP_INSTALLATION_ID, GITHUB_APP_PRIVATE_KEY]
+    env: [GITHUB_APP_REPOSITORY=extensions]
+    args: [/workspace/source/scripts/github_app_token.py, --output, /workspace/secure/github-token]
+
+  - id: checkout-current-distribution
+    name: ${_OPS_BUILDER_IMAGE}
+    entrypoint: bash
+    timeout: 300s
+    waitFor: [mint-short-lived-github-token]
+    env:
+      - DISTRIBUTION_URL=${_DISTRIBUTION_URL}
+    args:
+      - -ceu
+      - |
+        cat > /workspace/secure/askpass.sh <<'SH'
+        #!/bin/sh
+        case "$${1}" in
+          *Username*) echo x-access-token ;;
+          *) cat /workspace/secure/github-token ;;
+        esac
+        SH
+        chmod 700 /workspace/secure/askpass.sh
+        GIT_ASKPASS=/workspace/secure/askpass.sh GIT_TERMINAL_PROMPT=0 \
+          git clone --no-tags "$${DISTRIBUTION_URL}" /workspace/distribution
+
+  - id: generate-and-admit-distribution
+    name: ${_ANDROID_BUILDER_IMAGE}
+    entrypoint: bash
+    timeout: 600s
+    waitFor: [checkout-current-distribution]
+    args:
+      - -ceu
+      - |
+        aapt=/workspace/android-build-tools/aapt
+        apksigner=/workspace/android-build-tools/apksigner
+        mkdir -p /workspace/baseline
+        cp /workspace/distribution/index.json /workspace/distribution/index.min.json /workspace/baseline/
+        python3 /workspace/source/scripts/validate_release_bundles.py /workspace/apks
+        python3 /workspace/source/scripts/generate_index.py /workspace/apks /workspace/distribution \
+          --aapt "$${aapt}" --apksigner "$${apksigner}"
+        python3 /workspace/source/scripts/validate_distribution.py /workspace/distribution \
+          --baseline-dir /workspace/baseline --aapt "$${aapt}" --apksigner "$${apksigner}"
+
+  - id: publish-exact-distribution-pr
+    name: ${_ANDROID_BUILDER_IMAGE}
+    entrypoint: python3
+    timeout: 300s
+    waitFor: [generate-and-admit-distribution]
+    env:
+      - DESTINATION_REPOSITORY=${_DISTRIBUTION_REPOSITORY}
+      - SOURCE_SHA=${_SOURCE_SHA}
+      - CLOUD_BUILD_ID=$BUILD_ID
+    args:
+      - /workspace/source/scripts/publish_distribution_pr.py
+      - --repo
+      - /workspace/distribution
+      - --repository
+      - ${_DISTRIBUTION_REPOSITORY}
+      - --token-file
+      - /workspace/secure/github-token
+      - --build-id
+      - $BUILD_ID
+      - --source-sha
+      - ${_SOURCE_SHA}
+
+availableSecrets:
+  secretManager:
+    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-eyny-key-b64/versions/latest, env: EYNY_SIGNING_KEY_B64}
+    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-eyny-store-password/versions/latest, env: EYNY_KEY_STORE_PASSWORD}
+    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-eyny-alias/versions/latest, env: EYNY_KEY_ALIAS}
+    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-eyny-key-password/versions/latest, env: EYNY_KEY_PASSWORD}
+    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-eyny-cert-sha256/versions/latest, env: EYNY_SIGNING_CERT_SHA256}
+    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-gamer-key-b64/versions/latest, env: GAMER_SIGNING_KEY_B64}
+    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-gamer-store-password/versions/latest, env: GAMER_KEY_STORE_PASSWORD}
+    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-gamer-alias/versions/latest, env: GAMER_KEY_ALIAS}
+    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-gamer-key-password/versions/latest, env: GAMER_KEY_PASSWORD}
+    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-gamer-cert-sha256/versions/latest, env: GAMER_SIGNING_CERT_SHA256}
+    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-hackernews-key-b64/versions/latest, env: HACKERNEWS_SIGNING_KEY_B64}
+    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-hackernews-store-password/versions/latest, env: HACKERNEWS_KEY_STORE_PASSWORD}
+    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-hackernews-alias/versions/latest, env: HACKERNEWS_KEY_ALIAS}
+    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-hackernews-key-password/versions/latest, env: HACKERNEWS_KEY_PASSWORD}
+    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-hackernews-cert-sha256/versions/latest, env: HACKERNEWS_SIGNING_CERT_SHA256}
+    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-komica-key-b64/versions/latest, env: KOMICA_SIGNING_KEY_B64}
+    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-komica-store-password/versions/latest, env: KOMICA_KEY_STORE_PASSWORD}
+    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-komica-alias/versions/latest, env: KOMICA_KEY_ALIAS}
+    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-komica-key-password/versions/latest, env: KOMICA_KEY_PASSWORD}
+    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-komica-cert-sha256/versions/latest, env: KOMICA_SIGNING_CERT_SHA256}
+    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-komica2-key-b64/versions/latest, env: KOMICA2_SIGNING_KEY_B64}
+    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-komica2-store-password/versions/latest, env: KOMICA2_KEY_STORE_PASSWORD}
+    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-komica2-alias/versions/latest, env: KOMICA2_KEY_ALIAS}
+    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-komica2-key-password/versions/latest, env: KOMICA2_KEY_PASSWORD}
+    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-komica2-cert-sha256/versions/latest, env: KOMICA2_SIGNING_CERT_SHA256}
+    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-mobile01-key-b64/versions/latest, env: MOBILE01_SIGNING_KEY_B64}
+    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-mobile01-store-password/versions/latest, env: MOBILE01_KEY_STORE_PASSWORD}
+    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-mobile01-alias/versions/latest, env: MOBILE01_KEY_ALIAS}
+    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-mobile01-key-password/versions/latest, env: MOBILE01_KEY_PASSWORD}
+    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-mobile01-cert-sha256/versions/latest, env: MOBILE01_SIGNING_CERT_SHA256}
+    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-ptt-key-b64/versions/latest, env: PTT_SIGNING_KEY_B64}
+    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-ptt-store-password/versions/latest, env: PTT_KEY_STORE_PASSWORD}
+    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-ptt-alias/versions/latest, env: PTT_KEY_ALIAS}
+    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-ptt-key-password/versions/latest, env: PTT_KEY_PASSWORD}
+    - {versionName: projects/$PROJECT_ID/secrets/extensions-sign-ptt-cert-sha256/versions/latest, env: PTT_SIGNING_CERT_SHA256}
+    - {versionName: projects/$PROJECT_ID/secrets/extensions-github-app-id/versions/latest, env: GITHUB_APP_ID}
+    - {versionName: projects/$PROJECT_ID/secrets/extensions-github-app-installation-id/versions/latest, env: GITHUB_APP_INSTALLATION_ID}
+    - {versionName: projects/$PROJECT_ID/secrets/extensions-github-app-private-key/versions/latest, env: GITHUB_APP_PRIVATE_KEY}

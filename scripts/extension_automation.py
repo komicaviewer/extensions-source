@@ -92,6 +92,7 @@ def _catalog_index(catalog_path: Path) -> dict[str, dict[str, Any]]:
                 "releaseModule": release.get("module"),
                 "assembleTask": release.get("assembleTask"),
                 "apkOutput": release.get("apkOutput"),
+                "package": release.get("package"),
                 "exactHosts": source.get("exactHosts"),
             }
     return sources
@@ -163,6 +164,7 @@ def normalize_issue(body_path: Path, catalog_path: Path) -> dict[str, Any]:
         "releaseModule",
         "assembleTask",
         "apkOutput",
+        "package",
     ):
         _require_text(normalized[name], name, maximum=300)
     return normalized

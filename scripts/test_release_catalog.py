@@ -41,27 +41,20 @@ class ReleaseCatalogTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "settings/catalog Gradle module mismatch"):
                 load_catalog()
 
-    def test_workflow_builds_from_catalog_and_opens_candidate_pr(self):
-        workflow = (
-            Path(__file__).resolve().parents[1] / ".github/workflows/build_push.yml"
-        ).read_text(encoding="utf-8")
+    def test_cloud_build_publish_derives_release_from_catalog(self):
+        config = (Path(__file__).resolve().parents[1] / "cloudbuild/publish.yaml").read_text(
+            encoding="utf-8"
+        )
 
-        self.assertIn("release_catalog.py gradle-tasks", workflow)
-        self.assertIn("release_catalog.py artifact-rows", workflow)
-        self.assertIn("Detect release-affecting changes", workflow)
-        self.assertIn("if: needs.build.outputs.release-needed == 'true'", workflow)
-        self.assertIn("gh pr create", workflow)
-        self.assertIn("gh pr merge", workflow)
-        self.assertIn("--baseline-dir", workflow)
-        self.assertIn("retention-days: 14", workflow)
-        self.assertIn("GITHUB_RUN_ATTEMPT", workflow)
-        self.assertIn("git status --porcelain", workflow)
-        self.assertIn("environment: extension-sign-${{ matrix.module }}", workflow)
-        self.assertIn("module: [eyny, gamer, hackernews, komica, komica2, mobile01, ptt]", workflow)
-        self.assertNotIn("GLOBAL_SIGNING_CERT", workflow)
-        self.assertNotIn("schedule:", workflow)
-        self.assertNotIn("git push origin main", workflow)
-        self.assertNotIn("for module in gamer komica komica2", workflow)
+        self.assertIn("release_catalog.py gradle-tasks", config)
+        self.assertIn("release_catalog.py artifact-rows", config)
+        self.assertIn("validate_release_bundles.py", config)
+        self.assertIn("--baseline-dir", config)
+        self.assertIn("publish_distribution_pr.py", config)
+        self.assertIn("github_app_token.py", config)
+        self.assertIn("availableSecrets:", config)
+        self.assertNotIn("git push origin main", config)
+        self.assertNotIn("GLOBAL_SIGNING_CERT", config)
 
 
 if __name__ == "__main__":

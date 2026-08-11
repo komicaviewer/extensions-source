@@ -105,8 +105,9 @@ that still packages the legacy registry asset.
    to the owning bundle manifest.
 4. Add parser and request tests to that module's normal `test` source set.
 5. Register the Source and its owning release data in `release-catalog.json`.
-   Do not add Source/APK lists to workflow or validator code; all publishing,
-   Gradle, output, metadata, and icon information must be derived from the catalog.
+   Do not add Source/APK lists to build configuration or validator code; all
+   publishing, Gradle, output, metadata, and icon information must be derived
+   from the catalog.
 6. Run `python3 scripts/release_catalog.py validate` and
    `python3 scripts/validate_source_manifests.py`. They reject metadata/service
    mismatches, permissions, duplicate IDs/classes, missing assets/projects, and Gradle modules
@@ -118,21 +119,43 @@ that still packages the legacy registry asset.
 python3 scripts/release_catalog.py validate
 python3 scripts/validate_source_manifests.py
 python3 -m unittest discover -s scripts -p 'test_*.py'
-./gradlew $(python3 scripts/release_catalog.py gradle-tasks)
+NEWSHUB_API_CHECKOUT=/absolute/path/to/pinned/NewsHub
+"$NEWSHUB_API_CHECKOUT/gradlew" -p "$NEWSHUB_API_CHECKOUT" \
+  --no-daemon :extension-api:assembleDebug
+./gradlew -PnewshubDir="$NEWSHUB_API_CHECKOUT" $(python3 scripts/release_catalog.py gradle-tasks)
 ```
 
-## Releasing
+The checkout must be commit
+`53d421492614c13e2a5984b4991513d993d44246` until that API is published. A
+plain Gradle invocation currently resolves the older JitPack pin and cannot
+compile `shared:broker-http` because it lacks the isolation-era network types.
 
-Push to `main`. GitHub Actions derives all test, build, collection, and artifact
-operations from `release-catalog.json`, signs the APKs, and builds a staged
-distribution candidate for the
-[extensions repo](https://github.com/komicaviewer/extensions).
+## Releasing with GCP Cloud Build
 
-Signing is deliberately split across seven protected GitHub Environments named
-`extension-sign-<module>`. Each environment must have required reviewers and
-holds only that bundle's `SIGNING_KEY`, `KEY_STORE_PASSWORD`, `KEY_ALIAS`,
-`KEY_PASSWORD`, and `SIGNING_CERT_SHA256`. The unsigned build job receives no
-signing or distribution credential; no job can read more than one APK key.
+This repository does not use GitHub Actions. GCP Cloud Build owns both
+zero-secret PR candidates and controller-dispatched release publication:
+
+- `cloudbuild/pr-candidate.yaml` validates one exact PR head, builds against the
+  pinned NewsHub extension API, produces an ephemeral test-signed APK, and
+  writes the candidate plus SHA-256 manifest to a private GCS bucket. It has no
+  Secret Manager or `secretEnv` declaration.
+- `cloudbuild/publish.yaml` derives the complete seven-APK build from
+  `release-catalog.json`, signs each package in a separate step, admits the
+  generated distribution, and uses a short-lived GitHub App installation token
+  to create and exact-head squash-merge a distribution PR.
+
+Both definitions default to `E2_STANDARD_2`, have 10-minute queue TTLs,
+45/50-minute hard timeouts, finite step timeouts, Cloud Logging-only logs, and
+no automatic retry. Publication is a manual Cloud Build trigger dispatched by
+the private controller only after it observes the exact-SHA merge; it is not a
+repository push trigger. These files define builds only; provisioning service accounts, buckets,
+triggers, secrets, and IAM is intentionally separate.
+
+Signing is split across seven Cloud Build steps. Each step receives only that
+bundle's `SIGNING_KEY_B64`, `KEY_STORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`,
+and `SIGNING_CERT_SHA256` through Secret Manager `secretEnv`. The unsigned
+build receives no signing or GitHub credential. The dedicated publisher service
+account can access the listed secrets, so it must never be used by the PR build.
 There is no repository-global APK certificate: the signed repository metadata
 binds each package to its stable `lineageRootSha256` and its currently accepted
 `apkSignerPins` set.
@@ -160,9 +183,12 @@ indexes to reject version rollback, same-version APK replacement, and
 unauthorized package/Source deletion. The generator works in a staging tree and
 rolls back managed paths if publication replacement fails.
 
-The workflow never pushes directly to destination `main`. It pushes an isolated
-`automation/extensions-<run>-<attempt>` candidate branch, stages only the
+Cloud Build never pushes directly to destination `main`. It pushes an isolated
+`automation/extensions-cloudbuild-<build-id>` candidate branch, stages only the
 `apk/`, `icon/`, `index.json`, and `index.min.json` allowlist, opens a pull
-request, and asks GitHub to auto-merge it with squash after destination branch
-protections and required checks admit the candidate. Direct publication pushes
-are prohibited.
+request, and exact-head squash-merges it only after local admission and
+destination branch protection admit the candidate. Direct publication pushes
+are prohibited. The GitHub App private key is exchanged once for an
+installation token whose remaining lifetime must be no more than 65 minutes.
+The token request is repository-scoped to `extensions` with only write access
+to repository contents and pull requests.

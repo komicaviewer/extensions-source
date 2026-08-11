@@ -1,0 +1,183 @@
+# Zero-secret PR candidate build. Trigger substitutions are supplied by the
+# private extension-ops control plane; this build never loads credentials.
+timeout: 2700s
+queueTtl: 600s
+
+options:
+  machineType: E2_STANDARD_2
+  diskSizeGb: 50
+  logging: CLOUD_LOGGING_ONLY
+  dynamicSubstitutions: true
+  substitutionOption: ALLOW_LOOSE
+
+serviceAccount: projects/$PROJECT_ID/serviceAccounts/${_CANDIDATE_BUILDER_SERVICE_ACCOUNT}
+
+substitutions:
+  _REPOSITORY_URL: https://github.com/komicaviewer/extensions-source.git
+  _BASE_SHA: REQUIRED_BASE_SHA
+  _HEAD_SHA: REQUIRED_HEAD_SHA
+  _HEAD_REF: REQUIRED_AUTOMATION_HEAD_REF
+  _PR_NUMBER: "0"
+  _HEALTH_JSON_B64: REQUIRED_BASE64_HEALTH_JSON
+  _NEWSHUB_API_SHA: 53d421492614c13e2a5984b4991513d993d44246
+  _ANDROID_BUILDER_IMAGE: REQUIRED_DIGEST_PINNED_ANDROID_IMAGE
+  _OPS_BUILDER_IMAGE: REQUIRED_DIGEST_PINNED_OPS_IMAGE
+  _CANDIDATE_BUILDER_SERVICE_ACCOUNT: extensions-pr-builder@$PROJECT_ID.iam.gserviceaccount.com
+  _CANDIDATE_BUCKET: newshub-extension-candidates-$PROJECT_ID
+
+steps:
+  - id: checkout-exact-pr
+    name: ${_OPS_BUILDER_IMAGE}
+    entrypoint: bash
+    timeout: 300s
+    env:
+      - REPOSITORY_URL=${_REPOSITORY_URL}
+      - BASE_SHA=${_BASE_SHA}
+      - HEAD_SHA=${_HEAD_SHA}
+      - HEAD_REF=${_HEAD_REF}
+      - PR_NUMBER=${_PR_NUMBER}
+    args:
+      - -ceu
+      - |
+        [[ "$${BASE_SHA}" =~ ^[0-9a-f]{40}$ ]]
+        [[ "$${HEAD_SHA}" =~ ^[0-9a-f]{40}$ ]]
+        [[ "$${HEAD_REF}" =~ ^automation/extension-fix-[A-Za-z0-9._-]+$ ]]
+        [[ "$${PR_NUMBER}" =~ ^[1-9][0-9]*$ ]]
+        rm -rf /workspace/source /workspace/trusted /workspace/context /workspace/candidate
+        mkdir -p /workspace/source /workspace/trusted /workspace/context
+        git -C /workspace/source init
+        git -C /workspace/source remote add origin "$${REPOSITORY_URL}"
+        git -C /workspace/source fetch --no-tags origin "$${BASE_SHA}" "$${HEAD_SHA}"
+        git -C /workspace/source cat-file -e "$${BASE_SHA}^{commit}"
+        git -C /workspace/source cat-file -e "$${HEAD_SHA}^{commit}"
+        git -C /workspace/source merge-base --is-ancestor "$${BASE_SHA}" "$${HEAD_SHA}"
+        for path in \
+          scripts/extension_automation.py \
+          scripts/validate_agent_patch.py \
+          scripts/cloudbuild_export_context.py \
+          release-catalog.json; do
+          mkdir -p "/workspace/trusted/$$(dirname "$${path}")"
+          git -C /workspace/source show "$${BASE_SHA}:$${path}" > "/workspace/trusted/$${path}"
+        done
+        git -C /workspace/source checkout --detach "$${HEAD_SHA}"
+
+  - id: checkout-pinned-newshub-api
+    name: ${_OPS_BUILDER_IMAGE}
+    entrypoint: bash
+    timeout: 300s
+    env:
+      - NEWSHUB_API_SHA=${_NEWSHUB_API_SHA}
+    args:
+      - -ceu
+      - |
+        [[ "$${NEWSHUB_API_SHA}" =~ ^[0-9a-f]{40}$ ]]
+        rm -rf /workspace/trusted-newshub
+        git init /workspace/trusted-newshub
+        git -C /workspace/trusted-newshub remote add origin https://github.com/komicaviewer/NewsHub.git
+        git -C /workspace/trusted-newshub fetch --no-tags --depth=1 origin "$${NEWSHUB_API_SHA}"
+        git -C /workspace/trusted-newshub checkout --detach "$${NEWSHUB_API_SHA}"
+
+  - id: validate-agent-patch
+    name: ${_OPS_BUILDER_IMAGE}
+    entrypoint: bash
+    timeout: 300s
+    env:
+      - HEALTH_JSON_B64=${_HEALTH_JSON_B64}
+      - BASE_SHA=${_BASE_SHA}
+      - GITHUB_WORKSPACE=/workspace/source
+      - PYTHONPATH=/workspace/trusted/scripts
+    args:
+      - -ceu
+      - |
+        printf '%s' "$${HEALTH_JSON_B64}" | base64 --decode > /workspace/context/health-input.json
+        python3 /workspace/trusted/scripts/cloudbuild_export_context.py \
+          --issue-json /workspace/context/health-input.json \
+          --catalog /workspace/trusted/release-catalog.json \
+          --output-dir /workspace/context
+        python3 /workspace/trusted/scripts/validate_agent_patch.py \
+          --issue-json /workspace/context/health.json \
+          --catalog /workspace/trusted/release-catalog.json \
+          --base-ref "$${BASE_SHA}" \
+          --allow-version-bump \
+          --print-test-task > /workspace/context/validated-test-task.txt
+
+  - id: build-test-sign-candidate
+    name: ${_ANDROID_BUILDER_IMAGE}
+    entrypoint: bash
+    timeout: 1800s
+    env:
+      - HEAD_SHA=${_HEAD_SHA}
+      - PR_NUMBER=${_PR_NUMBER}
+    args:
+      - -ceu
+      - |
+        export ANDROID_SDK_ROOT="$${ANDROID_SDK_ROOT:-$${ANDROID_HOME:-/opt/android-sdk}}"
+        apksigner="$${ANDROID_SDK_ROOT}/build-tools/34.0.0/apksigner"
+        test -x "$${apksigner}"
+        /workspace/trusted-newshub/gradlew -p /workspace/trusted-newshub --no-daemon :extension-api:assembleDebug
+        test_task=$$(cat /workspace/context/test-task.txt)
+        assemble_task=$$(cat /workspace/context/assemble-task.txt)
+        cd /workspace/source
+        ./gradlew --no-daemon -PnewshubDir=/workspace/trusted-newshub "$${test_task}" "$${assemble_task}"
+        apk_output=$$(cat /workspace/context/apk-output.txt)
+        test -f "$${apk_output}"
+        mkdir -p /workspace/candidate
+        password="candidate-$${HEAD_SHA}"
+        keystore=/workspace/candidate/ephemeral-candidate.jks
+        trap 'rm -f "$${keystore}"' EXIT
+        keytool -genkeypair -noprompt -keystore "$${keystore}" -storepass "$${password}" \
+          -keypass "$${password}" -alias candidate -keyalg RSA -keysize 3072 -validity 2 \
+          -dname "CN=NewsHub ephemeral Cloud Build candidate"
+        cp "$${apk_output}" /workspace/candidate/extension-candidate.apk
+        "$${apksigner}" sign --ks "$${keystore}" --ks-key-alias candidate \
+          --ks-pass "pass:$${password}" --key-pass "pass:$${password}" \
+          /workspace/candidate/extension-candidate.apk
+        "$${apksigner}" verify --verbose --print-certs /workspace/candidate/extension-candidate.apk
+
+  - id: write-exact-sha-manifest
+    name: ${_OPS_BUILDER_IMAGE}
+    entrypoint: python3
+    timeout: 120s
+    env:
+      - HEAD_SHA=${_HEAD_SHA}
+      - PR_NUMBER=${_PR_NUMBER}
+      - BUILD_ID=$BUILD_ID
+    args:
+      - -c
+      - |
+        import hashlib, json, os, pathlib, re
+        head = os.environ["HEAD_SHA"]
+        pr = os.environ["PR_NUMBER"]
+        assert re.fullmatch(r"[0-9a-f]{40}", head)
+        assert re.fullmatch(r"[1-9][0-9]*", pr)
+        apk = pathlib.Path("/workspace/candidate/extension-candidate.apk")
+        source_id = pathlib.Path("/workspace/context/source-id.txt").read_text().strip()
+        release_module = pathlib.Path("/workspace/context/release-module.txt").read_text().strip()
+        package_name = pathlib.Path("/workspace/context/package.txt").read_text().strip()
+        manifest = {
+            "schemaVersion": 1,
+            "sourceId": source_id,
+            "releaseModule": release_module,
+            "package": package_name,
+            "pullRequest": int(pr),
+            "headSha": head,
+            "apkSha256": hashlib.sha256(apk.read_bytes()).hexdigest(),
+            "signingPurpose": "ephemeral-test-only",
+            "cloudBuildId": os.environ.get("BUILD_ID", ""),
+        }
+        pathlib.Path("/workspace/candidate/candidate-manifest.json").write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2) + "\n"
+        )
+        pathlib.Path("/workspace/candidate/HEAD_SHA").write_text(head + "\n")
+        pathlib.Path("/workspace/candidate/SHA256SUMS").write_text(
+            f"{manifest['apkSha256']}  extension-candidate.apk\n"
+        )
+
+artifacts:
+  objects:
+    location: gs://${_CANDIDATE_BUCKET}/pr/${_PR_NUMBER}/${_HEAD_SHA}/
+    paths:
+      - candidate/extension-candidate.apk
+      - candidate/candidate-manifest.json
+      - candidate/HEAD_SHA
+      - candidate/SHA256SUMS
