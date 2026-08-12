@@ -110,20 +110,10 @@ class SigningMigrationIntegrationTest(unittest.TestCase):
             with self.assertRaisesRegex(MigrationValidationError, "does not match"):
                 decrypt_and_validate(encrypted, recipient_cert, recipient_key)
 
-    def test_workflow_is_manual_bounded_and_uploads_only_der(self):
-        workflow = (ROOT / ".github/workflows/temporary-export-signing-secrets.yml").read_text()
-        self.assertIn("workflow_dispatch:", workflow)
-        self.assertNotIn("\n  push:", workflow)
-        self.assertNotIn("pull_request", workflow)
-        self.assertIn("timeout-minutes: 10", workflow)
-        self.assertIn("retention-days: 1", workflow)
-        self.assertIn("/signing-migration.der", workflow)
-        self.assertNotIn("path: ${{ steps.encrypt.outputs.encrypted_dir }}/payload.json", workflow)
-        self.assertIn("SIGNING_CERT_SHA256: ${{ secrets.SIGNING_CERT_SHA256 }}", workflow)
-        self.assertNotIn("EXTENSIONS_REPO_TOKEN", workflow)
-        job_header, upload_step = workflow.split("      - name: Upload encrypted DER only", 1)
-        self.assertIn("        env:\n          SIGNING_KEY:", job_header)
-        self.assertNotIn("SIGNING_KEY: ${{ secrets.SIGNING_KEY }}", upload_step)
+    def test_temporary_migration_workflow_has_been_removed(self):
+        self.assertFalse(
+            (ROOT / ".github/workflows/temporary-export-signing-secrets.yml").exists()
+        )
 
 
 class SigningMigrationSchemaTest(unittest.TestCase):

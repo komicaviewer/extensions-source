@@ -86,12 +86,14 @@ def exchange_token(
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--private-key", type=Path, required=True)
     args = parser.parse_args()
     try:
+        private_key = args.private_key.read_text(encoding="utf-8")
         token, expires_at = exchange_token(
             os.environ.get("GITHUB_APP_ID", ""),
             os.environ.get("GITHUB_APP_INSTALLATION_ID", ""),
-            os.environ.get("GITHUB_APP_PRIVATE_KEY", ""),
+            private_key,
             os.environ.get("GITHUB_APP_REPOSITORY", ""),
         )
         args.output.parent.mkdir(parents=True, exist_ok=True)

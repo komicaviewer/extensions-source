@@ -1,5 +1,6 @@
-# Bounded main-branch release build. Signing and GitHub App material are read
-# only through Secret Manager secretEnv. No long-lived GitHub token is stored.
+# Bounded main-branch release build. Publisher and signing material comes from
+# one strictly validated, version-pinned Secret Manager bundle. No long-lived
+# GitHub token is stored.
 timeout: 3000s
 queueTtl: 600s
 
@@ -24,6 +25,9 @@ substitutions:
   _OPS_BUILDER_IMAGE: REQUIRED_DIGEST_PINNED_OPS_IMAGE
   _PUBLISH_SERVICE_ACCOUNT: extensions-publisher@$PROJECT_ID.iam.gserviceaccount.com
   _SECRET_PREFIX: REQUIRED_SECRET_PREFIX
+  _PUBLISHER_SIGNING_BUNDLE_VERSION: REQUIRED_PINNED_SECRET_VERSION
+  _PUBLISHER_GITHUB_APP_ID: REQUIRED_PUBLISHER_GITHUB_APP_ID
+  _PUBLISHER_GITHUB_APP_INSTALLATION_ID: REQUIRED_PUBLISHER_GITHUB_APP_INSTALLATION_ID
 
 steps:
   - id: checkout-exact-source
@@ -89,70 +93,93 @@ steps:
           cp "$${apk}" "/workspace/unsigned/$${apk_name}"
         done < <(python3 scripts/release_catalog.py artifact-rows)
 
+  - id: materialize-publisher-signing-bundle
+    name: ${_OPS_BUILDER_IMAGE}
+    entrypoint: bash
+    timeout: 120s
+    waitFor: [build-unsigned]
+    secretEnv: [PUBLISHER_SIGNING_BUNDLE]
+    args:
+      - -ceu
+      - |
+        set +x
+        umask 077
+        install -d -m 700 /workspace/secure
+        raw_bundle=/workspace/secure/publisher-signing-bundle.json
+        cleanup() {
+          find "$${raw_bundle}" -type f -exec shred -u {} + 2>/dev/null || rm -f -- "$${raw_bundle}"
+        }
+        trap cleanup EXIT
+        printf '%s' "$${PUBLISHER_SIGNING_BUNDLE}" > "$${raw_bundle}"
+        chmod 600 "$${raw_bundle}"
+        python3 /workspace/source/scripts/materialize_publisher_signing_bundle.py \
+          --input "$${raw_bundle}" \
+          --output-dir /workspace/secure/publisher
+
   - id: sign-eyny
     name: ${_ANDROID_BUILDER_IMAGE}
     entrypoint: bash
     timeout: 300s
-    waitFor: [build-unsigned]
-    secretEnv: [EYNY_SIGNING_KEY_B64, EYNY_KEY_STORE_PASSWORD, EYNY_KEY_ALIAS, EYNY_KEY_PASSWORD, EYNY_SIGNING_CERT_SHA256]
-    args: [-ceu, 'python3 /workspace/source/scripts/sign_release_bundle.py --module eyny --input-dir /workspace/unsigned --output-dir /workspace/apks --apksigner /workspace/android-build-tools/apksigner --env-prefix EYNY']
+    waitFor: [materialize-publisher-signing-bundle]
+    args: [-ceu, 'python3 /workspace/source/scripts/sign_release_bundle.py --module eyny --input-dir /workspace/unsigned --output-dir /workspace/apks --apksigner /workspace/android-build-tools/apksigner --credentials-file /workspace/secure/publisher/signing/eyny.json']
 
   - id: sign-gamer
     name: ${_ANDROID_BUILDER_IMAGE}
     entrypoint: bash
     timeout: 300s
-    waitFor: [build-unsigned]
-    secretEnv: [GAMER_SIGNING_KEY_B64, GAMER_KEY_STORE_PASSWORD, GAMER_KEY_ALIAS, GAMER_KEY_PASSWORD, GAMER_SIGNING_CERT_SHA256]
-    args: [-ceu, 'python3 /workspace/source/scripts/sign_release_bundle.py --module gamer --input-dir /workspace/unsigned --output-dir /workspace/apks --apksigner /workspace/android-build-tools/apksigner --env-prefix GAMER']
+    waitFor: [materialize-publisher-signing-bundle]
+    args: [-ceu, 'python3 /workspace/source/scripts/sign_release_bundle.py --module gamer --input-dir /workspace/unsigned --output-dir /workspace/apks --apksigner /workspace/android-build-tools/apksigner --credentials-file /workspace/secure/publisher/signing/gamer.json']
 
   - id: sign-hackernews
     name: ${_ANDROID_BUILDER_IMAGE}
     entrypoint: bash
     timeout: 300s
-    waitFor: [build-unsigned]
-    secretEnv: [HACKERNEWS_SIGNING_KEY_B64, HACKERNEWS_KEY_STORE_PASSWORD, HACKERNEWS_KEY_ALIAS, HACKERNEWS_KEY_PASSWORD, HACKERNEWS_SIGNING_CERT_SHA256]
-    args: [-ceu, 'python3 /workspace/source/scripts/sign_release_bundle.py --module hackernews --input-dir /workspace/unsigned --output-dir /workspace/apks --apksigner /workspace/android-build-tools/apksigner --env-prefix HACKERNEWS']
+    waitFor: [materialize-publisher-signing-bundle]
+    args: [-ceu, 'python3 /workspace/source/scripts/sign_release_bundle.py --module hackernews --input-dir /workspace/unsigned --output-dir /workspace/apks --apksigner /workspace/android-build-tools/apksigner --credentials-file /workspace/secure/publisher/signing/hackernews.json']
 
   - id: sign-komica
     name: ${_ANDROID_BUILDER_IMAGE}
     entrypoint: bash
     timeout: 300s
-    waitFor: [build-unsigned]
-    secretEnv: [KOMICA_SIGNING_KEY_B64, KOMICA_KEY_STORE_PASSWORD, KOMICA_KEY_ALIAS, KOMICA_KEY_PASSWORD, KOMICA_SIGNING_CERT_SHA256]
-    args: [-ceu, 'python3 /workspace/source/scripts/sign_release_bundle.py --module komica --input-dir /workspace/unsigned --output-dir /workspace/apks --apksigner /workspace/android-build-tools/apksigner --env-prefix KOMICA']
+    waitFor: [materialize-publisher-signing-bundle]
+    args: [-ceu, 'python3 /workspace/source/scripts/sign_release_bundle.py --module komica --input-dir /workspace/unsigned --output-dir /workspace/apks --apksigner /workspace/android-build-tools/apksigner --credentials-file /workspace/secure/publisher/signing/komica.json']
 
   - id: sign-komica2
     name: ${_ANDROID_BUILDER_IMAGE}
     entrypoint: bash
     timeout: 300s
-    waitFor: [build-unsigned]
-    secretEnv: [KOMICA2_SIGNING_KEY_B64, KOMICA2_KEY_STORE_PASSWORD, KOMICA2_KEY_ALIAS, KOMICA2_KEY_PASSWORD, KOMICA2_SIGNING_CERT_SHA256]
-    args: [-ceu, 'python3 /workspace/source/scripts/sign_release_bundle.py --module komica2 --input-dir /workspace/unsigned --output-dir /workspace/apks --apksigner /workspace/android-build-tools/apksigner --env-prefix KOMICA2']
+    waitFor: [materialize-publisher-signing-bundle]
+    args: [-ceu, 'python3 /workspace/source/scripts/sign_release_bundle.py --module komica2 --input-dir /workspace/unsigned --output-dir /workspace/apks --apksigner /workspace/android-build-tools/apksigner --credentials-file /workspace/secure/publisher/signing/komica2.json']
 
   - id: sign-mobile01
     name: ${_ANDROID_BUILDER_IMAGE}
     entrypoint: bash
     timeout: 300s
-    waitFor: [build-unsigned]
-    secretEnv: [MOBILE01_SIGNING_KEY_B64, MOBILE01_KEY_STORE_PASSWORD, MOBILE01_KEY_ALIAS, MOBILE01_KEY_PASSWORD, MOBILE01_SIGNING_CERT_SHA256]
-    args: [-ceu, 'python3 /workspace/source/scripts/sign_release_bundle.py --module mobile01 --input-dir /workspace/unsigned --output-dir /workspace/apks --apksigner /workspace/android-build-tools/apksigner --env-prefix MOBILE01']
+    waitFor: [materialize-publisher-signing-bundle]
+    args: [-ceu, 'python3 /workspace/source/scripts/sign_release_bundle.py --module mobile01 --input-dir /workspace/unsigned --output-dir /workspace/apks --apksigner /workspace/android-build-tools/apksigner --credentials-file /workspace/secure/publisher/signing/mobile01.json']
 
   - id: sign-ptt
     name: ${_ANDROID_BUILDER_IMAGE}
     entrypoint: bash
     timeout: 300s
-    waitFor: [build-unsigned]
-    secretEnv: [PTT_SIGNING_KEY_B64, PTT_KEY_STORE_PASSWORD, PTT_KEY_ALIAS, PTT_KEY_PASSWORD, PTT_SIGNING_CERT_SHA256]
-    args: [-ceu, 'python3 /workspace/source/scripts/sign_release_bundle.py --module ptt --input-dir /workspace/unsigned --output-dir /workspace/apks --apksigner /workspace/android-build-tools/apksigner --env-prefix PTT']
+    waitFor: [materialize-publisher-signing-bundle]
+    args: [-ceu, 'python3 /workspace/source/scripts/sign_release_bundle.py --module ptt --input-dir /workspace/unsigned --output-dir /workspace/apks --apksigner /workspace/android-build-tools/apksigner --credentials-file /workspace/secure/publisher/signing/ptt.json']
 
   - id: mint-short-lived-github-token
     name: ${_ANDROID_BUILDER_IMAGE}
     entrypoint: python3
     timeout: 120s
     waitFor: [sign-eyny, sign-gamer, sign-hackernews, sign-komica, sign-komica2, sign-mobile01, sign-ptt]
-    secretEnv: [GITHUB_APP_ID, GITHUB_APP_INSTALLATION_ID, GITHUB_APP_PRIVATE_KEY]
-    env: [GITHUB_APP_REPOSITORY=extensions]
-    args: [/workspace/source/scripts/github_app_token.py, --output, /workspace/secure/github-token]
+    env:
+      - GITHUB_APP_ID=${_PUBLISHER_GITHUB_APP_ID}
+      - GITHUB_APP_INSTALLATION_ID=${_PUBLISHER_GITHUB_APP_INSTALLATION_ID}
+      - GITHUB_APP_REPOSITORY=extensions
+    args:
+      - /workspace/source/scripts/github_app_token.py
+      - --private-key
+      - /workspace/secure/publisher/github-app-private-key.pem
+      - --output
+      - /workspace/secure/github-token
 
   - id: checkout-current-distribution
     name: ${_OPS_BUILDER_IMAGE}
@@ -215,43 +242,18 @@ steps:
       - --source-sha
       - ${_SOURCE_SHA}
 
+  - id: cleanup-private-material
+    name: ${_OPS_BUILDER_IMAGE}
+    entrypoint: bash
+    timeout: 60s
+    waitFor: [publish-exact-distribution-pr]
+    args:
+      - -ceu
+      - |
+        find /workspace/secure -type f -exec shred -u {} + 2>/dev/null || true
+        rm -rf -- /workspace/secure
+
 availableSecrets:
   secretManager:
-    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-eyny-key-b64/versions/latest, env: EYNY_SIGNING_KEY_B64}
-    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-eyny-store-password/versions/latest, env: EYNY_KEY_STORE_PASSWORD}
-    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-eyny-alias/versions/latest, env: EYNY_KEY_ALIAS}
-    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-eyny-key-password/versions/latest, env: EYNY_KEY_PASSWORD}
-    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-eyny-cert-sha256/versions/latest, env: EYNY_SIGNING_CERT_SHA256}
-    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-gamer-key-b64/versions/latest, env: GAMER_SIGNING_KEY_B64}
-    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-gamer-store-password/versions/latest, env: GAMER_KEY_STORE_PASSWORD}
-    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-gamer-alias/versions/latest, env: GAMER_KEY_ALIAS}
-    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-gamer-key-password/versions/latest, env: GAMER_KEY_PASSWORD}
-    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-gamer-cert-sha256/versions/latest, env: GAMER_SIGNING_CERT_SHA256}
-    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-hackernews-key-b64/versions/latest, env: HACKERNEWS_SIGNING_KEY_B64}
-    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-hackernews-store-password/versions/latest, env: HACKERNEWS_KEY_STORE_PASSWORD}
-    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-hackernews-alias/versions/latest, env: HACKERNEWS_KEY_ALIAS}
-    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-hackernews-key-password/versions/latest, env: HACKERNEWS_KEY_PASSWORD}
-    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-hackernews-cert-sha256/versions/latest, env: HACKERNEWS_SIGNING_CERT_SHA256}
-    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-komica-key-b64/versions/latest, env: KOMICA_SIGNING_KEY_B64}
-    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-komica-store-password/versions/latest, env: KOMICA_KEY_STORE_PASSWORD}
-    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-komica-alias/versions/latest, env: KOMICA_KEY_ALIAS}
-    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-komica-key-password/versions/latest, env: KOMICA_KEY_PASSWORD}
-    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-komica-cert-sha256/versions/latest, env: KOMICA_SIGNING_CERT_SHA256}
-    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-komica2-key-b64/versions/latest, env: KOMICA2_SIGNING_KEY_B64}
-    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-komica2-store-password/versions/latest, env: KOMICA2_KEY_STORE_PASSWORD}
-    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-komica2-alias/versions/latest, env: KOMICA2_KEY_ALIAS}
-    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-komica2-key-password/versions/latest, env: KOMICA2_KEY_PASSWORD}
-    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-komica2-cert-sha256/versions/latest, env: KOMICA2_SIGNING_CERT_SHA256}
-    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-mobile01-key-b64/versions/latest, env: MOBILE01_SIGNING_KEY_B64}
-    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-mobile01-store-password/versions/latest, env: MOBILE01_KEY_STORE_PASSWORD}
-    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-mobile01-alias/versions/latest, env: MOBILE01_KEY_ALIAS}
-    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-mobile01-key-password/versions/latest, env: MOBILE01_KEY_PASSWORD}
-    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-mobile01-cert-sha256/versions/latest, env: MOBILE01_SIGNING_CERT_SHA256}
-    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-ptt-key-b64/versions/latest, env: PTT_SIGNING_KEY_B64}
-    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-ptt-store-password/versions/latest, env: PTT_KEY_STORE_PASSWORD}
-    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-ptt-alias/versions/latest, env: PTT_KEY_ALIAS}
-    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-ptt-key-password/versions/latest, env: PTT_KEY_PASSWORD}
-    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-sign-ptt-cert-sha256/versions/latest, env: PTT_SIGNING_CERT_SHA256}
-    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-github-app-id/versions/latest, env: GITHUB_APP_ID}
-    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-github-app-installation-id/versions/latest, env: GITHUB_APP_INSTALLATION_ID}
-    - {versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-github-app-private-key/versions/latest, env: GITHUB_APP_PRIVATE_KEY}
+    - versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-publisher-signing-bundle/versions/${_PUBLISHER_SIGNING_BUNDLE_VERSION}
+      env: PUBLISHER_SIGNING_BUNDLE
