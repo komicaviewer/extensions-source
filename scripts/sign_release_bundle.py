@@ -11,12 +11,14 @@ import re
 import subprocess
 import sys
 import tempfile
+import json
 from pathlib import Path
 
 from extension_automation import PolicyError
 
 
 MODULE_RE = re.compile(r"^[a-z0-9-]+$")
+CREDENTIAL_KEYS = {"keyB64", "storePassword", "alias", "keyPassword", "certificateSha256"}
 
 
 def _required_env(prefix: str, suffix: str) -> str:
@@ -27,17 +29,61 @@ def _required_env(prefix: str, suffix: str) -> str:
     return value
 
 
-def sign_bundle(module: str, input_dir: Path, output_dir: Path, apksigner: str, prefix: str) -> Path:
+def _load_credentials(path: Path) -> tuple[str, str, str, str, str]:
+    if not path.is_file() or path.stat().st_size <= 0 or path.stat().st_size >= 65_536:
+        raise PolicyError("signing credentials file is missing or too large")
+    try:
+        def no_duplicates(pairs: list[tuple[str, object]]) -> dict[str, object]:
+            value: dict[str, object] = {}
+            for key, item in pairs:
+                if key in value:
+                    raise PolicyError("signing credentials contain a duplicate key")
+                value[key] = item
+            return value
+
+        payload = json.loads(
+            path.read_text(encoding="utf-8"), object_pairs_hook=no_duplicates
+        )
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise PolicyError("signing credentials file is not valid UTF-8 JSON") from exc
+    if not isinstance(payload, dict) or set(payload) != CREDENTIAL_KEYS:
+        raise PolicyError("signing credentials do not match the strict schema")
+    if any(not isinstance(payload[key], str) or not payload[key] or "\x00" in payload[key] for key in CREDENTIAL_KEYS):
+        raise PolicyError("signing credentials contain an invalid value")
+    return (
+        payload["keyB64"],
+        payload["storePassword"],
+        payload["alias"],
+        payload["keyPassword"],
+        payload["certificateSha256"],
+    )
+
+
+def sign_bundle(
+    module: str,
+    input_dir: Path,
+    output_dir: Path,
+    apksigner: str,
+    prefix: str | None = None,
+    credentials_file: Path | None = None,
+) -> Path:
     if not MODULE_RE.fullmatch(module):
         raise PolicyError("invalid release module")
     candidates = sorted(input_dir.glob(f"newshub-{module}-v*.apk"))
     if len(candidates) != 1:
         raise PolicyError(f"expected exactly one unsigned APK for {module}, found {len(candidates)}")
-    key_b64 = _required_env(prefix, "SIGNING_KEY_B64")
-    store_password = _required_env(prefix, "KEY_STORE_PASSWORD")
-    alias = _required_env(prefix, "KEY_ALIAS")
-    key_password = _required_env(prefix, "KEY_PASSWORD")
-    expected = re.sub(r"[\s:]", "", _required_env(prefix, "SIGNING_CERT_SHA256")).upper()
+    if (prefix is None) == (credentials_file is None):
+        raise PolicyError("exactly one signing credential source is required")
+    if credentials_file is not None:
+        key_b64, store_password, alias, key_password, expected_raw = _load_credentials(credentials_file)
+    else:
+        assert prefix is not None
+        key_b64 = _required_env(prefix, "SIGNING_KEY_B64")
+        store_password = _required_env(prefix, "KEY_STORE_PASSWORD")
+        alias = _required_env(prefix, "KEY_ALIAS")
+        key_password = _required_env(prefix, "KEY_PASSWORD")
+        expected_raw = _required_env(prefix, "SIGNING_CERT_SHA256")
+    expected = re.sub(r"[\s:]", "", expected_raw).upper()
     if not re.fullmatch(r"[0-9A-F]{64}", expected):
         raise PolicyError(f"invalid signing certificate SHA-256 for {module}")
     try:
@@ -104,11 +150,18 @@ def main() -> int:
     parser.add_argument("--input-dir", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--apksigner", required=True)
-    parser.add_argument("--env-prefix", required=True)
+    credential_source = parser.add_mutually_exclusive_group(required=True)
+    credential_source.add_argument("--env-prefix")
+    credential_source.add_argument("--credentials-file", type=Path)
     args = parser.parse_args()
     try:
         output = sign_bundle(
-            args.module, args.input_dir, args.output_dir, args.apksigner, args.env_prefix
+            args.module,
+            args.input_dir,
+            args.output_dir,
+            args.apksigner,
+            args.env_prefix,
+            args.credentials_file,
         )
         print(output.name)
     except (OSError, subprocess.CalledProcessError, PolicyError) as exc:

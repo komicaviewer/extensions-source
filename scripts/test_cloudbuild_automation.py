@@ -8,11 +8,17 @@ from types import SimpleNamespace
 from unittest import mock
 
 import github_app_token
+import materialize_publisher_signing_bundle
 import publish_distribution_pr
 from cloudbuild_export_context import export_context
 from extension_automation import PolicyError
 from publish_distribution_pr import validate_staged_paths
 from sign_release_bundle import sign_bundle
+from materialize_publisher_signing_bundle import (
+    PublisherBundleError,
+    materialize,
+    parse_bundle,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -83,6 +89,74 @@ class CloudBuildAutomationTest(unittest.TestCase):
             rendered_args = " ".join(str(item) for args, _env in calls for item in args)
             self.assertNotIn("store-secret", rendered_args)
             self.assertNotIn("key-secret", rendered_args)
+
+    def test_signer_accepts_strict_private_credentials_file(self):
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            (directory / "newshub-gamer-v1.apk").write_bytes(b"unsigned")
+            cert = "A" * 64
+            credentials = directory / "gamer.json"
+            credentials.write_text(
+                json.dumps(
+                    {
+                        "keyB64": base64.b64encode(b"keystore").decode(),
+                        "storePassword": "store-secret",
+                        "alias": "alias",
+                        "keyPassword": "key-secret",
+                        "certificateSha256": cert,
+                    }
+                )
+            )
+
+            def fake_run(args, **_kwargs):
+                if "verify" in args:
+                    return SimpleNamespace(
+                        stdout=f"Signer #1 certificate SHA-256 digest: {cert}\n"
+                    )
+                return SimpleNamespace(stdout="")
+
+            with mock.patch("sign_release_bundle.subprocess.run", side_effect=fake_run):
+                output = sign_bundle(
+                    "gamer",
+                    directory,
+                    directory / "out",
+                    "apksigner",
+                    credentials_file=credentials,
+                )
+            self.assertTrue(output.is_file())
+
+    def test_publisher_bundle_is_strict_and_materializes_private_files(self):
+        signing = {
+            module: {
+                "keyB64": "a2V5",
+                "storePassword": "store",
+                "alias": "alias",
+                "keyPassword": "key",
+                "certificateSha256": "aa:" * 31 + "aa",
+            }
+            for module in materialize_publisher_signing_bundle.SIGNING_MODULES
+        }
+        raw = json.dumps(
+            {
+                "schemaVersion": 1,
+                "bundleType": "publisher-signing",
+                "privateKeyPem": "-----BEGIN PRIVATE KEY-----\nYWJj\n-----END PRIVATE KEY-----\n",
+                "signing": signing,
+            }
+        ).encode()
+        payload = parse_bundle(raw)
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp) / "private"
+            materialize(payload, output)
+            files = {path.relative_to(output).as_posix() for path in output.rglob("*") if path.is_file()}
+            self.assertEqual(
+                {"github-app-private-key.pem"}
+                | {f"signing/{module}.json" for module in signing},
+                files,
+            )
+            self.assertTrue(all(path.stat().st_mode & 0o777 == 0o600 for path in output.rglob("*") if path.is_file()))
+        with self.assertRaisesRegex(PublisherBundleError, "strict allowlist"):
+            parse_bundle(raw[:-1] + b',"unexpected":"secret"}')
 
     def test_github_app_jwt_is_short_lived(self):
         with mock.patch.object(
@@ -179,24 +253,34 @@ class CloudBuildAutomationTest(unittest.TestCase):
         self.assertIn("machineType: E2_STANDARD_2", config)
         self.assertIn("timeout: 3000s", config)
         self.assertNotIn("retry", config.lower())
+        self.assertIn("id: cleanup-private-material", config)
+        self.assertIn("waitFor: [publish-exact-distribution-pr]", config)
         for module in ("eyny", "gamer", "hackernews", "komica", "komica2", "mobile01", "ptt"):
             self.assertIn(f"id: sign-{module}", config)
+            self.assertIn(
+                f"--credentials-file /workspace/secure/publisher/signing/{module}.json",
+                config,
+            )
 
     def test_publish_prefixes_every_secret_manager_reference(self):
         config = (ROOT / "cloudbuild/publish.yaml").read_text(encoding="utf-8")
         version_names = [
             value.strip() for value in re.findall(r"versionName:\s*([^,\n]+)", config)
         ]
-        self.assertEqual(38, len(version_names))
+        self.assertEqual(1, len(version_names))
         self.assertIn("_SECRET_PREFIX: REQUIRED_SECRET_PREFIX", config)
-        self.assertTrue(
-            all(
-                value.startswith("projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-extensions-")
-                and value.endswith("/versions/latest")
-                for value in version_names
-            )
+        self.assertEqual(
+            "projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-publisher-signing-bundle/versions/${_PUBLISHER_SIGNING_BUNDLE_VERSION}",
+            version_names[0],
         )
-        self.assertNotIn("/secrets/extensions-", config)
+        self.assertNotIn("versions/latest", config)
+        self.assertIn("GITHUB_APP_ID=${_PUBLISHER_GITHUB_APP_ID}", config)
+        self.assertIn(
+            "GITHUB_APP_INSTALLATION_ID=${_PUBLISHER_GITHUB_APP_INSTALLATION_ID}",
+            config,
+        )
+        self.assertNotIn("GITHUB_APP_ID,", config)
+        self.assertNotIn("GITHUB_APP_PRIVATE_KEY]", config)
 
     def test_publish_requires_controller_supplied_exact_merge_commit(self):
         config = (ROOT / "cloudbuild/publish.yaml").read_text(encoding="utf-8")
