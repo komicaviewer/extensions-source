@@ -171,6 +171,12 @@ class CloudBuildAutomationTest(unittest.TestCase):
         self.assertEqual(claims["exp"] - claims["iat"], 570)
         self.assertEqual(claims["iss"], "123")
 
+    def test_publisher_installation_token_keeps_status_write_scope(self):
+        source = (ROOT / "scripts/github_app_token.py").read_text(encoding="utf-8")
+        self.assertIn('"contents": "write"', source)
+        self.assertIn('"pull_requests": "write"', source)
+        self.assertIn('"statuses": "write"', source)
+
     def test_distribution_publish_allowlist(self):
         validate_staged_paths(
             ["apk/example.apk", "icon/example.png", "index.json", "index.min.json"]

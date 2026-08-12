@@ -59,7 +59,11 @@ def exchange_token(
         data=json.dumps(
             {
                 "repositories": [repository],
-                "permissions": {"contents": "write", "pull_requests": "write"},
+                "permissions": {
+                    "contents": "write",
+                    "pull_requests": "write",
+                    "statuses": "write",
+                },
             }
         ).encode("utf-8"),
         method="POST",
