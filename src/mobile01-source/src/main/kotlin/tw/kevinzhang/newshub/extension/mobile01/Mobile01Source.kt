@@ -21,7 +21,7 @@ class Mobile01Source : SessionAwareSource {
     override val id: String = Mobile01BoardCatalog.SOURCE_ID
     override val name: String = "Mobile01"
     override val language: String = "zh-TW"
-    override val version: Int = 2
+    override val version: Int = 3
     override val iconUrl: String = "https://attach2.mobile01.com/images/touch/apple-touch-icon-180x180.png"
     override val supportsCommentPagination: Boolean = false
     override val alwaysUseRawImage: Boolean = false

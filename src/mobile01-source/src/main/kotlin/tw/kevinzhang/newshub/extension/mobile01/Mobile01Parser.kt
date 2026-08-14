@@ -27,7 +27,8 @@ internal class Mobile01Parser {
     ): List<ThreadSummary> {
         val boardId = requireNotNull(Mobile01UrlPolicy.boardId(boardUrl)) { "Untrusted Mobile01 board URL" }
         val document = Jsoup.parse(html, boardUrl)
-        val titleLinks = document.select(".c-listTableTd__title > a[href]")
+        val titleLinks = document.select(".c-listTableTd__title a[href]")
+            .filter { it.closest(".l-jumpList") == null }
         if (titleLinks.isEmpty()) throw Mobile01PageStructureException("listing")
         return titleLinks.mapNotNull { anchor ->
             val row = anchor.closest(".l-listTable__tr, tr, li") ?: anchor.parent()
