@@ -14,8 +14,8 @@ internal object Mobile01RequestBuilder {
         .url(url)
         .header(
             "User-Agent",
-            "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 " +
-                "(KHTML, like Gecko) Chrome/127.0.0.0 Mobile Safari/537.36 NewsHub-Mobile01/0.1.3",
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 " +
+                "(KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36 NewsHub-Mobile01/0.1.3",
         )
         .header("Accept-Language", "zh-TW,zh;q=0.9")
         .header("Accept", "text/html,application/xhtml+xml")
