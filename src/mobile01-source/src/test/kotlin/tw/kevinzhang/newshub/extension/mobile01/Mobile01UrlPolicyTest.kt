@@ -17,9 +17,12 @@ class Mobile01UrlPolicyTest {
     }
 
     @Test
-    fun `request builder does not add bypass headers`() {
+    fun `request builder identifies NewsHub while requesting a public browser document`() {
         val request = Mobile01RequestBuilder.thread("https://www.mobile01.com/topicdetail.php?f=350&t=5356590")
-        assertEquals("NewsHub Mobile01 extension/0.1.1", request.header("User-Agent"))
+        assertTrue(request.header("User-Agent")!!.contains("NewsHub-Mobile01/0.1.3"))
+        assertEquals("document", request.header("Sec-Fetch-Dest"))
+        assertEquals("navigate", request.header("Sec-Fetch-Mode"))
+        assertEquals("none", request.header("Sec-Fetch-Site"))
         assertNull(request.header("Cookie"))
         assertTrue(request.headers.names().none { it.equals("Referer", true) })
     }

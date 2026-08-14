@@ -34,6 +34,17 @@ class Mobile01ParserTest {
     }
 
     @Test
+    fun `listing parser supports current article item markup`() {
+        val threads = parser.parseThreadSummaries(resource("topic-list-current.html"), boardUrl, null, listingPage = 1)
+
+        assertEquals(listOf("7285709"), threads.map { Mobile01UrlPolicy.thread(it.id)?.threadId })
+        assertEquals("請問，iphone 裝監控軟體的機率", threads.single().title)
+        assertEquals("ucandoit1010", threads.single().author)
+        assertEquals(1786677600000, threads.single().createdAt)
+        assertEquals(17, threads.single().replyCount)
+    }
+
+    @Test
     fun `listing parser does not reject ordinary titles that mention promotion or pinning`() {
         val html = """
             <div class="l-listTable__tr">
@@ -89,6 +100,22 @@ class Mobile01ParserTest {
         assertEquals(1784343600000, page.posts.single().createdAt)
         assertTrue(page.posts.single().content.any { it is Paragraph.VideoInfo && it.site == Paragraph.VideoInfo.Site.YOUTUBE })
         assertNull(page.nextPageToken)
+    }
+
+    @Test
+    fun `thread parser supports current main article markup`() {
+        val page = parser.parseThreadPage(
+            resource("topic-detail-current.html"),
+            "https://www.mobile01.com/topicdetail.php?f=350&t=7285709",
+            null,
+        )
+
+        assertEquals(listOf("93457188", "93457283"), page.posts.map { it.id })
+        assertEquals(listOf("樓主", "回覆者"), page.posts.map { it.author })
+        assertEquals("現行文章標題", page.title)
+        assertEquals("https://www.mobile01.com/topicdetail.php?f=350&t=7285709&p=2", page.nextPageToken)
+        assertTrue(page.posts.first().content.filterIsInstance<Paragraph.Text>().any { it.content.contains("現行本文") })
+        assertTrue(page.posts.last().content.any { it is Paragraph.Quote })
     }
 
     @Test

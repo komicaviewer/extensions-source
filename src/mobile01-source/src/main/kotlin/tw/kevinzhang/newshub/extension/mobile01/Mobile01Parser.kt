@@ -27,11 +27,13 @@ internal class Mobile01Parser {
     ): List<ThreadSummary> {
         val boardId = requireNotNull(Mobile01UrlPolicy.boardId(boardUrl)) { "Untrusted Mobile01 board URL" }
         val document = Jsoup.parse(html, boardUrl)
-        val titleLinks = document.select(".c-listTableTd__title a[href]")
+        val titleLinks = document.select(
+            ".c-listTableTd__title a[href], .c-articleItem__title > a[href]",
+        )
             .filter { it.closest(".l-jumpList") == null }
         if (titleLinks.isEmpty()) throw Mobile01PageStructureException("listing")
         return titleLinks.mapNotNull { anchor ->
-            val row = anchor.closest(".l-listTable__tr, tr, li") ?: anchor.parent()
+            val row = anchor.closest(".l-listTable__tr, .c-articleItem, tr, li") ?: anchor.parent()
             if (listingPage > 1 && row.isSticky()) return@mapNotNull null
             val thread = Mobile01UrlPolicy.resolveThread(boardUrl, anchor.attr("href")) ?: return@mapNotNull null
             if (thread.boardId != boardId || row.isPromoted()) return@mapNotNull null
@@ -43,7 +45,7 @@ internal class Mobile01Parser {
                 // A listing may link to the latest page. The summary must still identify page one.
                 id = Mobile01UrlPolicy.threadUrl(thread.boardId, thread.threadId),
                 title = title,
-                author = value(row, ".u-username"),
+                author = value(row, ".u-username", ".c-articleItemRemark__wAuto > span"),
                 // Listing order is driven by the last activity, not the original publish time.
                 createdAt = lastActivityFrom(row),
                 commentCount = countFrom(row),
@@ -71,8 +73,8 @@ internal class Mobile01Parser {
     }
 
     private fun postElements(document: org.jsoup.nodes.Document): List<Element> {
-        return document.select(".l-articlePage")
-            .filter { it.selectFirst(".l-articlePage__publish article[id^=article_]") != null }
+        return document.select(".l-articlePage, .l-mainArticle")
+            .filter { articleFrom(it) != null }
     }
 
     private fun parsePost(
@@ -80,8 +82,10 @@ internal class Mobile01Parser {
         thread: Mobile01ThreadUrl,
         sourceIconUrl: String?,
     ): Post? {
-        val article = page.selectFirst(".l-articlePage__publish article[id^=article_]") ?: return null
+        val article = articleFrom(page) ?: return null
         val articleId = ARTICLE_ID.matchEntire(article.id())?.groupValues?.get(1)
+            ?: page.selectFirst("a[name]")?.attr("name")?.takeIf(DIGITS::matches)
+            ?: page.selectFirst("[id^=name_]")?.id()?.let { NAME_ID.matchEntire(it)?.groupValues?.get(1) }
             ?: throw Mobile01PageStructureException("thread post identifier")
         val author = page.selectFirst("#name_$articleId")
             ?.text()
@@ -192,14 +196,14 @@ internal class Mobile01Parser {
     }
 
     private fun countFrom(root: Element): Int? {
-        val candidate = root.selectFirst(".l-listTable__td--count")
+        val candidate = root.selectFirst(".l-listTable__td--count, .c-articleItemRemark__reply span")
             ?.text()
             ?: return null
         return COUNT.find(candidate)?.groupValues?.get(1)?.toIntOrNull()
     }
 
     private fun dateFrom(root: Element): Long? {
-        val raw = root.select(".l-navigation .o-fNotes, .l-toolBar .o-fNotes")
+        val raw = root.select(".l-navigation .o-fNotes, .l-toolBar .o-fNotes, .l-articleAuthor__tag .o-fNotes")
             .firstNotNullOfOrNull { DATE.find(it.text())?.value }
             ?: root.select("time[datetime], time, .c-listTableTd__date")
                 .filter { it.closest("article") == null }
@@ -211,10 +215,14 @@ internal class Mobile01Parser {
     }
 
     private fun lastActivityFrom(row: Element): Long? = row
-        .select(".l-listTable__td--time .o-fNotes")
-        .lastOrNull()
+        .select(".l-listTable__td--time .o-fNotes, .c-articleItemRemark__wAuto span")
+        .lastOrNull { DATE.containsMatchIn(it.text()) }
         ?.text()
         ?.let(::parseDate)
+
+    private fun articleFrom(page: Element): Element? = page.selectFirst(
+        ".l-articlePage__publish article[id^=article_], .l-mainArticle__container article.l-publishArea",
+    )
 
     private fun parseDate(value: String?): Long? {
         val normalized = DATE.find(value.orEmpty())?.value ?: return null
@@ -257,6 +265,8 @@ internal class Mobile01Parser {
     private companion object {
         val TAIPEI: ZoneId = ZoneId.of("Asia/Taipei")
         val ARTICLE_ID = Regex("article_(\\d+)")
+        val NAME_ID = Regex("name_(\\d+)")
+        val DIGITS = Regex("\\d+")
         val COUNT = Regex("(\\d+)")
         val DATE = Regex("\\d{4}[/-]\\d{1,2}[/-]\\d{1,2}\\s+\\d{1,2}:\\d{2}(?::\\d{2})?")
         val DATE_FORMATS = listOf(
