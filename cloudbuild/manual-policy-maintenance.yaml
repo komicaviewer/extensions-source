@@ -1,0 +1,121 @@
+timeout: 600s
+queueTtl: 300s
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  substitutionOption: MUST_MATCH
+
+serviceAccount: projects/$PROJECT_ID/serviceAccounts/${_PUBLISH_SERVICE_ACCOUNT}
+
+substitutions:
+  _BASE_SHA: REQUIRED_BASE_SHA
+  _HEAD_SHA: REQUIRED_HEAD_SHA
+  _SOURCE_SHA: REQUIRED_SOURCE_SHA
+  _PR_NUMBER: "0"
+  _OPS_BUILDER_IMAGE: REQUIRED_DIGEST_PINNED_OPS_IMAGE
+  _PUBLISH_SERVICE_ACCOUNT: REQUIRED_PUBLISH_SERVICE_ACCOUNT
+  _SECRET_PREFIX: REQUIRED_SECRET_PREFIX
+  _PUBLISHER_SIGNING_BUNDLE_VERSION: REQUIRED_PINNED_SECRET_VERSION
+  _PUBLISHER_GITHUB_APP_ID: REQUIRED_PUBLISHER_GITHUB_APP_ID
+  _PUBLISHER_GITHUB_APP_INSTALLATION_ID: REQUIRED_PUBLISHER_GITHUB_APP_INSTALLATION_ID
+
+steps:
+  - id: checkout-exact-inputs
+    name: ${_OPS_BUILDER_IMAGE}
+    entrypoint: bash
+    timeout: 180s
+    env:
+      - BASE_SHA=${_BASE_SHA}
+      - HEAD_SHA=${_HEAD_SHA}
+      - SOURCE_SHA=${_SOURCE_SHA}
+    args:
+      - -ceu
+      - |
+        [[ "$${BASE_SHA}" =~ ^[0-9a-f]{40}$ ]]
+        [[ "$${HEAD_SHA}" =~ ^[0-9a-f]{40}$ ]]
+        [[ "$${SOURCE_SHA}" =~ ^[0-9a-f]{40}$ ]]
+        for pair in "distribution-base:$${BASE_SHA}" "distribution-candidate:$${HEAD_SHA}"; do
+          dir="$${pair%%:*}"
+          sha="$${pair##*:}"
+          git init "/workspace/$${dir}"
+          git -C "/workspace/$${dir}" remote add origin https://github.com/komicaviewer/extensions.git
+          git -C "/workspace/$${dir}" fetch --no-tags --depth=1 origin "$${sha}"
+          git -C "/workspace/$${dir}" checkout --detach "$${sha}"
+          test "$(git -C "/workspace/$${dir}" rev-parse HEAD)" = "$${sha}"
+        done
+        git init /workspace/source
+        git -C /workspace/source remote add origin https://github.com/komicaviewer/extensions-source.git
+        git -C /workspace/source fetch --no-tags --depth=1 origin "$${SOURCE_SHA}"
+        git -C /workspace/source checkout --detach "$${SOURCE_SHA}"
+        test "$(git -C /workspace/source rev-parse HEAD)" = "$${SOURCE_SHA}"
+
+  - id: validate-policy-maintenance
+    name: ${_OPS_BUILDER_IMAGE}
+    entrypoint: bash
+    timeout: 180s
+    waitFor: [checkout-exact-inputs]
+    args:
+      - -ceu
+      - |
+        python3 -m unittest discover -s /workspace/distribution-base/policy -p 'test_*.py' -v
+        python3 /workspace/source/scripts/manual_policy_maintenance_admission.py \
+          --base /workspace/distribution-base \
+          --candidate /workspace/distribution-candidate \
+          --catalog /workspace/source/release-catalog.json
+
+  - id: materialize-publisher-identity
+    name: ${_OPS_BUILDER_IMAGE}
+    entrypoint: bash
+    timeout: 90s
+    waitFor: [validate-policy-maintenance]
+    secretEnv: [PUBLISHER_SIGNING_BUNDLE]
+    args:
+      - -ceu
+      - |
+        set +x
+        umask 077
+        install -d -m 700 /workspace/secure
+        raw=/workspace/secure/publisher-bundle.json
+        trap 'find /workspace/secure -type f -exec shred -u {} + 2>/dev/null || rm -rf /workspace/secure' EXIT
+        printf '%s' "$${PUBLISHER_SIGNING_BUNDLE}" > "$${raw}"
+        chmod 600 "$${raw}"
+        python3 /workspace/source/scripts/materialize_publisher_signing_bundle.py \
+          --input "$${raw}" --output-dir /workspace/secure/publisher
+
+  - id: mint-short-lived-publisher-token
+    name: ${_OPS_BUILDER_IMAGE}
+    entrypoint: python3
+    timeout: 60s
+    waitFor: [materialize-publisher-identity]
+    env:
+      - GITHUB_APP_ID=${_PUBLISHER_GITHUB_APP_ID}
+      - GITHUB_APP_INSTALLATION_ID=${_PUBLISHER_GITHUB_APP_INSTALLATION_ID}
+      - GITHUB_APP_REPOSITORY=extensions
+    args:
+      - /workspace/source/scripts/github_app_token.py
+      - --output
+      - /workspace/secure/github-token
+      - --private-key
+      - /workspace/secure/publisher/github-app-private-key.pem
+
+  - id: publish-exact-head-status
+    name: ${_OPS_BUILDER_IMAGE}
+    entrypoint: python3
+    timeout: 60s
+    waitFor: [mint-short-lived-publisher-token]
+    args:
+      - /workspace/source/scripts/manual_policy_maintenance_admission.py
+      - --post-status
+      - --token-file
+      - /workspace/secure/github-token
+      - --pr-number
+      - ${_PR_NUMBER}
+      - --base-sha
+      - ${_BASE_SHA}
+      - --head-sha
+      - ${_HEAD_SHA}
+
+availableSecrets:
+  secretManager:
+    - versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-publisher-signing-bundle/versions/${_PUBLISHER_SIGNING_BUNDLE_VERSION}
+      env: PUBLISHER_SIGNING_BUNDLE
