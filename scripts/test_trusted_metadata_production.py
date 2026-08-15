@@ -3,7 +3,9 @@ from __future__ import annotations
 import base64
 import datetime as dt
 import hashlib
+import importlib.util
 import json
+import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -19,6 +21,7 @@ from generate_trusted_metadata import (
 )
 from materialize_tuf_role_key import RoleKeyError, parse
 from release_catalog import load_catalog
+from release_catalog import metadata_for_release
 from source_host_contracts import DEFAULT_CONTRACT_PATH
 
 
@@ -33,7 +36,67 @@ def make_key(root: Path, name: str) -> Path:
     return path
 
 
+def load_destination_verifier():
+    destination = Path(
+        os.environ.get(
+            "EXTENSIONS_REPO_DIR",
+            str(Path(__file__).resolve().parents[2] / "extensions"),
+        )
+    ).resolve()
+    verifier_path = destination / "policy" / "trusted_metadata.py"
+    if not verifier_path.is_file():
+        raise unittest.SkipTest(
+            "destination verifier checkout unavailable; set EXTENSIONS_REPO_DIR for cross-repo validation"
+        )
+    spec = importlib.util.spec_from_file_location(
+        "destination_trusted_metadata", verifier_path
+    )
+    if spec is None or spec.loader is None:
+        raise AssertionError(f"cannot load destination verifier: {verifier_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 class ProductionTrustedMetadataTest(unittest.TestCase):
+    def test_merged_catalog_contract_v2_targets_pass_destination_verifier(self) -> None:
+        catalog = load_catalog()
+        policies = catalog_network_policies(catalog, DEFAULT_CONTRACT_PATH)
+        verifier = load_destination_verifier()
+        validated_sources: set[str] = set()
+
+        for release in catalog["releases"]:
+            metadata = metadata_for_release(catalog, release)
+            metadata_sources = {source["id"]: source for source in metadata["sources"]}
+            target_sources = []
+            for catalog_source in release["sources"]:
+                source_id = catalog_source["id"]
+                source_metadata = metadata_sources[source_id]
+                target_sources.append({
+                    "id": source_id,
+                    "service": catalog_source["service"],
+                    "protocol": catalog_source["protocol"],
+                    "policyHash": catalog_source["policyHash"],
+                    "networkPolicy": policies[source_id],
+                    "name": source_metadata["name"],
+                    "lang": source_metadata["lang"],
+                    "baseUrl": source_metadata["baseUrl"],
+                })
+                validated_sources.add(source_id)
+            verifier._check_target_custom({
+                "packageName": release["package"],
+                "versionCode": 1,
+                "versionName": "production-policy-fixture",
+                "name": metadata["name"],
+                "lang": target_sources[0]["lang"],
+                "lineageRootSha256": "1" * 64,
+                "apkSignerPins": ["1" * 64],
+                "sources": target_sources,
+            }, f"apk/{release['module']}-production-policy-fixture.apk")
+
+        self.assertEqual(set(policies), validated_sources)
+        self.assertEqual(13, len(validated_sources))
+
     def test_catalog_network_policy_is_fail_closed(self) -> None:
         catalog = load_catalog()
         policies = catalog_network_policies(catalog, DEFAULT_CONTRACT_PATH)
