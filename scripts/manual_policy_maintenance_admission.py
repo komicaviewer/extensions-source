@@ -15,6 +15,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+from source_host_contracts import load_contract, policy_sha256
+
 
 SHA = re.compile(r"^[0-9a-f]{40}$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
@@ -78,13 +80,25 @@ def changed_paths(base: Path, candidate: Path) -> list[str]:
     )
 
 
-def catalog_hashes(catalog: object) -> dict[str, str]:
+def catalog_hashes(
+    catalog: object,
+    contract_path: Path | None = None,
+) -> dict[str, str]:
     if not isinstance(catalog, dict) or set(catalog) < {"schemaVersion", "releases"}:
         raise AdmissionError("release catalog has an invalid root")
     releases = catalog.get("releases")
     if not isinstance(releases, list) or not releases:
         raise AdmissionError("release catalog has no releases")
+    reviewed_sources: dict[str, dict] | None = None
+    if contract_path is not None:
+        try:
+            contract = load_contract(contract_path)
+        except ValueError as exc:
+            raise AdmissionError("reviewed source host contract is invalid") from exc
+        reviewed_sources = {source["id"]: source for source in contract["sources"]}
+
     values: dict[str, str] = {}
+    v2_source_ids: set[str] = set()
     for release in releases:
         if not isinstance(release, dict) or not isinstance(release.get("sources"), list):
             raise AdmissionError("release catalog entry is invalid")
@@ -95,6 +109,7 @@ def catalog_hashes(catalog: object) -> dict[str, str]:
             expected = source.get("policyHash")
             hosts = source.get("exactHosts")
             capabilities = source.get("namedCapabilities")
+            policy_version = source.get("policyVersion", 1)
             if (
                 not isinstance(source_id, str)
                 or source_id in values
@@ -107,22 +122,39 @@ def catalog_hashes(catalog: object) -> dict[str, str]:
                 or capabilities != sorted(set(capabilities))
             ):
                 raise AdmissionError("release catalog source policy is invalid")
-            policy = {
-                "exactHosts": hosts,
-                "operations": [
-                    {
-                        "name": "source_read",
-                        "methods": ["GET", "HEAD"],
-                        "pathPrefixes": ["/"],
-                        "credentialed": True,
-                    }
-                ],
-                "namedCapabilities": capabilities,
-            }
-            actual = hashlib.sha256(canonical(policy)).hexdigest()
+            if policy_version == 1:
+                policy = {
+                    "exactHosts": hosts,
+                    "operations": [
+                        {
+                            "name": "source_read",
+                            "methods": ["GET", "HEAD"],
+                            "pathPrefixes": ["/"],
+                            "credentialed": True,
+                        }
+                    ],
+                    "namedCapabilities": capabilities,
+                }
+                actual = hashlib.sha256(canonical(policy)).hexdigest()
+            elif policy_version == 2:
+                if reviewed_sources is None:
+                    raise AdmissionError("v2 catalog requires a reviewed source host contract")
+                reviewed = reviewed_sources.get(source_id)
+                if reviewed is None:
+                    raise AdmissionError(f"catalog Source is absent from reviewed contract: {source_id}")
+                if hosts != reviewed["surfaces"]["request"]["exactHttpsHosts"]:
+                    raise AdmissionError(f"catalog request hosts diverge from reviewed contract: {source_id}")
+                if capabilities != reviewed["namedCapabilities"]:
+                    raise AdmissionError(f"catalog capabilities diverge from reviewed contract: {source_id}")
+                actual = policy_sha256(reviewed)
+                v2_source_ids.add(source_id)
+            else:
+                raise AdmissionError(f"unsupported catalog policy version: {source_id}")
             if actual != expected:
                 raise AdmissionError(f"catalog policy hash mismatch: {source_id}")
             values[source_id] = expected
+    if reviewed_sources is not None and v2_source_ids != set(reviewed_sources):
+        raise AdmissionError("catalog and reviewed contract Source sets differ")
     return values
 
 
@@ -149,7 +181,12 @@ def policy_sources(policy: object) -> dict[str, dict]:
     return values
 
 
-def validate(base: Path, candidate: Path, catalog_path: Path) -> list[str]:
+def validate(
+    base: Path,
+    candidate: Path,
+    catalog_path: Path,
+    contract_path: Path | None = None,
+) -> list[str]:
     paths = changed_paths(base, candidate)
     if paths != ["policy/admission_policy.json"]:
         raise AdmissionError(f"policy maintenance changed forbidden paths: {paths}")
@@ -159,7 +196,7 @@ def validate(base: Path, candidate: Path, catalog_path: Path) -> list[str]:
     candidate_sources = policy_sources(candidate_policy)
     if set(base_sources) != set(candidate_sources):
         raise AdmissionError("policy maintenance changed the Source set")
-    catalog = catalog_hashes(load_json(catalog_path, "release catalog"))
+    catalog = catalog_hashes(load_json(catalog_path, "release catalog"), contract_path)
     if set(candidate_sources) != set(catalog):
         raise AdmissionError("catalog and admission policy Source sets differ")
 
@@ -240,6 +277,7 @@ def main() -> int:
     parser.add_argument("--base", type=Path)
     parser.add_argument("--candidate", type=Path)
     parser.add_argument("--catalog", type=Path)
+    parser.add_argument("--contract", type=Path)
     parser.add_argument("--token-file", type=Path)
     parser.add_argument("--pr-number", type=int)
     parser.add_argument("--base-sha")
@@ -262,10 +300,13 @@ def main() -> int:
                 changed = validate_verifier_code(args.base.resolve(), args.candidate.resolve())
                 print("policy verifier maintenance admitted for paths: " + ", ".join(changed))
             else:
-                if not args.catalog:
-                    raise AdmissionError("hash maintenance requires an exact release catalog")
+                if not args.catalog or not args.contract:
+                    raise AdmissionError(
+                        "hash maintenance requires exact release catalog and reviewed contract paths"
+                    )
                 changed = validate(
-                    args.base.resolve(), args.candidate.resolve(), args.catalog.resolve()
+                    args.base.resolve(), args.candidate.resolve(), args.catalog.resolve(),
+                    args.contract.resolve(),
                 )
                 print("policy maintenance admitted for Sources: " + ", ".join(changed))
     except (AdmissionError, OSError, subprocess.SubprocessError, urllib.error.URLError) as exc:
