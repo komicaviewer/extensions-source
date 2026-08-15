@@ -18,6 +18,8 @@ from generate_trusted_metadata import (
     key_id,
 )
 from materialize_tuf_role_key import RoleKeyError, parse
+from release_catalog import load_catalog
+from source_host_contracts import DEFAULT_CONTRACT_PATH
 
 
 def make_key(root: Path, name: str) -> Path:
@@ -33,34 +35,20 @@ def make_key(root: Path, name: str) -> Path:
 
 class ProductionTrustedMetadataTest(unittest.TestCase):
     def test_catalog_network_policy_is_fail_closed(self) -> None:
-        policy = {
-            "exactHosts": ["example.com"],
-            "operations": [{
-                "credentialed": True,
-                "methods": ["GET", "HEAD"],
-                "name": "source_read",
-                "pathPrefixes": ["/"],
-            }],
-            "namedCapabilities": ["external_link"],
-        }
-        source = {
-            "id": "test",
-            "exactHosts": ["example.com"],
-            "namedCapabilities": ["external_link"],
-            "policyHash": hashlib.sha256(canonical(policy)).hexdigest(),
-        }
-        self.assertEqual(policy, catalog_network_policies({"releases": [{"sources": [source]}]})["test"])
+        catalog = load_catalog()
+        policies = catalog_network_policies(catalog, DEFAULT_CONTRACT_PATH)
+        self.assertEqual(13, len(policies))
 
         for field, value in (
             ("exactHosts", ["*.example.com"]),
             ("namedCapabilities", ["raw_socket"]),
             ("policyHash", "00" * 32),
         ):
-            invalid = json.loads(json.dumps(source))
-            invalid[field] = value
+            invalid = json.loads(json.dumps(catalog))
+            invalid["releases"][0]["sources"][0][field] = value
             with self.subTest(field=field):
                 with self.assertRaises(MetadataBuildError):
-                    catalog_network_policies({"releases": [{"sources": [invalid]}]})
+                    catalog_network_policies(invalid, DEFAULT_CONTRACT_PATH)
 
     def test_root_bootstrap_requires_distinct_two_of_two_roles(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -133,11 +121,17 @@ class ProductionTrustedMetadataTest(unittest.TestCase):
             policy_path.write_text(json.dumps(policy))
             catalog_path = root / "catalog.json"
             network_policy = {
-                "exactHosts": ["example.com"],
-                "operations": [{
-                    "name": "source_read", "methods": ["GET", "HEAD"],
-                    "pathPrefixes": ["/"], "credentialed": True,
-                }],
+                "schemaVersion": 2,
+                "request": {"rules": [{
+                    "exactHosts": ["example.com"],
+                    "operation": {
+                        "name": "source_read", "methods": ["GET", "HEAD"],
+                        "pathPrefixes": ["/"], "credentialed": True,
+                    },
+                }]},
+                "resource": {"exactHosts": ["example.com"]},
+                "external": {"exactHosts": ["example.com"]},
+                "auth": {"exactHosts": []},
                 "namedCapabilities": ["external_link", "resource_read"],
             }
             source["policyHash"] = hashlib.sha256(
@@ -154,9 +148,47 @@ class ProductionTrustedMetadataTest(unittest.TestCase):
                 },
                 "releases": [{"sources": [{
                     "id": "test", "policyHash": source["policyHash"],
+                    "policyVersion": 2,
                     "exactHosts": ["example.com"],
                     "namedCapabilities": ["external_link", "resource_read"],
                 }]}],
+            }))
+            (root / "source-host-contracts.json").write_text(json.dumps({
+                "schemaVersion": 1,
+                "sources": [{
+                    "id": "test",
+                    "module": "test",
+                    "namedCapabilities": ["external_link", "resource_read"],
+                    "surfaces": {
+                        "request": {
+                            "exactHttpsHosts": ["example.com"],
+                            "blockedHttpHosts": [],
+                            "dynamicFromContent": False,
+                            "evidence": ["policy.json"],
+                            "rules": [{
+                                "exactHttpsHosts": ["example.com"],
+                                "methods": ["GET", "HEAD"],
+                                "pathPrefixes": ["/"],
+                                "credentialed": True,
+                            }],
+                        },
+                        "resource": {
+                            "exactHttpsHosts": ["example.com"],
+                            "dynamicFromContent": False,
+                            "evidence": ["policy.json"],
+                        },
+                        "external": {
+                            "exactHttpsHosts": ["example.com"],
+                            "dynamicFromContent": False,
+                            "evidence": ["policy.json"],
+                        },
+                        "auth": {
+                            "exactHttpsHosts": [],
+                            "dynamicFromContent": False,
+                            "evidence": ["policy.json"],
+                        },
+                    },
+                }],
             }))
             root_path = root / "root.json"
             root_path.write_text(json.dumps({"signed": {"roles": {

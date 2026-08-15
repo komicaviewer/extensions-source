@@ -1,0 +1,495 @@
+{
+  "schemaVersion": 1,
+  "sources": [
+    {
+      "id": "tw.kevinzhang.eyny",
+      "module": "eyny-source",
+      "namedCapabilities": ["external_link", "eyny_challenge_proof", "resource_read"],
+      "surfaces": {
+        "request": {
+          "exactHttpsHosts": ["eyny.com", "www.eyny.com"],
+          "blockedHttpHosts": [],
+          "rules": [
+            {
+              "exactHttpsHosts": ["eyny.com", "www.eyny.com"],
+              "methods": ["GET"],
+              "pathPrefixes": ["/"],
+              "credentialed": true
+            }
+          ],
+          "dynamicFromContent": false,
+          "evidence": [
+            "src/eyny-source/src/main/kotlin/tw/kevinzhang/newshub/extension/eyny/EynyGateway.kt",
+            "src/eyny-source/src/main/kotlin/tw/kevinzhang/newshub/extension/eyny/EynyUrlPolicy.kt"
+          ]
+        },
+        "resource": {
+          "exactHttpsHosts": ["eyny.com", "www.eyny.com"],
+          "dynamicFromContent": true,
+          "evidence": ["src/eyny-source/src/main/kotlin/tw/kevinzhang/newshub/extension/eyny/EynyParser.kt"]
+        },
+        "external": {
+          "exactHttpsHosts": ["eyny.com", "www.eyny.com"],
+          "dynamicFromContent": true,
+          "evidence": ["src/eyny-source/src/main/kotlin/tw/kevinzhang/newshub/extension/eyny/EynyParser.kt"]
+        },
+        "auth": {
+          "exactHttpsHosts": ["eyny.com", "www.eyny.com"],
+          "dynamicFromContent": false,
+          "evidence": ["src/eyny-source/src/main/kotlin/tw/kevinzhang/newshub/extension/eyny/EynySource.kt"]
+        }
+      }
+    },
+    {
+      "id": "tw.kevinzhang.newshub.extension.gamer",
+      "module": "gamer",
+      "namedCapabilities": ["external_link", "resource_read"],
+      "surfaces": {
+        "request": {
+          "exactHttpsHosts": ["api.gamer.com.tw", "forum.gamer.com.tw"],
+          "blockedHttpHosts": [],
+          "rules": [
+            {
+              "exactHttpsHosts": ["api.gamer.com.tw"],
+              "methods": ["GET"],
+              "pathPrefixes": ["/community/v1/", "/mobile_app/forum/v3/"],
+              "credentialed": false
+            },
+            {
+              "exactHttpsHosts": ["forum.gamer.com.tw"],
+              "methods": ["GET"],
+              "pathPrefixes": ["/B.php", "/C.php", "/ajax/"],
+              "credentialed": true
+            }
+          ],
+          "dynamicFromContent": false,
+          "evidence": [
+            "src/gamer/src/main/kotlin/tw/kevinzhang/gamer_api/interactor/GetBoardPage.kt",
+            "src/gamer/src/main/kotlin/tw/kevinzhang/newshub/extension/gamer/GamerSource.kt",
+            "src/gamer/src/test/kotlin/tw/kevinzhang/gamer_api/interactor/GetBoardPageTest.kt"
+          ]
+        },
+        "resource": {
+          "exactHttpsHosts": ["i2.bahamut.com.tw"],
+          "dynamicFromContent": true,
+          "evidence": ["src/gamer/src/main/kotlin/tw/kevinzhang/newshub/extension/gamer/GamerSource.kt"]
+        },
+        "external": {
+          "exactHttpsHosts": ["forum.gamer.com.tw"],
+          "dynamicFromContent": true,
+          "evidence": ["src/gamer/src/main/kotlin/tw/kevinzhang/newshub/extension/gamer/GamerSource.kt"]
+        },
+        "auth": {
+          "exactHttpsHosts": ["forum.gamer.com.tw", "user.gamer.com.tw", "www.gamer.com.tw"],
+          "dynamicFromContent": false,
+          "evidence": ["src/gamer/src/main/kotlin/tw/kevinzhang/newshub/extension/gamer/GamerSource.kt"]
+        }
+      }
+    },
+    {
+      "id": "tw.kevinzhang.newshub.extension.hackernews",
+      "module": "hackernews",
+      "namedCapabilities": ["external_link", "resource_read"],
+      "surfaces": {
+        "request": {
+          "exactHttpsHosts": ["hacker-news.firebaseio.com"],
+          "blockedHttpHosts": [],
+          "rules": [{"exactHttpsHosts": ["hacker-news.firebaseio.com"], "methods": ["GET"], "pathPrefixes": ["/v0/"], "credentialed": false}],
+          "dynamicFromContent": false,
+          "evidence": [
+            "src/hackernews/src/main/kotlin/tw/kevinzhang/newshub/extension/hackernews/HackerNewsApi.kt",
+            "src/hackernews/src/test/kotlin/tw/kevinzhang/newshub/extension/hackernews/HackerNewsApiTest.kt"
+          ]
+        },
+        "resource": {
+          "exactHttpsHosts": ["avatars.githubusercontent.com"],
+          "dynamicFromContent": false,
+          "evidence": ["src/hackernews/src/main/kotlin/tw/kevinzhang/newshub/extension/hackernews/HackerNewsSource.kt"]
+        },
+        "external": {
+          "exactHttpsHosts": ["news.ycombinator.com"],
+          "dynamicFromContent": true,
+          "evidence": [
+            "src/hackernews/src/main/kotlin/tw/kevinzhang/newshub/extension/hackernews/HackerNewsBoards.kt",
+            "src/hackernews/src/main/kotlin/tw/kevinzhang/newshub/extension/hackernews/HackerNewsSource.kt"
+          ]
+        },
+        "auth": {
+          "exactHttpsHosts": [],
+          "dynamicFromContent": false,
+          "evidence": ["src/hackernews/src/main/kotlin/tw/kevinzhang/newshub/extension/hackernews/HackerNewsSource.kt"]
+        }
+      }
+    },
+    {
+      "id": "tw.kevinzhang.komica.twocat",
+      "module": "twocat-komica",
+      "namedCapabilities": ["external_link", "resource_read"],
+      "surfaces": {
+        "request": {
+          "exactHttpsHosts": ["2cat.org", "cat.2nyan.org", "eclair.nagatoyuki.org", "www.gomiga.org"],
+          "blockedHttpHosts": [],
+          "rules": [{"exactHttpsHosts": ["2cat.org", "cat.2nyan.org", "eclair.nagatoyuki.org", "www.gomiga.org"], "methods": ["GET"], "pathPrefixes": ["/"], "credentialed": false}],
+          "dynamicFromContent": false,
+          "evidence": [
+            "src/twocat-komica/src/main/kotlin/tw/kevinzhang/newshub/extension/twocat/komica/TwocatBoardCatalog.kt",
+            "src/twocat-komica/src/main/kotlin/tw/kevinzhang/newshub/extension/twocat/komica/TwocatSource.kt"
+          ]
+        },
+        "resource": {
+          "exactHttpsHosts": ["2cat.org", "2cat.uk", "cat.2nyan.org", "eclair.nagatoyuki.org", "www.gomiga.org"],
+          "dynamicFromContent": true,
+          "evidence": [
+            "src/twocat-komica/src/main/kotlin/tw/kevinzhang/newshub/extension/twocat/komica/TwocatSource.kt",
+            "src/twocat-komica/src/main/kotlin/tw/kevinzhang/newshub/extension/twocat/komica/parser/TwocatPostParser.kt"
+          ]
+        },
+        "external": {
+          "exactHttpsHosts": ["2cat.org", "cat.2nyan.org", "eclair.nagatoyuki.org", "www.gomiga.org"],
+          "dynamicFromContent": true,
+          "evidence": ["src/twocat-komica/src/main/kotlin/tw/kevinzhang/newshub/extension/twocat/komica/parser/TwocatPostParser.kt"]
+        },
+        "auth": {
+          "exactHttpsHosts": [],
+          "dynamicFromContent": false,
+          "evidence": ["src/twocat-komica/src/main/kotlin/tw/kevinzhang/newshub/extension/twocat/komica/TwocatSource.kt"]
+        }
+      }
+    },
+    {
+      "id": "tw.kevinzhang.komica.sora",
+      "module": "sora-komica",
+      "namedCapabilities": ["external_link", "resource_read"],
+      "surfaces": {
+        "request": {
+          "exactHttpsHosts": [
+            "fenrisulfr.org",
+            "gaia.komica1.org",
+            "gita.komica1.org",
+            "iris.komica1.org",
+            "komica.dbfoxtw.me",
+            "msgirls.boguspix.com",
+            "pixmicat.alica.idv.tw",
+            "sister.boguspix.com",
+            "storysol.boguspix.com",
+            "travel.voidfactory.com",
+            "www.karlsland.net"
+          ],
+          "blockedHttpHosts": [],
+          "rules": [{"exactHttpsHosts": ["fenrisulfr.org", "gaia.komica1.org", "gita.komica1.org", "iris.komica1.org", "komica.dbfoxtw.me", "msgirls.boguspix.com", "pixmicat.alica.idv.tw", "sister.boguspix.com", "storysol.boguspix.com", "travel.voidfactory.com", "www.karlsland.net"], "methods": ["GET"], "pathPrefixes": ["/"], "credentialed": false}],
+          "dynamicFromContent": false,
+          "evidence": [
+            "src/sora-komica/src/main/kotlin/tw/kevinzhang/newshub/extension/sora/komica/SoraBoardCatalog.kt",
+            "src/sora-komica/src/main/kotlin/tw/kevinzhang/newshub/extension/sora/komica/SoraSource.kt"
+          ]
+        },
+        "resource": {
+          "exactHttpsHosts": [
+            "fenrisulfr.org",
+            "gaia.komica1.org",
+            "gita.komica1.org",
+            "iris.komica1.org",
+            "komica.dbfoxtw.me",
+            "komica1.org",
+            "msgirls.boguspix.com",
+            "pixmicat.alica.idv.tw",
+            "sister.boguspix.com",
+            "storysol.boguspix.com",
+            "travel.voidfactory.com",
+            "www.karlsland.net"
+          ],
+          "dynamicFromContent": true,
+          "evidence": [
+            "src/sora-komica/src/main/kotlin/tw/kevinzhang/newshub/extension/sora/komica/SoraSource.kt",
+            "src/sora-komica/src/main/kotlin/tw/kevinzhang/newshub/extension/sora/komica/parser/SoraPostParser.kt"
+          ]
+        },
+        "external": {
+          "exactHttpsHosts": [
+            "fenrisulfr.org",
+            "gaia.komica1.org",
+            "gita.komica1.org",
+            "iris.komica1.org",
+            "komica.dbfoxtw.me",
+            "msgirls.boguspix.com",
+            "pixmicat.alica.idv.tw",
+            "sister.boguspix.com",
+            "storysol.boguspix.com",
+            "travel.voidfactory.com",
+            "www.karlsland.net"
+          ],
+          "dynamicFromContent": true,
+          "evidence": ["src/sora-komica/src/main/kotlin/tw/kevinzhang/newshub/extension/sora/komica/parser/SoraPostParser.kt"]
+        },
+        "auth": {
+          "exactHttpsHosts": [],
+          "dynamicFromContent": false,
+          "evidence": ["src/sora-komica/src/main/kotlin/tw/kevinzhang/newshub/extension/sora/komica/SoraSource.kt"]
+        }
+      }
+    },
+    {
+      "id": "tw.kevinzhang.akraft",
+      "module": "akraft",
+      "namedCapabilities": ["external_link", "resource_read"],
+      "surfaces": {
+        "request": {
+          "exactHttpsHosts": ["www.akraft.net"],
+          "blockedHttpHosts": [],
+          "rules": [{"exactHttpsHosts": ["www.akraft.net"], "methods": ["GET"], "pathPrefixes": ["/service/"], "credentialed": false}],
+          "dynamicFromContent": false,
+          "evidence": [
+            "src/akraft/src/main/kotlin/tw/kevinzhang/newshub/extension/akraft/AkraftBoards.kt",
+            "src/akraft/src/main/kotlin/tw/kevinzhang/newshub/extension/akraft/AkraftSource.kt"
+          ]
+        },
+        "resource": {
+          "exactHttpsHosts": ["www.akraft.net"],
+          "dynamicFromContent": true,
+          "evidence": ["src/akraft/src/main/kotlin/tw/kevinzhang/newshub/extension/akraft/AkraftParser.kt"]
+        },
+        "external": {
+          "exactHttpsHosts": ["www.akraft.net"],
+          "dynamicFromContent": true,
+          "evidence": ["src/akraft/src/main/kotlin/tw/kevinzhang/newshub/extension/akraft/AkraftParser.kt"]
+        },
+        "auth": {
+          "exactHttpsHosts": [],
+          "dynamicFromContent": false,
+          "evidence": ["src/akraft/src/main/kotlin/tw/kevinzhang/newshub/extension/akraft/AkraftSource.kt"]
+        }
+      }
+    },
+    {
+      "id": "tw.kevinzhang.nagatoyuki",
+      "module": "nagatoyuki",
+      "namedCapabilities": ["external_link", "resource_read"],
+      "surfaces": {
+        "request": {
+          "exactHttpsHosts": ["eclair.nagatoyuki.org", "selene.zawarudo.org", "www.gomiga.org"],
+          "blockedHttpHosts": [],
+          "rules": [{"exactHttpsHosts": ["eclair.nagatoyuki.org", "selene.zawarudo.org", "www.gomiga.org"], "methods": ["GET"], "pathPrefixes": ["/"], "credentialed": false}],
+          "dynamicFromContent": false,
+          "evidence": [
+            "src/nagatoyuki/src/main/kotlin/tw/kevinzhang/newshub/extension/nagatoyuki/NagatoyukiBoardCatalog.kt",
+            "src/nagatoyuki/src/main/kotlin/tw/kevinzhang/newshub/extension/nagatoyuki/NagatoyukiSource.kt"
+          ]
+        },
+        "resource": {
+          "exactHttpsHosts": ["eclair.nagatoyuki.org", "selene.zawarudo.org", "www.gomiga.org"],
+          "dynamicFromContent": true,
+          "evidence": ["src/nagatoyuki/src/main/kotlin/tw/kevinzhang/newshub/extension/nagatoyuki/NagatoyukiParser.kt"]
+        },
+        "external": {
+          "exactHttpsHosts": ["eclair.nagatoyuki.org", "selene.zawarudo.org", "www.gomiga.org"],
+          "dynamicFromContent": true,
+          "evidence": ["src/nagatoyuki/src/main/kotlin/tw/kevinzhang/newshub/extension/nagatoyuki/NagatoyukiParser.kt"]
+        },
+        "auth": {
+          "exactHttpsHosts": [],
+          "dynamicFromContent": false,
+          "evidence": ["src/nagatoyuki/src/main/kotlin/tw/kevinzhang/newshub/extension/nagatoyuki/NagatoyukiSource.kt"]
+        }
+      }
+    },
+    {
+      "id": "tw.kevinzhang.wtako",
+      "module": "wtako",
+      "namedCapabilities": ["external_link", "resource_read"],
+      "surfaces": {
+        "request": {
+          "exactHttpsHosts": ["kemono.wtako.net", "rthost.win", "www.karlsland.net"],
+          "blockedHttpHosts": [],
+          "rules": [{"exactHttpsHosts": ["kemono.wtako.net", "rthost.win", "www.karlsland.net"], "methods": ["GET"], "pathPrefixes": ["/"], "credentialed": false}],
+          "dynamicFromContent": false,
+          "evidence": [
+            "src/wtako/src/main/kotlin/tw/kevinzhang/newshub/extension/wtako/WtakoBoardCatalog.kt",
+            "src/wtako/src/main/kotlin/tw/kevinzhang/newshub/extension/wtako/WtakoRequestBuilder.kt"
+          ]
+        },
+        "resource": {
+          "exactHttpsHosts": ["kemono.wtako.net", "rthost.win", "www.karlsland.net"],
+          "dynamicFromContent": true,
+          "evidence": ["src/wtako/src/main/kotlin/tw/kevinzhang/newshub/extension/wtako/WtakoParser.kt"]
+        },
+        "external": {
+          "exactHttpsHosts": ["kemono.wtako.net", "rthost.win", "www.karlsland.net"],
+          "dynamicFromContent": true,
+          "evidence": ["src/wtako/src/main/kotlin/tw/kevinzhang/newshub/extension/wtako/WtakoParser.kt"]
+        },
+        "auth": {
+          "exactHttpsHosts": [],
+          "dynamicFromContent": false,
+          "evidence": ["src/wtako/src/main/kotlin/tw/kevinzhang/newshub/extension/wtako/WtakoSource.kt"]
+        }
+      }
+    },
+    {
+      "id": "tw.kevinzhang.komica2.twocat",
+      "module": "twocat-komica2",
+      "namedCapabilities": ["external_link", "resource_read"],
+      "surfaces": {
+        "request": {
+          "exactHttpsHosts": ["2cat.org"],
+          "blockedHttpHosts": [],
+          "rules": [{"exactHttpsHosts": ["2cat.org"], "methods": ["GET"], "pathPrefixes": ["/touhoux/"], "credentialed": false}],
+          "dynamicFromContent": false,
+          "evidence": [
+            "src/twocat-komica2/src/main/kotlin/tw/kevinzhang/newshub/extension/twocat/komica2/Komica2TwocatSource.kt",
+            "src/twocat-komica2/src/main/kotlin/tw/kevinzhang/newshub/extension/twocat/komica2/model/Komica2TwocatBoards.kt"
+          ]
+        },
+        "resource": {
+          "exactHttpsHosts": ["2cat.org", "2cat.uk"],
+          "dynamicFromContent": true,
+          "evidence": ["src/twocat-komica2/src/main/kotlin/tw/kevinzhang/newshub/extension/twocat/komica2/Komica2TwocatSource.kt"]
+        },
+        "external": {
+          "exactHttpsHosts": ["2cat.org"],
+          "dynamicFromContent": true,
+          "evidence": ["src/twocat-komica2/src/main/kotlin/tw/kevinzhang/newshub/extension/twocat/komica2/pixmicat/parser/PixmicatPostParser.kt"]
+        },
+        "auth": {
+          "exactHttpsHosts": [],
+          "dynamicFromContent": false,
+          "evidence": ["src/twocat-komica2/src/main/kotlin/tw/kevinzhang/newshub/extension/twocat/komica2/Komica2TwocatSource.kt"]
+        }
+      }
+    },
+    {
+      "id": "tw.kevinzhang.komica2.sora",
+      "module": "sora-komica2",
+      "namedCapabilities": ["external_link", "resource_read"],
+      "surfaces": {
+        "request": {
+          "exactHttpsHosts": ["2cat.org", "2cat.uk"],
+          "blockedHttpHosts": [],
+          "rules": [{"exactHttpsHosts": ["2cat.org", "2cat.uk"], "methods": ["GET"], "pathPrefixes": ["/"], "credentialed": false}],
+          "dynamicFromContent": false,
+          "evidence": [
+            "src/sora-komica2/src/main/kotlin/tw/kevinzhang/newshub/extension/sora/komica2/Komica2SoraSource.kt",
+            "src/sora-komica2/src/main/kotlin/tw/kevinzhang/newshub/extension/sora/komica2/model/Komica2SoraBoards.kt",
+            "src/sora-komica2/src/test/kotlin/tw/kevinzhang/newshub/extension/komica2_sora/Komica2SoraBoardsTest.kt"
+          ]
+        },
+        "resource": {
+          "exactHttpsHosts": ["2cat.org", "2cat.uk", "komica1.org"],
+          "dynamicFromContent": true,
+          "evidence": ["src/sora-komica2/src/main/kotlin/tw/kevinzhang/newshub/extension/sora/komica2/Komica2SoraSource.kt"]
+        },
+        "external": {
+          "exactHttpsHosts": ["2cat.org", "2cat.uk"],
+          "dynamicFromContent": true,
+          "evidence": ["src/sora-komica2/src/main/kotlin/tw/kevinzhang/newshub/extension/sora/komica2/pixmicat/parser/PixmicatPostParser.kt"]
+        },
+        "auth": {
+          "exactHttpsHosts": [],
+          "dynamicFromContent": false,
+          "evidence": ["src/sora-komica2/src/main/kotlin/tw/kevinzhang/newshub/extension/sora/komica2/Komica2SoraSource.kt"]
+        }
+      }
+    },
+    {
+      "id": "tw.kevinzhang.komica2.zawarudo",
+      "module": "zawarudo-komica2",
+      "namedCapabilities": ["external_link", "resource_read"],
+      "surfaces": {
+        "request": {
+          "exactHttpsHosts": ["majeur.zawarudo.org"],
+          "blockedHttpHosts": [],
+          "rules": [{"exactHttpsHosts": ["majeur.zawarudo.org"], "methods": ["GET"], "pathPrefixes": ["/demande", "/guro", "/hgame"], "credentialed": false}],
+          "dynamicFromContent": false,
+          "evidence": [
+            "src/zawarudo-komica2/src/main/kotlin/tw/kevinzhang/newshub/extension/komica2_zawarudo/ZawarudoBoards.kt",
+            "src/zawarudo-komica2/src/main/kotlin/tw/kevinzhang/newshub/extension/zawarudo/komica2/Komica2ZawarudoSource.kt"
+          ]
+        },
+        "resource": {
+          "exactHttpsHosts": ["majeur.zawarudo.org"],
+          "dynamicFromContent": true,
+          "evidence": ["src/zawarudo-komica2/src/main/kotlin/tw/kevinzhang/newshub/extension/komica2_zawarudo/ZawarudoCrawler.kt"]
+        },
+        "external": {
+          "exactHttpsHosts": ["majeur.zawarudo.org"],
+          "dynamicFromContent": true,
+          "evidence": ["src/zawarudo-komica2/src/main/kotlin/tw/kevinzhang/newshub/extension/komica2_zawarudo/ZawarudoCrawler.kt"]
+        },
+        "auth": {
+          "exactHttpsHosts": [],
+          "dynamicFromContent": false,
+          "evidence": ["src/zawarudo-komica2/src/main/kotlin/tw/kevinzhang/newshub/extension/zawarudo/komica2/Komica2ZawarudoSource.kt"]
+        }
+      }
+    },
+    {
+      "id": "tw.kevinzhang.mobile01",
+      "module": "mobile01-source",
+      "namedCapabilities": ["external_link", "resource_read"],
+      "surfaces": {
+        "request": {
+          "exactHttpsHosts": ["www.mobile01.com"],
+          "blockedHttpHosts": [],
+          "rules": [{"exactHttpsHosts": ["www.mobile01.com"], "methods": ["GET"], "pathPrefixes": ["/topicdetail.php", "/topiclist.php"], "credentialed": false}],
+          "dynamicFromContent": false,
+          "evidence": [
+            "src/mobile01-source/src/main/kotlin/tw/kevinzhang/newshub/extension/mobile01/Mobile01RequestBuilder.kt",
+            "src/mobile01-source/src/main/kotlin/tw/kevinzhang/newshub/extension/mobile01/Mobile01UrlPolicy.kt"
+          ]
+        },
+        "resource": {
+          "exactHttpsHosts": ["attach2.mobile01.com", "www.mobile01.com"],
+          "dynamicFromContent": true,
+          "evidence": [
+            "src/mobile01-source/src/main/kotlin/tw/kevinzhang/newshub/extension/mobile01/Mobile01Parser.kt",
+            "src/mobile01-source/src/main/kotlin/tw/kevinzhang/newshub/extension/mobile01/Mobile01Source.kt"
+          ]
+        },
+        "external": {
+          "exactHttpsHosts": ["www.mobile01.com"],
+          "dynamicFromContent": true,
+          "evidence": ["src/mobile01-source/src/main/kotlin/tw/kevinzhang/newshub/extension/mobile01/Mobile01Parser.kt"]
+        },
+        "auth": {
+          "exactHttpsHosts": [],
+          "dynamicFromContent": false,
+          "evidence": ["src/mobile01-source/src/main/kotlin/tw/kevinzhang/newshub/extension/mobile01/Mobile01Source.kt"]
+        }
+      }
+    },
+    {
+      "id": "tw.kevinzhang.newshub.extension.ptt",
+      "module": "ptt",
+      "namedCapabilities": ["external_link", "ptt_adult_consent_status", "resource_read"],
+      "surfaces": {
+        "request": {
+          "exactHttpsHosts": ["www.ptt.cc"],
+          "blockedHttpHosts": [],
+          "rules": [{"exactHttpsHosts": ["www.ptt.cc"], "methods": ["GET"], "pathPrefixes": ["/bbs/"], "credentialed": true}],
+          "dynamicFromContent": false,
+          "evidence": [
+            "src/ptt/src/main/kotlin/tw/kevinzhang/newshub/extension/ptt/PttRequestBuilder.kt",
+            "src/ptt/src/main/kotlin/tw/kevinzhang/newshub/extension/ptt/PttUrlPolicy.kt"
+          ]
+        },
+        "resource": {
+          "exactHttpsHosts": ["i.imgur.com", "www.ptt.cc"],
+          "dynamicFromContent": true,
+          "evidence": [
+            "src/ptt/src/main/kotlin/tw/kevinzhang/newshub/extension/ptt/PttParser.kt",
+            "src/ptt/src/main/kotlin/tw/kevinzhang/newshub/extension/ptt/PttUrlPolicy.kt"
+          ]
+        },
+        "external": {
+          "exactHttpsHosts": ["www.ptt.cc"],
+          "dynamicFromContent": true,
+          "evidence": ["src/ptt/src/main/kotlin/tw/kevinzhang/newshub/extension/ptt/PttParser.kt"]
+        },
+        "auth": {
+          "exactHttpsHosts": ["www.ptt.cc"],
+          "dynamicFromContent": false,
+          "evidence": ["src/ptt/src/main/kotlin/tw/kevinzhang/newshub/extension/ptt/PttSource.kt"]
+        }
+      }
+    }
+  ]
+}

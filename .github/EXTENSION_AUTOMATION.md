@@ -22,10 +22,11 @@ reviewer, and keeps its AI Brain bearer token and logs private. This repository
 contains only deterministic policy scripts and Cloud Build definitions. No
 Codex or AI bearer secret is supplied to either Cloud Build definition.
 
-Until the isolation-era `extension-api` commit reaches NewsHub's default
-branch, Cloud Build checks out commit `53d421492614c13e2a5984b4991513d993d44246`,
-builds its AAR locally, and supplies it through `-PnewshubDir`. This avoids a
-mutable branch dependency and does not rely on an unpublished JitPack artifact.
+Cloud Build checks out the isolation-era `extension-api` commit
+`d8d96cbbefa2d944757e8479c670423d5b93804f`, builds its AAR locally, and
+supplies it through `-PnewshubDir`. Non-override builds resolve the same exact
+JitPack SHA, so candidate and publish paths cannot silently use an older
+service protocol or a mutable branch dependency.
 
 The private fixer receives no website login, signing, push, or merge
 credentials. Its patch is transferred to a fresh job for fail-closed path
