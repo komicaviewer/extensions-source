@@ -302,6 +302,7 @@ steps:
     args:
       - -ceu
       - |
+        export PYTHONDONTWRITEBYTECODE=1
         aapt=/workspace/android-build-tools/aapt
         apksigner=/workspace/android-build-tools/apksigner
         mkdir -p /workspace/baseline
