@@ -65,7 +65,8 @@ steps:
             python3 /workspace/source/scripts/manual_policy_maintenance_admission.py \
               --base /workspace/distribution-base \
               --candidate /workspace/distribution-candidate \
-              --catalog /workspace/source/release-catalog.json
+              --catalog /workspace/source/release-catalog.json \
+              --contract /workspace/source/source-host-contracts.json
             ;;
           verifier-code)
             PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \

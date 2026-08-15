@@ -85,11 +85,101 @@ class ManualPolicyMaintenanceAdmissionTest(unittest.TestCase):
         catalog.write_text(json.dumps(self.catalog), encoding="utf-8")
         return catalog
 
+    def write_v2_inputs(self):
+        source = {
+            "id": "tw.example.source",
+            "module": "example",
+            "namedCapabilities": ["resource_read"],
+            "surfaces": {
+                "request": {
+                    "exactHttpsHosts": ["api.example.com"],
+                    "blockedHttpHosts": [],
+                    "rules": [{
+                        "exactHttpsHosts": ["api.example.com"],
+                        "methods": ["GET"],
+                        "pathPrefixes": ["/v1/"],
+                        "credentialed": False,
+                    }],
+                    "dynamicFromContent": False,
+                    "evidence": ["evidence.kt"],
+                },
+                "resource": {
+                    "exactHttpsHosts": ["images.example.com"],
+                    "dynamicFromContent": True,
+                    "evidence": ["evidence.kt"],
+                },
+                "external": {
+                    "exactHttpsHosts": ["www.example.com"],
+                    "dynamicFromContent": True,
+                    "evidence": ["evidence.kt"],
+                },
+                "auth": {
+                    "exactHttpsHosts": ["login.example.com"],
+                    "dynamicFromContent": False,
+                    "evidence": ["evidence.kt"],
+                },
+            },
+        }
+        expected_hash = admission.policy_sha256(source)
+        self.catalog["releases"][0]["sources"][0].update({
+            "policyVersion": 2,
+            "exactHosts": ["api.example.com"],
+            "policyHash": expected_hash,
+        })
+        self.candidate_policy["releases"]["tw.example.extension"]["sources"][0][
+            "policyHash"
+        ] = expected_hash
+        catalog = self.write_inputs()
+        contract = Path(self.temp.name) / "source-host-contracts.json"
+        (Path(self.temp.name) / "evidence.kt").write_text("// reviewed", encoding="utf-8")
+        contract.write_text(
+            json.dumps({"schemaVersion": 1, "sources": [source]}),
+            encoding="utf-8",
+        )
+        return catalog, contract
+
     def test_accepts_hash_only_change_bound_to_catalog_policy(self):
         catalog = self.write_inputs()
         self.assertEqual(
             ["tw.example.source"], admission.validate(self.base, self.candidate, catalog)
         )
+
+    def test_accepts_v2_hash_recomputed_from_strict_reviewed_contract(self):
+        catalog, contract = self.write_v2_inputs()
+        self.assertEqual(
+            ["tw.example.source"],
+            admission.validate(self.base, self.candidate, catalog, contract),
+        )
+
+    def test_production_v2_catalog_hashes_match_reviewed_contract(self):
+        root = Path(__file__).resolve().parents[1]
+        hashes = admission.catalog_hashes(
+            admission.load_json(root / "release-catalog.json", "release catalog"),
+            root / "source-host-contracts.json",
+        )
+        self.assertEqual(13, len(hashes))
+
+    def test_v2_catalog_wildcard_and_contract_mismatch_fail_closed(self):
+        catalog, contract = self.write_v2_inputs()
+        self.catalog["releases"][0]["sources"][0]["exactHosts"] = ["*.example.com"]
+        catalog.write_text(json.dumps(self.catalog), encoding="utf-8")
+        with self.assertRaisesRegex(admission.AdmissionError, "diverge from reviewed contract"):
+            admission.validate(self.base, self.candidate, catalog, contract)
+
+        catalog, contract = self.write_v2_inputs()
+        value = json.loads(contract.read_text(encoding="utf-8"))
+        value["sources"][0]["surfaces"]["request"]["rules"][0]["exactHttpsHosts"] = [
+            "*.example.com"
+        ]
+        contract.write_text(json.dumps(value), encoding="utf-8")
+        with self.assertRaisesRegex(admission.AdmissionError, "reviewed source host contract is invalid"):
+            admission.validate(self.base, self.candidate, catalog, contract)
+
+    def test_cloud_build_passes_explicit_reviewed_contract_path(self):
+        config = (
+            Path(__file__).resolve().parents[1] / "cloudbuild/manual-policy-maintenance.yaml"
+        ).read_text(encoding="utf-8")
+        self.assertIn("--contract /workspace/source/source-host-contracts.json", config)
 
     def test_rejects_non_hash_authority_change(self):
         self.candidate_policy["releases"]["tw.example.extension"]["sources"][0][
