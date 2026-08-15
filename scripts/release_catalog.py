@@ -10,12 +10,24 @@ import re
 from pathlib import Path
 from typing import Any
 
+from source_host_contracts import load_contract, policy_sha256
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CATALOG_PATH = REPO_ROOT / "release-catalog.json"
+EXACT_HOST = re.compile(
+    r"(?=.{1,253}\Z)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+"
+    r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?",
+)
+KNOWN_CAPABILITIES = {
+    "external_link",
+    "eyny_challenge_proof",
+    "ptt_adult_consent_status",
+    "resource_read",
+}
 SOURCE_KEYS = {
     "module", "testTask", "id", "className", "service", "protocol", "policyHash",
-    "exactHosts", "namedCapabilities",
+    "policyVersion", "exactHosts", "namedCapabilities",
 }
 ICON_KEYS = {"source", "name"}
 RELEASE_KEYS = {
@@ -84,6 +96,8 @@ def load_catalog(path: str | os.PathLike[str] = DEFAULT_CATALOG_PATH) -> dict:
             raise ValueError(f"authorizedRemovals.{kind} contains duplicates")
 
     root = catalog_path.parent
+    contract = load_contract(root / "source-host-contracts.json")
+    contract_sources = {source["id"]: source for source in contract["sources"]}
     release_modules: set[str] = set()
     packages: set[str] = set()
     source_ids: set[str] = set()
@@ -131,10 +145,12 @@ def load_catalog(path: str | os.PathLike[str] = DEFAULT_CATALOG_PATH) -> dict:
                 raise ValueError(
                     f"{module}.sources[{source_index}] must contain exactly {sorted(SOURCE_KEYS)}",
                 )
-            for key in SOURCE_KEYS - {"protocol", "exactHosts", "namedCapabilities"}:
+            for key in SOURCE_KEYS - {"protocol", "policyVersion", "exactHosts", "namedCapabilities"}:
                 _non_empty_string(source[key], f"{module}.sources[{source_index}].{key}")
             if source["protocol"] != 1:
                 raise ValueError(f"unsupported protocol for {source['id']}: {source['protocol']}")
+            if source["policyVersion"] != 2:
+                raise ValueError(f"new release metadata requires policyVersion 2 for {source['id']}")
             if not re.fullmatch(r"[0-9a-f]{64}", source["policyHash"]):
                 raise ValueError(f"invalid policyHash for {source['id']}")
             for key in ("exactHosts", "namedCapabilities"):
@@ -145,24 +161,23 @@ def load_catalog(path: str | os.PathLike[str] = DEFAULT_CATALOG_PATH) -> dict:
                     or any(not isinstance(value, str) or not value for value in values)
                 ):
                     raise ValueError(f"{key} for {source['id']} must be a sorted unique string array")
-            policy = {
-                "exactHosts": source["exactHosts"],
-                "operations": [{
-                    "name": "source_read",
-                    "methods": ["GET", "HEAD"],
-                    "pathPrefixes": ["/"],
-                    "credentialed": True,
-                }],
-                "namedCapabilities": source["namedCapabilities"],
-            }
-            canonical = json.dumps(
-                policy,
-                ensure_ascii=False,
-                sort_keys=True,
-                separators=(",", ":"),
-                allow_nan=False,
-            ).encode("utf-8")
-            actual_policy_hash = hashlib.sha256(canonical).hexdigest()
+            if len(source["exactHosts"]) > 32 or any(
+                not EXACT_HOST.fullmatch(host) for host in source["exactHosts"]
+            ):
+                raise ValueError(f"exactHosts for {source['id']} must contain only exact DNS hosts")
+            if len(source["namedCapabilities"]) > 16 or any(
+                capability not in KNOWN_CAPABILITIES
+                for capability in source["namedCapabilities"]
+            ):
+                raise ValueError(f"unknown namedCapabilities for {source['id']}")
+            reviewed = contract_sources.get(source["id"])
+            if reviewed is None or reviewed["module"] != source["module"]:
+                raise ValueError(f"missing reviewed host contract for {source['id']}")
+            if source["exactHosts"] != reviewed["surfaces"]["request"]["exactHttpsHosts"]:
+                raise ValueError(f"catalog request hosts are not derived from contract for {source['id']}")
+            if source["namedCapabilities"] != reviewed["namedCapabilities"]:
+                raise ValueError(f"catalog capabilities are not derived from contract for {source['id']}")
+            actual_policy_hash = policy_sha256(reviewed)
             if actual_policy_hash != source["policyHash"]:
                 raise ValueError(
                     f"policyHash mismatch for {source['id']}: {actual_policy_hash}",
@@ -198,6 +213,11 @@ def load_catalog(path: str | os.PathLike[str] = DEFAULT_CATALOG_PATH) -> dict:
         raise ValueError(
             "settings/catalog Gradle module mismatch: "
             f"settings={sorted(settings_modules)}, catalog={sorted(catalog_modules)}",
+        )
+    if source_ids != set(contract_sources):
+        raise ValueError(
+            "catalog/host contract Source mismatch: "
+            f"catalog={sorted(source_ids)}, contract={sorted(contract_sources)}",
         )
 
     catalog["_path"] = str(catalog_path)

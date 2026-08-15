@@ -18,7 +18,7 @@ substitutions:
   # Controller must override this with the exact squash merge commit emitted by
   # the independently authorized merge gate. Direct/manual submission fails closed.
   _SOURCE_SHA: REQUIRED_EXACT_MERGE_COMMIT_SHA
-  _NEWSHUB_API_SHA: 53d421492614c13e2a5984b4991513d993d44246
+  _NEWSHUB_API_SHA: d8d96cbbefa2d944757e8479c670423d5b93804f
   _DISTRIBUTION_REPOSITORY: komicaviewer/extensions
   _DISTRIBUTION_URL: https://github.com/komicaviewer/extensions.git
   _ANDROID_BUILDER_IMAGE: REQUIRED_DIGEST_PINNED_ANDROID_IMAGE

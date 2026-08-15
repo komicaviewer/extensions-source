@@ -13,6 +13,7 @@ import subprocess
 import sys
 from typing import Any, Callable
 
+from source_host_contracts import load_contract, network_policy, policy_sha256
 from validate_distribution import find_tool, read_signing_fingerprint
 
 
@@ -50,7 +51,10 @@ def load_json(path: Path, label: str) -> Any:
         raise MetadataBuildError(f"invalid {label}") from exc
 
 
-def catalog_network_policies(catalog: dict[str, Any]) -> dict[str, dict[str, Any]]:
+def catalog_network_policies(
+    catalog: dict[str, Any],
+    contract_path: Path | None = None,
+) -> dict[str, dict[str, Any]]:
     """Return the full, canonical policy for every catalog Source.
 
     Targets carry this object in addition to its digest so a Host does not need a
@@ -59,6 +63,16 @@ def catalog_network_policies(catalog: dict[str, Any]) -> dict[str, dict[str, Any
     releases = catalog.get("releases")
     if not isinstance(releases, list) or not releases:
         raise MetadataBuildError("release catalog has no policy-bearing releases")
+    if contract_path is None:
+        root = catalog.get("_root")
+        if not isinstance(root, str):
+            raise MetadataBuildError("release catalog is not bound to a reviewed host contract")
+        contract_path = Path(root) / "source-host-contracts.json"
+    try:
+        contract = load_contract(contract_path)
+    except ValueError as exc:
+        raise MetadataBuildError("invalid reviewed host contract") from exc
+    reviewed_sources = {source["id"]: source for source in contract["sources"]}
     policies: dict[str, dict[str, Any]] = {}
     for release in releases:
         sources = release.get("sources") if isinstance(release, dict) else None
@@ -85,20 +99,20 @@ def catalog_network_policies(catalog: dict[str, Any]) -> dict[str, dict[str, Any
                 or any(value not in KNOWN_CAPABILITIES for value in capabilities)
             ):
                 raise MetadataBuildError(f"invalid namedCapabilities for {source_id}")
-            policy = {
-                "exactHosts": hosts,
-                "operations": [{
-                    "name": "source_read",
-                    "methods": ["GET", "HEAD"],
-                    "pathPrefixes": ["/"],
-                    "credentialed": True,
-                }],
-                "namedCapabilities": capabilities,
-            }
-            actual_hash = hashlib.sha256(canonical(policy)).hexdigest()
+            reviewed = reviewed_sources.get(source_id)
+            if reviewed is None or source.get("policyVersion") != 2:
+                raise MetadataBuildError(f"Source policy is not reviewed v2: {source_id}")
+            if hosts != reviewed["surfaces"]["request"]["exactHttpsHosts"]:
+                raise MetadataBuildError(f"catalog request hosts diverge from contract: {source_id}")
+            if capabilities != reviewed["namedCapabilities"]:
+                raise MetadataBuildError(f"catalog capabilities diverge from contract: {source_id}")
+            policy = network_policy(reviewed)
+            actual_hash = policy_sha256(reviewed)
             if not isinstance(expected_hash, str) or actual_hash != expected_hash:
                 raise MetadataBuildError(f"catalog policyHash mismatch for {source_id}")
             policies[source_id] = policy
+    if set(policies) != set(reviewed_sources):
+        raise MetadataBuildError("release catalog/host contract Source set mismatch")
     return policies
 
 
@@ -224,7 +238,10 @@ def generate(
     repository = catalog.get("repository")
     if not isinstance(repository, dict) or set(repository) != {"name", "description", "iconUrl", "website"}:
         raise MetadataBuildError("release catalog repository metadata is invalid")
-    network_policies = catalog_network_policies(catalog)
+    network_policies = catalog_network_policies(
+        catalog,
+        catalog_path.parent / "source-host-contracts.json",
+    )
 
     old_targets, old_snapshot, old_timestamp = current_versions(distribution / "metadata")
     targets_version, snapshot_version, timestamp_version = (

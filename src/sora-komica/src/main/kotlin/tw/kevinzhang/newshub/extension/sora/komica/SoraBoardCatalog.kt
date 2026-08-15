@@ -5,9 +5,9 @@ import tw.kevinzhang.extension_api.model.Board
 /**
  * Boards served by the Pixmicat/Sora implementation.
  *
- * The order intentionally matches the former shared Sora board list so
- * existing users see the same board order after the catalog moved out of
- * the Sora site module.
+ * The order matches the supported subset of the former shared Sora board list.
+ * HTTP-only or permanently unavailable boards are deliberately omitted because
+ * the Host will never grant plaintext request authority.
  */
 internal object SoraBoardCatalog {
     const val SOURCE_ID = "tw.kevinzhang.komica.sora"
@@ -41,9 +41,6 @@ internal object SoraBoardCatalog {
         board("軍武", "https://gaia.komica1.org/17/pixmicat.php"),
         board("特攝", "https://gaia.komica1.org/13/pixmicat.php"),
 
-        // 製作公司
-        board("TYPE-MOON", "http://gzone-anime.info/UnitedSites/TypeMoon/pixmicat.php"),
-
         // 影音
         board("Vtuber", "https://gaia.komica1.org/74/pixmicat.php"),
 
@@ -59,17 +56,11 @@ internal object SoraBoardCatalog {
         // 專題板
         board("人外", "https://komica.dbfoxtw.me/jingai/pixmicat.php"),
 
-        // 遊戲作品
-        board("艦隊收藏", "http://acgspace.wsfun.com/kancolle/pixmicat.php"),
-
         // 連線板
         board("螢幕攝", "https://pixmicat.alica.idv.tw/screenshot/index.php/pixmicat.php"),
 
         // 連線二板
-        board("生活消費", "http://gzone-anime.info/UnitedSites/shopping/pixmicat.php"),
-        board("藝術", "http://gzone-anime.info/UnitedSites/art/pixmicat.php"),
         board("旅遊", "https://travel.voidfactory.com/pixmicat.php"),
-        board("圖書", "http://gzone-anime.info/UnitedSites/books/pixmicat.php"),
         board("故事接龍", "https://storysol.boguspix.com/pixmicat.php"),
 
         // 遊戲

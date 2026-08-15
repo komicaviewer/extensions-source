@@ -100,7 +100,7 @@ NEWSHUB_API_CHECKOUT=/absolute/path/to/pinned/NewsHub
   $(python3 scripts/release_catalog.py gradle-tasks)
 ```
 
-在 API 正式發布前，NewsHub checkout 必須固定為 commit `53d421492614c13e2a5984b4991513d993d44246`。一般 Gradle invocation 目前會解析到較舊的 JitPack pin；該版本缺少 isolation-era network types，因此無法編譯 `shared:broker-http`。
+NewsHub checkout 與 JitPack dependency 必須固定為 commit `d8d96cbbefa2d944757e8479c670423d5b93804f`。此版本包含 isolation-era network protocol 與 Host policy v2；candidate、publish 與本機非 override 建置必須使用同一個 exact SHA。
 
 ## 使用 GCP Cloud Build 發布
 

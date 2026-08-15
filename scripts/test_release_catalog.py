@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 import unittest
+import copy
+import hashlib
+import json
 from pathlib import Path
+import re
+import tempfile
 from unittest.mock import patch
 
 import release_catalog
@@ -8,6 +13,95 @@ from release_catalog import gradle_tasks, load_catalog
 
 
 class ReleaseCatalogTest(unittest.TestCase):
+    def test_all_extension_api_dependencies_use_exact_isolated_service_protocol_pin(self):
+        root = Path(__file__).resolve().parents[1]
+        expected_sha = "d8d96cbbefa2d944757e8479c670423d5b93804f"
+        dependency_files = (
+            root / "shared/broker-http/build.gradle",
+            root / "common.gradle",
+            root / "bundle.gradle",
+            root / "jvm-library.gradle",
+        )
+        pins = []
+        for path in dependency_files:
+            contents = path.read_text(encoding="utf-8")
+            file_pins = re.findall(
+                r"com\.github\.komicaviewer\.NewsHub:extension-api:([0-9a-f]{40})",
+                contents,
+            )
+            self.assertTrue(file_pins, f"missing extension-api pin in {path.name}")
+            pins.extend(file_pins)
+        self.assertEqual({expected_sha}, set(pins))
+        for path in (
+            root / "cloudbuild/pr-candidate.yaml",
+            root / "cloudbuild/publish.yaml",
+            root / "README.md",
+        ):
+            self.assertIn(expected_sha, path.read_text(encoding="utf-8"))
+        old_sha = "53d421492614c13e2a5984" + "b4991513d993d44246"
+        stale_paths = []
+        for path in root.rglob("*"):
+            if not path.is_file() or any(part in {".git", ".gradle", "build"} for part in path.parts):
+                continue
+            if path.suffix not in {".gradle", ".kts", ".md", ".py", ".yaml", ".yml", ".json"}:
+                continue
+            if old_sha in path.read_text(encoding="utf-8", errors="ignore"):
+                stale_paths.append(str(path.relative_to(root)))
+        self.assertEqual([], stale_paths)
+
+    def test_release_versions_are_bumped_for_new_extension_api_payload(self):
+        root = Path(__file__).resolve().parents[1]
+        expected = {
+            "eyny": (3, "0.1.2"),
+            "gamer": (7, "0.0.7"),
+            "hackernews": (3, "0.1.2"),
+            "komica": (7, "0.3.4"),
+            "komica2": (8, "0.4.4"),
+            "mobile01": (4, "0.1.3"),
+            "ptt": (6, "0.4.2"),
+        }
+        for module, (version_code, version_name) in expected.items():
+            contents = (root / f"src/{module}/build.gradle.kts").read_text(encoding="utf-8")
+            with self.subTest(module=module):
+                self.assertRegex(contents, rf'set\("(?:bundle|ext)VersionCode", {version_code}\)')
+                self.assertRegex(contents, rf'set\("(?:bundle|ext)VersionName", "{re.escape(version_name)}"\)')
+
+    def test_catalog_rejects_wildcards_unknown_capabilities_and_hash_mismatch(self):
+        catalog = load_catalog()
+        source = catalog["releases"][0]["sources"][0]
+        policy = {
+            "exactHosts": source["exactHosts"],
+            "operations": [{
+                "name": "source_read", "methods": ["GET", "HEAD"],
+                "pathPrefixes": ["/"], "credentialed": True,
+            }],
+            "namedCapabilities": source["namedCapabilities"],
+        }
+        mutations = (
+            ("wildcard", "exactHosts", ["*.example.com"], "exact DNS hosts"),
+            ("unknown capability", "namedCapabilities", ["raw_socket"], "unknown namedCapabilities"),
+            ("hash mismatch", "policyHash", "00" * 32, "policyHash mismatch"),
+        )
+        for label, field, value, message in mutations:
+            invalid = copy.deepcopy(catalog)
+            changed = invalid["releases"][0]["sources"][0]
+            changed[field] = value
+            if field != "policyHash":
+                changed_policy = dict(policy)
+                changed_policy[field] = value
+                changed["policyHash"] = hashlib.sha256(
+                    json.dumps(changed_policy, sort_keys=True, separators=(",", ":")).encode(),
+                ).hexdigest()
+            payload = {key: item for key, item in invalid.items() if not key.startswith("_")}
+            with self.subTest(label=label), tempfile.NamedTemporaryFile(
+                mode="w", suffix=".json", dir=Path(__file__).resolve().parents[1],
+                encoding="utf-8",
+            ) as handle:
+                json.dump(payload, handle)
+                handle.flush()
+                with self.assertRaisesRegex(ValueError, message):
+                    load_catalog(handle.name)
+
     def test_catalog_is_complete_and_uses_distinct_png_assets(self):
         catalog = load_catalog()
 
