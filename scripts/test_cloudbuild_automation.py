@@ -242,6 +242,17 @@ class CloudBuildAutomationTest(unittest.TestCase):
         )
         self.assertIn("waitFor: [generate-and-admit-distribution]", config)
 
+    def test_distribution_admission_does_not_mutate_candidate_with_python_bytecode(self):
+        config = (ROOT / "cloudbuild/publish.yaml").read_text(encoding="utf-8")
+        marker = "- id: generate-and-admit-distribution"
+        self.assertIn(marker, config)
+        step = config.split(marker, 1)[1].split("\n  - id:", 1)[0]
+        self.assertIn("export PYTHONDONTWRITEBYTECODE=1", step)
+        self.assertLess(
+            step.index("export PYTHONDONTWRITEBYTECODE=1"),
+            step.index("python3 /workspace/distribution/policy/admission_gate.py"),
+        )
+
     def test_pr_candidate_is_zero_secret_and_bounded(self):
         config = (ROOT / "cloudbuild/pr-candidate.yaml").read_text(encoding="utf-8")
         self.assertNotIn("secretEnv:", config)
