@@ -216,6 +216,27 @@ class ManualPolicyMaintenanceAdmissionTest(unittest.TestCase):
             admission.validate_verifier_code(self.base, self.candidate),
         )
 
+    def test_accepts_each_complete_policy_verifier_pair(self):
+        for pair in admission.VERIFIER_MAINTENANCE_PAIRS:
+            with self.subTest(pair=sorted(pair)):
+                with tempfile.TemporaryDirectory() as temporary:
+                    root = Path(temporary)
+                    base = root / "base"
+                    candidate = root / "candidate"
+                    base.mkdir()
+                    candidate.mkdir()
+                    for relative in pair:
+                        base_path = base / relative
+                        candidate_path = candidate / relative
+                        base_path.parent.mkdir(parents=True, exist_ok=True)
+                        candidate_path.parent.mkdir(parents=True, exist_ok=True)
+                        base_path.write_text("old", encoding="utf-8")
+                        candidate_path.write_text("new", encoding="utf-8")
+                    self.assertEqual(
+                        sorted(pair),
+                        admission.validate_verifier_code(base, candidate),
+                    )
+
     def test_rejects_partial_policy_verifier_code_change(self):
         relative = admission.VERIFIER_MAINTENANCE_PATHS[0]
         base = self.base / relative
@@ -224,6 +245,29 @@ class ManualPolicyMaintenanceAdmissionTest(unittest.TestCase):
         candidate.parent.mkdir(parents=True, exist_ok=True)
         base.write_text("old", encoding="utf-8")
         candidate.write_text("new", encoding="utf-8")
+        with self.assertRaisesRegex(admission.AdmissionError, "forbidden paths"):
+            admission.validate_verifier_code(self.base, self.candidate)
+
+    def test_rejects_mismatched_policy_verifier_pair(self):
+        mismatched = [pair_path for pair in admission.VERIFIER_MAINTENANCE_PAIRS for pair_path in pair]
+        for relative in (mismatched[0], mismatched[-1]):
+            base = self.base / relative
+            candidate = self.candidate / relative
+            base.parent.mkdir(parents=True, exist_ok=True)
+            candidate.parent.mkdir(parents=True, exist_ok=True)
+            base.write_text("old", encoding="utf-8")
+            candidate.write_text("new", encoding="utf-8")
+        with self.assertRaisesRegex(admission.AdmissionError, "forbidden paths"):
+            admission.validate_verifier_code(self.base, self.candidate)
+
+    def test_rejects_complete_pair_with_additional_path(self):
+        for relative in (*admission.VERIFIER_MAINTENANCE_PAIRS[0], "README.md"):
+            base = self.base / relative
+            candidate = self.candidate / relative
+            base.parent.mkdir(parents=True, exist_ok=True)
+            candidate.parent.mkdir(parents=True, exist_ok=True)
+            base.write_text("old", encoding="utf-8")
+            candidate.write_text("new", encoding="utf-8")
         with self.assertRaisesRegex(admission.AdmissionError, "forbidden paths"):
             admission.validate_verifier_code(self.base, self.candidate)
 

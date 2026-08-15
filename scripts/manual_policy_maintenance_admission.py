@@ -22,12 +22,11 @@ SHA = re.compile(r"^[0-9a-f]{40}$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 REPOSITORY = "komicaviewer/extensions"
 STATUS_CONTEXT = "GCP distribution admission / verify"
-VERIFIER_MAINTENANCE_PATHS = [
-    "policy/admission_gate.py",
-    "policy/test_admission_gate.py",
-    "policy/test_trusted_metadata.py",
-    "policy/trusted_metadata.py",
-]
+VERIFIER_MAINTENANCE_PAIRS = (
+    frozenset(("policy/admission_gate.py", "policy/test_admission_gate.py")),
+    frozenset(("policy/trusted_metadata.py", "policy/test_trusted_metadata.py")),
+)
+VERIFIER_MAINTENANCE_PATHS = sorted(set().union(*VERIFIER_MAINTENANCE_PAIRS))
 
 
 class AdmissionError(ValueError):
@@ -226,7 +225,9 @@ def validate(
 
 def validate_verifier_code(base: Path, candidate: Path) -> list[str]:
     paths = changed_paths(base, candidate)
-    if paths != VERIFIER_MAINTENANCE_PATHS:
+    changed = frozenset(paths)
+    allowed = {*VERIFIER_MAINTENANCE_PAIRS, frozenset(VERIFIER_MAINTENANCE_PATHS)}
+    if changed not in allowed:
         raise AdmissionError(f"verifier maintenance changed forbidden paths: {paths}")
     return paths
 
