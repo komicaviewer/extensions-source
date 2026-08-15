@@ -28,6 +28,14 @@ substitutions:
   _PUBLISHER_SIGNING_BUNDLE_VERSION: REQUIRED_PINNED_SECRET_VERSION
   _PUBLISHER_GITHUB_APP_ID: REQUIRED_PUBLISHER_GITHUB_APP_ID
   _PUBLISHER_GITHUB_APP_INSTALLATION_ID: REQUIRED_PUBLISHER_GITHUB_APP_INSTALLATION_ID
+  _TUF_TARGETS_A_SECRET_VERSION: REQUIRED_PINNED_TUF_TARGETS_A_SECRET_VERSION
+  _TUF_TARGETS_B_SECRET_VERSION: REQUIRED_PINNED_TUF_TARGETS_B_SECRET_VERSION
+  _TUF_SNAPSHOT_SECRET_VERSION: REQUIRED_PINNED_TUF_SNAPSHOT_SECRET_VERSION
+  _TUF_TIMESTAMP_SECRET_VERSION: REQUIRED_PINNED_TUF_TIMESTAMP_SECRET_VERSION
+  _TUF_TARGETS_A_KEY_ID: REQUIRED_TUF_TARGETS_A_KEY_ID
+  _TUF_TARGETS_B_KEY_ID: REQUIRED_TUF_TARGETS_B_KEY_ID
+  _TUF_SNAPSHOT_KEY_ID: REQUIRED_TUF_SNAPSHOT_KEY_ID
+  _TUF_TIMESTAMP_KEY_ID: REQUIRED_TUF_TIMESTAMP_KEY_ID
 
 steps:
   - id: checkout-exact-source
@@ -165,6 +173,90 @@ steps:
     waitFor: [materialize-publisher-signing-bundle]
     args: [-ceu, 'python3 /workspace/source/scripts/sign_release_bundle.py --module ptt --input-dir /workspace/unsigned --output-dir /workspace/apks --apksigner /workspace/android-build-tools/apksigner --credentials-file /workspace/secure/publisher/signing/ptt.json']
 
+  - id: materialize-tuf-targets-a
+    name: ${_OPS_BUILDER_IMAGE}
+    entrypoint: bash
+    timeout: 120s
+    waitFor: [build-unsigned]
+    secretEnv: [TUF_TARGETS_A_KEY]
+    args:
+      - -ceu
+      - |
+        set +x
+        umask 077
+        install -d -m 700 /workspace/secure/tuf
+        raw=$$(mktemp /workspace/secure/tuf/targets-a.XXXXXX)
+        trap 'find "$${raw}" -delete 2>/dev/null || true' EXIT
+        printf '%s' "$${TUF_TARGETS_A_KEY}" > "$${raw}"
+        chmod 600 "$${raw}"
+        python3 /workspace/source/scripts/materialize_tuf_role_key.py \
+          --input "$${raw}" --expected-role targets --expected-slot a \
+          --expected-key-id "${_TUF_TARGETS_A_KEY_ID}" \
+          --output /workspace/secure/tuf/targets-a.pem
+
+  - id: materialize-tuf-targets-b
+    name: ${_OPS_BUILDER_IMAGE}
+    entrypoint: bash
+    timeout: 120s
+    waitFor: [build-unsigned]
+    secretEnv: [TUF_TARGETS_B_KEY]
+    args:
+      - -ceu
+      - |
+        set +x
+        umask 077
+        install -d -m 700 /workspace/secure/tuf
+        raw=$$(mktemp /workspace/secure/tuf/targets-b.XXXXXX)
+        trap 'find "$${raw}" -delete 2>/dev/null || true' EXIT
+        printf '%s' "$${TUF_TARGETS_B_KEY}" > "$${raw}"
+        chmod 600 "$${raw}"
+        python3 /workspace/source/scripts/materialize_tuf_role_key.py \
+          --input "$${raw}" --expected-role targets --expected-slot b \
+          --expected-key-id "${_TUF_TARGETS_B_KEY_ID}" \
+          --output /workspace/secure/tuf/targets-b.pem
+
+  - id: materialize-tuf-snapshot
+    name: ${_OPS_BUILDER_IMAGE}
+    entrypoint: bash
+    timeout: 120s
+    waitFor: [build-unsigned]
+    secretEnv: [TUF_SNAPSHOT_KEY]
+    args:
+      - -ceu
+      - |
+        set +x
+        umask 077
+        install -d -m 700 /workspace/secure/tuf
+        raw=$$(mktemp /workspace/secure/tuf/snapshot.XXXXXX)
+        trap 'find "$${raw}" -delete 2>/dev/null || true' EXIT
+        printf '%s' "$${TUF_SNAPSHOT_KEY}" > "$${raw}"
+        chmod 600 "$${raw}"
+        python3 /workspace/source/scripts/materialize_tuf_role_key.py \
+          --input "$${raw}" --expected-role snapshot --expected-slot primary \
+          --expected-key-id "${_TUF_SNAPSHOT_KEY_ID}" \
+          --output /workspace/secure/tuf/snapshot.pem
+
+  - id: materialize-tuf-timestamp
+    name: ${_OPS_BUILDER_IMAGE}
+    entrypoint: bash
+    timeout: 120s
+    waitFor: [build-unsigned]
+    secretEnv: [TUF_TIMESTAMP_KEY]
+    args:
+      - -ceu
+      - |
+        set +x
+        umask 077
+        install -d -m 700 /workspace/secure/tuf
+        raw=$$(mktemp /workspace/secure/tuf/timestamp.XXXXXX)
+        trap 'find "$${raw}" -delete 2>/dev/null || true' EXIT
+        printf '%s' "$${TUF_TIMESTAMP_KEY}" > "$${raw}"
+        chmod 600 "$${raw}"
+        python3 /workspace/source/scripts/materialize_tuf_role_key.py \
+          --input "$${raw}" --expected-role timestamp --expected-slot primary \
+          --expected-key-id "${_TUF_TIMESTAMP_KEY_ID}" \
+          --output /workspace/secure/tuf/timestamp.pem
+
   - id: mint-short-lived-github-token
     name: ${_ANDROID_BUILDER_IMAGE}
     entrypoint: python3
@@ -206,19 +298,39 @@ steps:
     name: ${_ANDROID_BUILDER_IMAGE}
     entrypoint: bash
     timeout: 600s
-    waitFor: [checkout-current-distribution]
+    waitFor: [checkout-current-distribution, materialize-tuf-targets-a, materialize-tuf-targets-b, materialize-tuf-snapshot, materialize-tuf-timestamp]
     args:
       - -ceu
       - |
         aapt=/workspace/android-build-tools/aapt
         apksigner=/workspace/android-build-tools/apksigner
         mkdir -p /workspace/baseline
-        cp /workspace/distribution/index.json /workspace/distribution/index.min.json /workspace/baseline/
+        cp -a /workspace/distribution/. /workspace/baseline/
         python3 /workspace/source/scripts/validate_release_bundles.py /workspace/apks
         python3 /workspace/source/scripts/generate_index.py /workspace/apks /workspace/distribution \
           --aapt "$${aapt}" --apksigner "$${apksigner}"
         python3 /workspace/source/scripts/validate_distribution.py /workspace/distribution \
           --baseline-dir /workspace/baseline --aapt "$${aapt}" --apksigner "$${apksigner}"
+        rm -rf /workspace/trusted-metadata-output
+        python3 /workspace/source/scripts/generate_trusted_metadata.py \
+          --distribution /workspace/distribution \
+          --output /workspace/trusted-metadata-output \
+          --policy /workspace/distribution/policy/admission_policy.json \
+          --root /workspace/distribution/policy/tuf/root.json \
+          --catalog /workspace/source/release-catalog.json \
+          --targets-key /workspace/secure/tuf/targets-a.pem \
+          --targets-key /workspace/secure/tuf/targets-b.pem \
+          --snapshot-key /workspace/secure/tuf/snapshot.pem \
+          --timestamp-key /workspace/secure/tuf/timestamp.pem \
+          --apksigner "$${apksigner}"
+        rm -rf /workspace/distribution/metadata /workspace/distribution/targets
+        mv /workspace/trusted-metadata-output/metadata /workspace/distribution/metadata
+        mv /workspace/trusted-metadata-output/targets /workspace/distribution/targets
+        python3 /workspace/distribution/policy/admission_gate.py \
+          --candidate /workspace/distribution \
+          --base /workspace/baseline \
+          --policy-root /workspace/baseline/policy \
+          --aapt "$${aapt}" --apksigner "$${apksigner}"
 
   - id: publish-exact-distribution-pr
     name: ${_ANDROID_BUILDER_IMAGE}
@@ -257,3 +369,11 @@ availableSecrets:
   secretManager:
     - versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-publisher-signing-bundle/versions/${_PUBLISHER_SIGNING_BUNDLE_VERSION}
       env: PUBLISHER_SIGNING_BUNDLE
+    - versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-tuf-targets-a-key/versions/${_TUF_TARGETS_A_SECRET_VERSION}
+      env: TUF_TARGETS_A_KEY
+    - versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-tuf-targets-b-key/versions/${_TUF_TARGETS_B_SECRET_VERSION}
+      env: TUF_TARGETS_B_KEY
+    - versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-tuf-snapshot-key/versions/${_TUF_SNAPSHOT_SECRET_VERSION}
+      env: TUF_SNAPSHOT_KEY
+    - versionName: projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-tuf-timestamp-key/versions/${_TUF_TIMESTAMP_SECRET_VERSION}
+      env: TUF_TIMESTAMP_KEY

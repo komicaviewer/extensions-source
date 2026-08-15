@@ -273,12 +273,25 @@ class CloudBuildAutomationTest(unittest.TestCase):
         version_names = [
             value.strip() for value in re.findall(r"versionName:\s*([^,\n]+)", config)
         ]
-        self.assertEqual(1, len(version_names))
+        self.assertEqual(5, len(version_names))
         self.assertIn("_SECRET_PREFIX: REQUIRED_SECRET_PREFIX", config)
-        self.assertEqual(
+        self.assertIn(
             "projects/$PROJECT_ID/secrets/${_SECRET_PREFIX}-publisher-signing-bundle/versions/${_PUBLISHER_SIGNING_BUNDLE_VERSION}",
-            version_names[0],
+            version_names,
         )
+        for role in ("targets-a", "targets-b", "snapshot", "timestamp"):
+            self.assertTrue(
+                any(f"-tuf-{role}-key/versions/${{" in value for value in version_names),
+                role,
+            )
+        for env in (
+            "TUF_TARGETS_A_KEY",
+            "TUF_TARGETS_B_KEY",
+            "TUF_SNAPSHOT_KEY",
+            "TUF_TIMESTAMP_KEY",
+        ):
+            self.assertEqual(1, len(re.findall(rf"secretEnv: \[{env}\]", config)), env)
+            self.assertEqual(1, len(re.findall(rf"^\s+env: {env}$", config, re.MULTILINE)), env)
         self.assertNotIn("versions/latest", config)
         self.assertIn("GITHUB_APP_ID=${_PUBLISHER_GITHUB_APP_ID}", config)
         self.assertIn(
