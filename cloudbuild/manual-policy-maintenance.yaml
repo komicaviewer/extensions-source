@@ -77,7 +77,10 @@ steps:
         umask 077
         install -d -m 700 /workspace/secure
         raw=/workspace/secure/publisher-bundle.json
-        trap 'find /workspace/secure -type f -exec shred -u {} + 2>/dev/null || rm -rf /workspace/secure' EXIT
+        cleanup_raw() {
+          find "$${raw}" -type f -exec shred -u {} + 2>/dev/null || rm -f -- "$${raw}"
+        }
+        trap cleanup_raw EXIT
         printf '%s' "$${PUBLISHER_SIGNING_BUNDLE}" > "$${raw}"
         chmod 600 "$${raw}"
         python3 /workspace/source/scripts/materialize_publisher_signing_bundle.py \
@@ -115,6 +118,17 @@ steps:
       - ${_BASE_SHA}
       - --head-sha
       - ${_HEAD_SHA}
+
+  - id: cleanup-private-material
+    name: ${_OPS_BUILDER_IMAGE}
+    entrypoint: bash
+    timeout: 30s
+    waitFor: [publish-exact-head-status]
+    args:
+      - -ceu
+      - |
+        find /workspace/secure -type f -exec shred -u {} + 2>/dev/null || true
+        rm -rf -- /workspace/secure
 
 availableSecrets:
   secretManager:
