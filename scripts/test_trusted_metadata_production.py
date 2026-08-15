@@ -10,7 +10,13 @@ import tempfile
 import unittest
 
 from bootstrap_production_root import bootstrap
-from generate_trusted_metadata import MetadataBuildError, canonical, generate, key_id
+from generate_trusted_metadata import (
+    MetadataBuildError,
+    canonical,
+    catalog_network_policies,
+    generate,
+    key_id,
+)
 from materialize_tuf_role_key import RoleKeyError, parse
 
 
@@ -26,6 +32,36 @@ def make_key(root: Path, name: str) -> Path:
 
 
 class ProductionTrustedMetadataTest(unittest.TestCase):
+    def test_catalog_network_policy_is_fail_closed(self) -> None:
+        policy = {
+            "exactHosts": ["example.com"],
+            "operations": [{
+                "credentialed": True,
+                "methods": ["GET", "HEAD"],
+                "name": "source_read",
+                "pathPrefixes": ["/"],
+            }],
+            "namedCapabilities": ["external_link"],
+        }
+        source = {
+            "id": "test",
+            "exactHosts": ["example.com"],
+            "namedCapabilities": ["external_link"],
+            "policyHash": hashlib.sha256(canonical(policy)).hexdigest(),
+        }
+        self.assertEqual(policy, catalog_network_policies({"releases": [{"sources": [source]}]})["test"])
+
+        for field, value in (
+            ("exactHosts", ["*.example.com"]),
+            ("namedCapabilities", ["raw_socket"]),
+            ("policyHash", "00" * 32),
+        ):
+            invalid = json.loads(json.dumps(source))
+            invalid[field] = value
+            with self.subTest(field=field):
+                with self.assertRaises(MetadataBuildError):
+                    catalog_network_policies({"releases": [{"sources": [invalid]}]})
+
     def test_root_bootstrap_requires_distinct_two_of_two_roles(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -96,10 +132,32 @@ class ProductionTrustedMetadataTest(unittest.TestCase):
             policy_path = root / "policy.json"
             policy_path.write_text(json.dumps(policy))
             catalog_path = root / "catalog.json"
-            catalog_path.write_text(json.dumps({"repository": {
-                "name": "Test", "description": "Test", "iconUrl": "https://example.com/icon.png",
-                "website": "https://example.com",
-            }}))
+            network_policy = {
+                "exactHosts": ["example.com"],
+                "operations": [{
+                    "name": "source_read", "methods": ["GET", "HEAD"],
+                    "pathPrefixes": ["/"], "credentialed": True,
+                }],
+                "namedCapabilities": ["external_link", "resource_read"],
+            }
+            source["policyHash"] = hashlib.sha256(
+                json.dumps(
+                    network_policy, ensure_ascii=False, sort_keys=True,
+                    separators=(",", ":"), allow_nan=False,
+                ).encode("utf-8")
+            ).hexdigest()
+            policy_path.write_text(json.dumps(policy))
+            catalog_path.write_text(json.dumps({
+                "repository": {
+                    "name": "Test", "description": "Test",
+                    "iconUrl": "https://example.com/icon.png", "website": "https://example.com",
+                },
+                "releases": [{"sources": [{
+                    "id": "test", "policyHash": source["policyHash"],
+                    "exactHosts": ["example.com"],
+                    "namedCapabilities": ["external_link", "resource_read"],
+                }]}],
+            }))
             root_path = root / "root.json"
             root_path.write_text(json.dumps({"signed": {"roles": {
                 "targets": {"keyids": [key_id(item) for item in targets], "threshold": 2},
@@ -120,6 +178,19 @@ class ProductionTrustedMetadataTest(unittest.TestCase):
             )
             target = targets_envelope["signed"]["targets"][f"apk/{apk_name}"]
             self.assertEqual([signer], target["custom"]["apkSignerPins"])
+            self.assertEqual(
+                network_policy,
+                target["custom"]["sources"][0]["networkPolicy"],
+            )
+            self.assertEqual(
+                hashlib.sha256(
+                    json.dumps(
+                        target["custom"]["sources"][0]["networkPolicy"],
+                        ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False,
+                    ).encode("utf-8")
+                ).hexdigest(),
+                target["custom"]["sources"][0]["policyHash"],
+            )
             self.assertEqual(apk.read_bytes(), (output / "targets/apk" / apk_name).read_bytes())
             self.assertTrue((output / "metadata/1.snapshot.json").is_file())
             self.assertTrue((output / "metadata/timestamp.json").is_file())

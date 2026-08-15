@@ -17,6 +17,16 @@ from validate_distribution import find_tool, read_signing_fingerprint
 
 
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
+EXACT_HOST = re.compile(
+    r"^(?=.{1,253}$)(?![0-9.]+$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*"
+    r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"
+)
+KNOWN_CAPABILITIES = {
+    "external_link",
+    "eyny_challenge_proof",
+    "ptt_adult_consent_status",
+    "resource_read",
+}
 
 
 class MetadataBuildError(ValueError):
@@ -38,6 +48,58 @@ def load_json(path: Path, label: str) -> Any:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise MetadataBuildError(f"invalid {label}") from exc
+
+
+def catalog_network_policies(catalog: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Return the full, canonical policy for every catalog Source.
+
+    Targets carry this object in addition to its digest so a Host does not need a
+    code-owned package catalog to reconstruct runtime authority.
+    """
+    releases = catalog.get("releases")
+    if not isinstance(releases, list) or not releases:
+        raise MetadataBuildError("release catalog has no policy-bearing releases")
+    policies: dict[str, dict[str, Any]] = {}
+    for release in releases:
+        sources = release.get("sources") if isinstance(release, dict) else None
+        if not isinstance(sources, list) or not sources:
+            raise MetadataBuildError("release catalog entry has no Sources")
+        for source in sources:
+            if not isinstance(source, dict):
+                raise MetadataBuildError("release catalog Source is invalid")
+            source_id = source.get("id")
+            hosts = source.get("exactHosts")
+            capabilities = source.get("namedCapabilities")
+            expected_hash = source.get("policyHash")
+            if not isinstance(source_id, str) or not source_id or source_id in policies:
+                raise MetadataBuildError("release catalog Source ID is invalid or duplicated")
+            if (
+                not isinstance(hosts, list) or not hosts or len(hosts) > 32
+                or hosts != sorted(set(hosts))
+                or any(not isinstance(host, str) or not EXACT_HOST.fullmatch(host) for host in hosts)
+            ):
+                raise MetadataBuildError(f"invalid exactHosts for {source_id}")
+            if (
+                not isinstance(capabilities, list) or not capabilities or len(capabilities) > 16
+                or capabilities != sorted(set(capabilities))
+                or any(value not in KNOWN_CAPABILITIES for value in capabilities)
+            ):
+                raise MetadataBuildError(f"invalid namedCapabilities for {source_id}")
+            policy = {
+                "exactHosts": hosts,
+                "operations": [{
+                    "name": "source_read",
+                    "methods": ["GET", "HEAD"],
+                    "pathPrefixes": ["/"],
+                    "credentialed": True,
+                }],
+                "namedCapabilities": capabilities,
+            }
+            actual_hash = hashlib.sha256(canonical(policy)).hexdigest()
+            if not isinstance(expected_hash, str) or actual_hash != expected_hash:
+                raise MetadataBuildError(f"catalog policyHash mismatch for {source_id}")
+            policies[source_id] = policy
+    return policies
 
 
 def public_der(private_key: Path) -> bytes:
@@ -162,6 +224,7 @@ def generate(
     repository = catalog.get("repository")
     if not isinstance(repository, dict) or set(repository) != {"name", "description", "iconUrl", "website"}:
         raise MetadataBuildError("release catalog repository metadata is invalid")
+    network_policies = catalog_network_policies(catalog)
 
     old_targets, old_snapshot, old_timestamp = current_versions(distribution / "metadata")
     targets_version, snapshot_version, timestamp_version = (
@@ -197,9 +260,21 @@ def generate(
         if not SHA256.fullmatch(signer) or not pins or signer not in pins or len(pins) != len(set(pins)):
             raise MetadataBuildError(f"APK signer is not authorized by policy: {package}")
         shutil.copy2(apk, target_dir / apk_name)
-        sources = [{key: source[key] for key in (
-            "id", "service", "protocol", "policyHash", "name", "lang", "baseUrl"
-        )} for source in release["sources"]]
+        sources = []
+        for source in release["sources"]:
+            source_id = source.get("id") if isinstance(source, dict) else None
+            network_policy = network_policies.get(source_id)
+            if network_policy is None:
+                raise MetadataBuildError(f"Source has no catalog network policy: {source_id}")
+            policy_hash = source.get("policyHash")
+            if policy_hash != hashlib.sha256(canonical(network_policy)).hexdigest():
+                raise MetadataBuildError(f"admission/catalog policy mismatch for {source_id}")
+            sources.append({
+                **{key: source[key] for key in (
+                    "id", "service", "protocol", "policyHash", "name", "lang", "baseUrl"
+                )},
+                "networkPolicy": network_policy,
+            })
         target_descriptors[f"apk/{apk_name}"] = {
             "length": len(value),
             "hashes": {"sha256": hashlib.sha256(value).hexdigest()},

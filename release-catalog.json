@@ -120,9 +120,9 @@
           "className": "tw.kevinzhang.newshub.extension.sora.komica.SoraSource",
           "service": "tw.kevinzhang.newshub.extension.komica.SoraExtensionService",
           "protocol": 1,
-          "exactHosts": ["komica1.org"],
+          "exactHosts": ["gaia.komica1.org", "gita.komica1.org", "iris.komica1.org", "komica1.org"],
           "namedCapabilities": ["external_link", "resource_read"],
-          "policyHash": "b26b519357aa738070c201224de6504db983de86292337689d19109d321c81df"
+          "policyHash": "413217b5c534dc871a339ffebaa6e9466d761bf799ff7b943f933fbaaaa6d436"
         },
         {
           "module": "akraft",
@@ -190,9 +190,9 @@
           "className": "tw.kevinzhang.newshub.extension.sora.komica2.Komica2SoraSource",
           "service": "tw.kevinzhang.newshub.extension.komica2.SoraExtensionService",
           "protocol": 1,
-          "exactHosts": ["komica1.org"],
+          "exactHosts": ["gaia.komica1.org", "gita.komica1.org", "iris.komica1.org", "komica1.org"],
           "namedCapabilities": ["external_link", "resource_read"],
-          "policyHash": "b26b519357aa738070c201224de6504db983de86292337689d19109d321c81df"
+          "policyHash": "413217b5c534dc871a339ffebaa6e9466d761bf799ff7b943f933fbaaaa6d436"
         },
         {
           "module": "zawarudo-komica2",
