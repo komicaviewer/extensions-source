@@ -113,6 +113,30 @@ class ManualPolicyMaintenanceAdmissionTest(unittest.TestCase):
         with self.assertRaisesRegex(admission.AdmissionError, "forbidden paths"):
             admission.validate(self.base, self.candidate, catalog)
 
+    def test_accepts_exact_policy_verifier_code_change(self):
+        for relative in admission.VERIFIER_MAINTENANCE_PATHS:
+            base = self.base / relative
+            candidate = self.candidate / relative
+            base.parent.mkdir(parents=True, exist_ok=True)
+            candidate.parent.mkdir(parents=True, exist_ok=True)
+            base.write_text("old", encoding="utf-8")
+            candidate.write_text("new", encoding="utf-8")
+        self.assertEqual(
+            admission.VERIFIER_MAINTENANCE_PATHS,
+            admission.validate_verifier_code(self.base, self.candidate),
+        )
+
+    def test_rejects_partial_policy_verifier_code_change(self):
+        relative = admission.VERIFIER_MAINTENANCE_PATHS[0]
+        base = self.base / relative
+        candidate = self.candidate / relative
+        base.parent.mkdir(parents=True, exist_ok=True)
+        candidate.parent.mkdir(parents=True, exist_ok=True)
+        base.write_text("old", encoding="utf-8")
+        candidate.write_text("new", encoding="utf-8")
+        with self.assertRaisesRegex(admission.AdmissionError, "forbidden paths"):
+            admission.validate_verifier_code(self.base, self.candidate)
+
 
 if __name__ == "__main__":
     unittest.main()

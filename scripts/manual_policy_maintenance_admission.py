@@ -20,6 +20,12 @@ SHA = re.compile(r"^[0-9a-f]{40}$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 REPOSITORY = "komicaviewer/extensions"
 STATUS_CONTEXT = "GCP distribution admission / verify"
+VERIFIER_MAINTENANCE_PATHS = [
+    "policy/admission_gate.py",
+    "policy/test_admission_gate.py",
+    "policy/test_trusted_metadata.py",
+    "policy/trusted_metadata.py",
+]
 
 
 class AdmissionError(ValueError):
@@ -181,6 +187,13 @@ def validate(base: Path, candidate: Path, catalog_path: Path) -> list[str]:
     return changed_sources
 
 
+def validate_verifier_code(base: Path, candidate: Path) -> list[str]:
+    paths = changed_paths(base, candidate)
+    if paths != VERIFIER_MAINTENANCE_PATHS:
+        raise AdmissionError(f"verifier maintenance changed forbidden paths: {paths}")
+    return paths
+
+
 def github_api(token: str, method: str, route: str, payload: dict | None = None) -> dict:
     data = None if payload is None else canonical(payload)
     request = urllib.request.Request(
@@ -232,6 +245,7 @@ def main() -> int:
     parser.add_argument("--base-sha")
     parser.add_argument("--head-sha")
     parser.add_argument("--post-status", action="store_true")
+    parser.add_argument("--policy-code-maintenance", action="store_true")
     args = parser.parse_args()
     try:
         if args.post_status:
@@ -242,10 +256,18 @@ def main() -> int:
             post_status(args.token_file, args.pr_number, args.base_sha, args.head_sha)
             print("exact-head policy maintenance status published")
         else:
-            if not args.base or not args.candidate or not args.catalog:
+            if not args.base or not args.candidate:
                 raise AdmissionError("validation mode arguments are incomplete")
-            changed = validate(args.base.resolve(), args.candidate.resolve(), args.catalog.resolve())
-            print("policy maintenance admitted for Sources: " + ", ".join(changed))
+            if args.policy_code_maintenance:
+                changed = validate_verifier_code(args.base.resolve(), args.candidate.resolve())
+                print("policy verifier maintenance admitted for paths: " + ", ".join(changed))
+            else:
+                if not args.catalog:
+                    raise AdmissionError("hash maintenance requires an exact release catalog")
+                changed = validate(
+                    args.base.resolve(), args.candidate.resolve(), args.catalog.resolve()
+                )
+                print("policy maintenance admitted for Sources: " + ", ".join(changed))
     except (AdmissionError, OSError, subprocess.SubprocessError, urllib.error.URLError) as exc:
         print(f"policy maintenance admission failed: {exc}", file=sys.stderr)
         return 2

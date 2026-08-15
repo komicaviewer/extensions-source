@@ -12,6 +12,7 @@ substitutions:
   _HEAD_SHA: REQUIRED_HEAD_SHA
   _SOURCE_SHA: REQUIRED_SOURCE_SHA
   _PR_NUMBER: "0"
+  _MAINTENANCE_KIND: hash-only
   _OPS_BUILDER_IMAGE: REQUIRED_DIGEST_PINNED_OPS_IMAGE
   _PUBLISH_SERVICE_ACCOUNT: REQUIRED_PUBLISH_SERVICE_ACCOUNT
   _SECRET_PREFIX: REQUIRED_SECRET_PREFIX
@@ -57,12 +58,28 @@ steps:
     args:
       - -ceu
       - |
-        PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
-          -s /workspace/distribution-base/policy -p 'test_*.py' -v
-        python3 /workspace/source/scripts/manual_policy_maintenance_admission.py \
-          --base /workspace/distribution-base \
-          --candidate /workspace/distribution-candidate \
-          --catalog /workspace/source/release-catalog.json
+        case "${_MAINTENANCE_KIND}" in
+          hash-only)
+            PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
+              -s /workspace/distribution-candidate/policy -p 'test_*.py' -v
+            python3 /workspace/source/scripts/manual_policy_maintenance_admission.py \
+              --base /workspace/distribution-base \
+              --candidate /workspace/distribution-candidate \
+              --catalog /workspace/source/release-catalog.json
+            ;;
+          verifier-code)
+            PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
+              -s /workspace/distribution-candidate/policy -p 'test_*.py' -v
+            python3 /workspace/source/scripts/manual_policy_maintenance_admission.py \
+              --policy-code-maintenance \
+              --base /workspace/distribution-base \
+              --candidate /workspace/distribution-candidate
+            ;;
+          *)
+            echo "unsupported policy maintenance kind" >&2
+            exit 2
+            ;;
+        esac
 
   - id: materialize-publisher-identity
     name: ${_OPS_BUILDER_IMAGE}
