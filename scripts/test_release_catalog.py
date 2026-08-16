@@ -53,12 +53,12 @@ class ReleaseCatalogTest(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         expected = {
             "eyny": (4, "0.1.3"),
-            "gamer": (7, "0.0.7"),
-            "hackernews": (3, "0.1.2"),
+            "gamer": (8, "0.0.8"),
+            "hackernews": (4, "0.1.3"),
             "komica": (8, "0.3.5"),
             "komica2": (9, "0.4.5"),
-            "mobile01": (4, "0.1.3"),
-            "ptt": (6, "0.4.2"),
+            "mobile01": (5, "0.1.4"),
+            "ptt": (7, "0.4.3"),
         }
         for module, (version_code, version_name) in expected.items():
             contents = (root / f"src/{module}/build.gradle.kts").read_text(encoding="utf-8")
