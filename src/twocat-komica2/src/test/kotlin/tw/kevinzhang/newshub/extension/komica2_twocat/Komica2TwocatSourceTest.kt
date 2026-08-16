@@ -12,6 +12,8 @@ import tw.kevinzhang.extension_api.model.BoardQuery
 import tw.kevinzhang.extension_api.model.ThreadSummary
 import tw.kevinzhang.newshub.extension.twocat.komica2.model.Komica2TwocatBoards
 import tw.kevinzhang.newshub.extension.runtime.asTestSourceRuntime
+import tw.kevinzhang.newshub.extension.runtime.SourceSiteUnavailableException
+import tw.kevinzhang.newshub.extension.runtime.SourceSiteUnavailableReason
 
 class Komica2TwocatSourceTest {
     private val board = Komica2TwocatBoards.all.single()
@@ -20,7 +22,7 @@ class Komica2TwocatSourceTest {
     fun `source version is incremented and board catalog has no categories`() = runBlocking {
         val source = Komica2TwocatSource()
 
-        assertEquals(3, source.version)
+        assertEquals(4, source.version)
         assertEquals(emptyList<Any>(), source.getBoardCategories())
         assertEquals(listOf(board), source.getBoardPage(BoardPageRequest()).boards)
         assertEquals(listOf(board), source.getBoardPage(BoardPageRequest(BoardQuery(text = "東方"))).boards)
@@ -29,7 +31,7 @@ class Komica2TwocatSourceTest {
     }
 
     @Test
-    fun `summary and thread HTTP errors report the brokered request URL`() = runBlocking {
+    fun `summary and thread HTTP errors are typed without leaking request URLs`() = runBlocking {
         val source = Komica2TwocatSource().apply { onAttach(notFoundClient().asTestSourceRuntime()) }
         val summary = ThreadSummary(
             sourceId = source.id,
@@ -44,14 +46,14 @@ class Komica2TwocatSourceTest {
             previewContent = emptyList(),
         )
 
-        assertEquals(
-            "HTTP 404: https://2cat.org/touhoux/pixmicat.php",
-            assertHttpException { source.getThreadSummaries(board, page = 1) }.message,
-        )
-        assertEquals(
-            "HTTP 404: https://2cat.org/touhoux/pixmicat.php?res=42",
-            assertHttpException { source.getThread(summary) }.message,
-        )
+        val summaryFailure = assertSiteUnavailable { source.getThreadSummaries(board, page = 1) }
+        val threadFailure = assertSiteUnavailable { source.getThread(summary) }
+        assertEquals(404, summaryFailure.statusCode)
+        assertEquals(404, threadFailure.statusCode)
+        assertEquals(SourceSiteUnavailableReason.HTTP_ERROR, summaryFailure.reason)
+        assertEquals(SourceSiteUnavailableReason.HTTP_ERROR, threadFailure.reason)
+        assertEquals(false, summaryFailure.message.orEmpty().contains("2cat.org"))
+        assertEquals(false, threadFailure.message.orEmpty().contains("res=42"))
     }
 
     private fun notFoundClient(): OkHttpClient = OkHttpClient.Builder()
@@ -66,10 +68,12 @@ class Komica2TwocatSourceTest {
         }
         .build()
 
-    private suspend fun assertHttpException(block: suspend () -> Unit): HttpException = try {
+    private suspend fun assertSiteUnavailable(
+        block: suspend () -> Unit,
+    ): SourceSiteUnavailableException = try {
         block()
-        throw AssertionError("Expected HttpException")
-    } catch (exception: HttpException) {
+        throw AssertionError("Expected SourceSiteUnavailableException")
+    } catch (exception: SourceSiteUnavailableException) {
         exception
     }
 }

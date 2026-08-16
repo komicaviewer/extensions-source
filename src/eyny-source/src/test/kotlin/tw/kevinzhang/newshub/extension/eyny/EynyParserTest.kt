@@ -90,7 +90,8 @@ class EynyParserTest {
     @Test fun `url policy rejects foreign hosts and cross thread parsing`() {
         assertNull(EynyUrlPolicy.thread("https://evil.example/thread-1-1-1.html"))
         assertNull(EynyUrlPolicy.resolve("https://eyny.com/thread-1-1-1.html", "https://evil.example/thread-1-2-1.html"))
-        assertNull(EynyUrlPolicy.thread("https://www51.eyny.com/thread-144-2-1.html"))
+        assertEquals("144", EynyUrlPolicy.thread("https://www53.eyny.com/thread-144-2-1.html")?.tid)
+        assertNull(EynyUrlPolicy.thread("https://www54.eyny.com/thread-144-2-1.html"))
         assertEquals("DD276MYS", EynyUrlPolicy.thread("https://www.eyny.com/thread-14437342-1-DD276MYS.html")?.extra)
         assertEquals(32, EynyUrlPolicy.board("https://eyny.com/forum.php?mod=forumdisplay&fid=32")?.fid)
         assertEquals("144", EynyUrlPolicy.thread("https://eyny.com/forum.php?mod=viewthread&tid=144&page=2&extra=ABC_123")?.tid)
@@ -134,7 +135,7 @@ class EynyParserTest {
 
         assertTrue("eyny.com" in spec.allowedHosts)
         assertTrue("www.eyny.com" in spec.allowedHosts)
-        assertEquals(setOf("eyny.com", "www.eyny.com"), spec.allowedHosts)
+        assertEquals(setOf("eyny.com", "www.eyny.com", "www53.eyny.com"), spec.allowedHosts)
         assertFalse(spec.allowedHosts.any { '*' in it })
         assertEquals(spec.allowedHosts.mapTo(linkedSetOf()) { "https://$it" }, spec.cookieOrigins)
         assertEquals(EYNY_USER_AGENT, (source as WebLoginUserAgentProvider).webLoginUserAgent)

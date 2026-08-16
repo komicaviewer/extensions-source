@@ -7,11 +7,13 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 internal object EynyUrlPolicy {
     private const val ROOT = "eyny.com"
     private const val WWW = "www.eyny.com"
+    private const val WWW53 = "www53.eyny.com"
+    private val ALLOWED_HOSTS = setOf(ROOT, WWW, WWW53)
     private val THREAD = Regex("/thread-(\\d+)-(\\d+)-([A-Za-z0-9_-]+)\\.html")
     private val BOARD = Regex("/forum-(\\d+)-(\\d+)\\.html")
     private val EXTRA = Regex("[A-Za-z0-9_-]{1,64}")
 
-    fun isAllowedHost(host: String): Boolean = host == ROOT || host == WWW
+    fun isAllowedHost(host: String): Boolean = host in ALLOWED_HOSTS
     fun canonicalBoard(fid: Int, page: Int = 1): String {
         require(fid > 0 && page > 0)
         return "https://$ROOT/forum-$fid-$page.html"

@@ -13,12 +13,14 @@ import tw.kevinzhang.extension_api.model.Thread
 import tw.kevinzhang.extension_api.model.ThreadSummary
 import tw.kevinzhang.extension_api.model.Paragraph
 import tw.kevinzhang.newshub.extension.runtime.brokerBackedHttpClient
+import tw.kevinzhang.newshub.extension.runtime.SourceParserContractException
+import tw.kevinzhang.newshub.extension.runtime.requireSourceSuccess
 
 class Komica2ZawarudoSource : SessionAwareSource {
     override val id = ZawarudoBoards.SOURCE_ID
     override val name = "Komica2 Zawarudo"
     override val language = "zh-TW"
-    override val version = 2
+    override val version = 3
     override val iconUrl: String = "https://majeur.zawarudo.org/favicon.ico"
     override val supportsCommentPagination = false
     override val alwaysUseRawImage = true
@@ -81,8 +83,9 @@ class Komica2ZawarudoSource : SessionAwareSource {
     ): T {
         val response = newCall(request).await()
         response.use {
-            if (!it.isSuccessful) throw HttpException(it.code, request.url.toString())
-            return parse(checkNotNull(it.body) { "Empty response body: ${request.url}" })
+            it.requireSourceSuccess()
+            val body = it.body ?: throw SourceParserContractException("missing_response_body")
+            return parse(body)
         }
     }
 

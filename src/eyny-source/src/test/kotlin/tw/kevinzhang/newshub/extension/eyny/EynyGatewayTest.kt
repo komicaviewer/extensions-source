@@ -6,6 +6,7 @@ import okhttp3.Protocol
 import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.fail
 import org.junit.Test
 import tw.kevinzhang.extension_api.EynyChallengeProof
@@ -33,6 +34,39 @@ class EynyGatewayTest {
 
         assertEquals("www.eyny.com", gateway.activeHost)
         assertEquals(listOf("eyny.com", "www.eyny.com"), requestedHosts)
+    }
+
+    @Test
+    fun `observed www53 redirect is followed but unknown numbered host remains rejected`() = runBlocking {
+        val requestedHosts = mutableListOf<String>()
+        val client = OkHttpClient.Builder().addInterceptor { chain ->
+            requestedHosts += chain.request().url.host
+            if (requestedHosts.size == 1) {
+                Response.Builder()
+                    .request(chain.request())
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(302)
+                    .message("Found")
+                    .header("Location", "https://www53.eyny.com/")
+                    .body("".toResponseBody())
+                    .build()
+            } else {
+                Response.Builder()
+                    .request(chain.request())
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(200)
+                    .message("OK")
+                    .body("<main>EYNY</main>".toResponseBody())
+                    .build()
+            }
+        }.build()
+
+        val gateway = EynyGateway(client, RecordingNamedCookies())
+        gateway.get("https://eyny.com/")
+
+        assertEquals(listOf("eyny.com", "www53.eyny.com"), requestedHosts)
+        assertEquals("www53.eyny.com", gateway.activeHost)
+        assertNull(EynyUrlPolicy.resolve("https://eyny.com/", "https://www54.eyny.com/"))
     }
 
     @Test

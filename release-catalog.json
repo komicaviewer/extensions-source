@@ -32,9 +32,9 @@
           "service": "tw.kevinzhang.newshub.extension.eyny.EynyExtensionService",
           "protocol": 1,
           "policyVersion": 2,
-          "exactHosts": ["eyny.com", "www.eyny.com"],
+          "exactHosts": ["eyny.com", "www.eyny.com", "www53.eyny.com"],
           "namedCapabilities": ["external_link", "eyny_challenge_proof", "resource_read"],
-          "policyHash": "5206b958aa3148385f5ac40a3c9c51c3dd539d47505557ccabde8e845453279a"
+          "policyHash": "4e5ea185423a9c166ff220d802b6d90ec72900608eb501e7a2755765fc68aae0"
         }
       ]
     },

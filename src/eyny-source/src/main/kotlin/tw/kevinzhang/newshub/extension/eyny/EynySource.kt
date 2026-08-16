@@ -23,7 +23,7 @@ class EynySource : AuthenticatedSource, WebLoginUserAgentProvider {
     override val id = SOURCE_ID
     override val name = "EYNY 伊莉討論區"
     override val language = "zh-TW"
-    override val version = 1
+    override val version = 2
     override val iconUrl = "https://eyny.com/favicon.ico"
     override val supportsCommentPagination = false
     override val alwaysUseRawImage = false
@@ -116,6 +116,6 @@ class EynySource : AuthenticatedSource, WebLoginUserAgentProvider {
     companion object {
         const val SOURCE_ID = "tw.kevinzhang.eyny"
 
-        private val AUTH_HOSTS = setOf("eyny.com", "www.eyny.com")
+        private val AUTH_HOSTS = setOf("eyny.com", "www.eyny.com", "www53.eyny.com")
     }
 }

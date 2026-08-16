@@ -14,12 +14,13 @@ import tw.kevinzhang.extension_api.model.ThreadSummary
 import tw.kevinzhang.extension_api.model.Paragraph
 import tw.kevinzhang.extension_api.model.Board as ExtBoard
 import tw.kevinzhang.newshub.extension.runtime.brokerBackedHttpClient
+import tw.kevinzhang.newshub.extension.runtime.requireSourceSuccess
 
 class SoraSource : SessionAwareSource {
     override val id = SoraBoardCatalog.SOURCE_ID
     override val name = "Sora"
     override val language = "zh-TW"
-    override val version = 4
+    override val version = 5
     override val iconUrl: String = "https://komica1.org/favicon.ico"
     override val supportsCommentPagination = false
     override val alwaysUseRawImage = true
@@ -49,7 +50,7 @@ class SoraSource : SessionAwareSource {
             .build()
 
         val response = client.newCall(req).await()
-        if (!response.isSuccessful) throw HttpException(response.code, req.url.toString())
+        response.requireSourceSuccess()
         val urlParser = SoraFactory().createUrlParser()
         val thread = SoraFactory().createThreadSummariesParser(urlParser).parse(response.body!!, req)
 
@@ -76,7 +77,7 @@ class SoraSource : SessionAwareSource {
         val req = SoraFactory().createThreadRequestBuilder(summary.id.toHttpUrl()).build()
 
         val response = client.newCall(req).await()
-        if (!response.isSuccessful) throw HttpException(response.code, req.url.toString())
+        response.requireSourceSuccess()
         val urlParser = SoraFactory().createUrlParser()
         val thread = SoraFactory().createThreadParser(urlParser).parse(response.body!!, req)
 

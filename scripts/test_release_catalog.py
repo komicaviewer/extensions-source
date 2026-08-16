@@ -52,11 +52,11 @@ class ReleaseCatalogTest(unittest.TestCase):
     def test_release_versions_are_bumped_for_new_extension_api_payload(self):
         root = Path(__file__).resolve().parents[1]
         expected = {
-            "eyny": (3, "0.1.2"),
+            "eyny": (4, "0.1.3"),
             "gamer": (7, "0.0.7"),
             "hackernews": (3, "0.1.2"),
-            "komica": (7, "0.3.4"),
-            "komica2": (8, "0.4.4"),
+            "komica": (8, "0.3.5"),
+            "komica2": (9, "0.4.5"),
             "mobile01": (4, "0.1.3"),
             "ptt": (6, "0.4.2"),
         }

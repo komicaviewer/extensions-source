@@ -9,6 +9,7 @@ import org.jsoup.nodes.Element
 import org.jsoup.nodes.Node
 import org.jsoup.nodes.TextNode
 import tw.kevinzhang.extension_api.model.Paragraph
+import tw.kevinzhang.newshub.extension.runtime.SourceParserContractException
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -45,9 +46,9 @@ internal class ZawarudoCrawler {
     fun parseThread(body: ResponseBody, request: Request): List<ZawarudoParsedPost> {
         val document = Jsoup.parse(body.string(), request.url.toString())
         val thread = document.selectFirst("div.thread")
-            ?: throw ParseException("Missing thread container: ${request.url}")
+            ?: throw SourceParserContractException("missing_thread_container")
         val posts = thread.select("div.post")
-        if (posts.isEmpty()) throw ParseException("Missing posts: ${request.url}")
+        if (posts.isEmpty()) throw SourceParserContractException("missing_posts")
         val parsed = posts.map { post ->
             parsePost(
                 post = post,
@@ -185,7 +186,7 @@ internal class ZawarudoCrawler {
 
     private fun threadUrl(op: Element, pageUrl: HttpUrl): String {
         val replyLink = op.selectFirst("a[href*=/res/]")
-            ?: throw ParseException("Missing reply link for ${op.id()}")
+            ?: throw SourceParserContractException("missing_reply_link")
         val resolved = replyLink.absUrl("href").ifBlank {
             resolve(pageUrl, replyLink.attr("href"))
         }
@@ -197,7 +198,7 @@ internal class ZawarudoCrawler {
         if (fromElementId.isNotBlank()) return fromElementId
         return post.selectFirst("a.post_no[id^=post_no_]")?.id()?.substringAfter("post_no_")
             ?.takeIf { it.isNotBlank() }
-            ?: throw ParseException("Missing post id")
+            ?: throw SourceParserContractException("missing_post_id")
     }
 
     private fun parseReplyCount(thread: Element): Int {
