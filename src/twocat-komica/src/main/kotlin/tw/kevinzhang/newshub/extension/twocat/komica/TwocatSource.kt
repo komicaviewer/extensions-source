@@ -15,12 +15,13 @@ import tw.kevinzhang.extension_api.model.Paragraph
 import tw.kevinzhang.newshub.extension.twocat.komica.request.TwocatRequestBuilder
 import tw.kevinzhang.extension_api.model.Board as ExtBoard
 import tw.kevinzhang.newshub.extension.runtime.brokerBackedHttpClient
+import tw.kevinzhang.newshub.extension.runtime.requireSourceSuccess
 
 class TwocatSource : SessionAwareSource {
     override val id = TwocatBoardCatalog.SOURCE_ID
     override val name = "Twocat"
     override val language = "zh-TW"
-    override val version = 2
+    override val version = 3
     override val iconUrl: String = "https://2cat.uk/futaba.ico"
     override val supportsCommentPagination = false
     override val alwaysUseRawImage = true
@@ -50,7 +51,7 @@ class TwocatSource : SessionAwareSource {
             .build()
 
         val response = client.newCall(req).await()
-        if (!response.isSuccessful) throw HttpException(response.code, req.url.toString())
+        response.requireSourceSuccess()
         val urlParser = TwocatFactory().createUrlParser()
         val thread = TwocatFactory().createThreadSummariesParser(urlParser).parse(response.body!!, req)
 
@@ -84,7 +85,7 @@ class TwocatSource : SessionAwareSource {
             .build()
 
         val response = client.newCall(req).await()
-        if (!response.isSuccessful) throw HttpException(response.code, req.url.toString())
+        response.requireSourceSuccess()
         val urlParser = TwocatFactory().createUrlParser()
         val posts = TwocatFactory().createThreadParser(urlParser).parse(response.body!!, req)
 

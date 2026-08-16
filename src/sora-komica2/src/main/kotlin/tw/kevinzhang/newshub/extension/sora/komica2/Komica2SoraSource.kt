@@ -17,12 +17,13 @@ import tw.kevinzhang.extension_api.model.Paragraph
 import tw.kevinzhang.newshub.extension.sora.komica2.model.Komica2SoraBoards
 import tw.kevinzhang.extension_api.model.Board as ExtBoard
 import tw.kevinzhang.newshub.extension.runtime.brokerBackedHttpClient
+import tw.kevinzhang.newshub.extension.runtime.requireSourceSuccess
 
 class Komica2SoraSource : SessionAwareSource {
     override val id = Komica2SoraBoards.SOURCE_ID
     override val name = "Komica2 Sora"
     override val language = "zh-TW"
-    override val version = 3
+    override val version = 4
     override val iconUrl: String = "https://komica1.org/favicon.ico"
     override val supportsCommentPagination = false
     override val alwaysUseRawImage = true
@@ -64,7 +65,7 @@ class Komica2SoraSource : SessionAwareSource {
             .build()
 
         val response = client.newCall(req).await()
-        if (!response.isSuccessful) throw HttpException(response.code, req.url.toString())
+        response.requireSourceSuccess()
         val urlParser = Komica2SoraFactory().createThreadUrlParser()
         val thread = Komica2SoraFactory().createThreadSummariesParser(urlParser).parse(response.body!!, req)
 
@@ -94,7 +95,7 @@ class Komica2SoraSource : SessionAwareSource {
             .build()
 
         val response = client.newCall(req).await()
-        if (!response.isSuccessful) throw HttpException(response.code, req.url.toString())
+        response.requireSourceSuccess()
         val urlParser = Komica2SoraFactory().createThreadUrlParser()
         val posts = Komica2SoraFactory().createThreadParser(urlParser).parse(response.body!!, req)
 

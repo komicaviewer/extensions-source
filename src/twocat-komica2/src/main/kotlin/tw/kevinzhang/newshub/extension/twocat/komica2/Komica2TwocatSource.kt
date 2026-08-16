@@ -18,12 +18,13 @@ import tw.kevinzhang.newshub.extension.twocat.komica2.pixmicat.Komica2PixmicatEn
 import tw.kevinzhang.newshub.extension.twocat.komica2.model.Komica2TwocatBoards
 import tw.kevinzhang.extension_api.model.Board as ExtBoard
 import tw.kevinzhang.newshub.extension.runtime.brokerBackedHttpClient
+import tw.kevinzhang.newshub.extension.runtime.requireSourceSuccess
 
 class Komica2TwocatSource : SessionAwareSource {
     override val id = Komica2TwocatBoards.SOURCE_ID
     override val name = "Komica2 Twocat"
     override val language = "zh-TW"
-    override val version = 3
+    override val version = 4
     override val iconUrl = "https://2cat.uk/futaba.ico"
     override val supportsCommentPagination = false
     override val alwaysUseRawImage = true
@@ -58,7 +59,7 @@ class Komica2TwocatSource : SessionAwareSource {
             .setPage(page)
             .build()
         val response = client.newCall(req).await()
-        if (!response.isSuccessful) throw HttpException(response.code, response.request.url.toString())
+        response.requireSourceSuccess()
 
         val parser = engine.createThreadSummariesParser(engine.createUrlParser())
         parser.parse(response.body!!, req).map { post ->
@@ -84,7 +85,7 @@ class Komica2TwocatSource : SessionAwareSource {
             .setUrl(summary.id.toHttpUrl())
             .build()
         val response = client.newCall(req).await()
-        if (!response.isSuccessful) throw HttpException(response.code, response.request.url.toString())
+        response.requireSourceSuccess()
 
         val parser = engine.createThreadParser(engine.createUrlParser())
         val posts = parser.parse(response.body!!, req)

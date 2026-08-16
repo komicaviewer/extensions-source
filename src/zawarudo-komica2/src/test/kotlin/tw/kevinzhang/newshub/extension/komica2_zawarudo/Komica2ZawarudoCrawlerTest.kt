@@ -4,8 +4,10 @@ import okhttp3.Request
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertThrows
 import org.junit.Test
 import tw.kevinzhang.extension_api.model.Paragraph
+import tw.kevinzhang.newshub.extension.runtime.SourceParserContractException
 
 class ZawarudoCrawlerTest {
     private val crawler = ZawarudoCrawler()
@@ -70,6 +72,17 @@ class ZawarudoCrawlerTest {
                 )
             },
         )
+    }
+
+    @Test
+    fun `missing HTML structure is a typed parser contract failure`() {
+        val request = Request.Builder()
+            .url("https://majeur.zawarudo.org/demande/res/33740.html")
+            .build()
+
+        assertThrows(SourceParserContractException::class.java) {
+            crawler.parseThread("<html><body>challenge</body></html>".toResponseBody(), request)
+        }
     }
 
     private companion object {
