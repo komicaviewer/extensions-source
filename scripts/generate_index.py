@@ -88,6 +88,8 @@ def _select_apk(
     metadata: dict,
     baseline: dict | None,
     output: Path,
+    *,
+    preserve_unchanged_baseline: bool = False,
 ) -> tuple[Path, str]:
     fresh_sha = sha256_file(fresh_apk)
     if baseline is None or metadata["versionCode"] != baseline.get("versionCode"):
@@ -103,6 +105,8 @@ def _select_apk(
     baseline_apk = output / "apk" / baseline_name
     if not baseline_apk.is_file() or sha256_file(baseline_apk) != baseline.get("sha256"):
         raise ValueError(f"baseline APK is missing or corrupted for {metadata['pkg']}")
+    if preserve_unchanged_baseline:
+        return baseline_apk, baseline["sha256"]
     if apk_payload_sha256(fresh_apk) != apk_payload_sha256(baseline_apk):
         raise ValueError(f"APK payload changed without versionCode bump for {metadata['pkg']}")
     return baseline_apk, baseline["sha256"]
@@ -157,6 +161,7 @@ def generate_index(
     signature_reader: Callable[[str, str], str] = read_signing_fingerprint,
     bundle_validator: Callable[..., dict[str, dict]] = validate_release_bundles,
     distribution_validator: Callable[..., list[dict]] = validate_distribution_tree,
+    preserve_unchanged_baseline: bool = False,
 ) -> list[dict]:
     catalog = catalog or load_catalog()
     apk_input = Path(apk_dir).resolve()
@@ -182,6 +187,7 @@ def generate_index(
             apk_metadata,
             baseline_by_package.get(apk_metadata["pkg"]),
             output,
+            preserve_unchanged_baseline=preserve_unchanged_baseline,
         )
         release_metadata = metadata_for_release(catalog, release)
         sources = [_index_source(source) for source in release_metadata["sources"]]
@@ -245,6 +251,11 @@ def main() -> None:
     parser.add_argument("--catalog", default=str(DEFAULT_CATALOG_PATH))
     parser.add_argument("--aapt", default=os.environ.get("AAPT"))
     parser.add_argument("--apksigner", default=os.environ.get("APKSIGNER"))
+    parser.add_argument(
+        "--preserve-unchanged-baseline",
+        action="store_true",
+        help="reuse the admitted baseline APK when versionCode is unchanged",
+    )
     args = parser.parse_args()
     aapt = args.aapt or find_tool("AAPT", ("aapt", "aapt2"))
     apksigner = args.apksigner or find_tool("APKSIGNER", ("apksigner",))
@@ -254,6 +265,7 @@ def main() -> None:
         aapt,
         apksigner,
         catalog=load_catalog(args.catalog),
+        preserve_unchanged_baseline=args.preserve_unchanged_baseline,
     )
     print(
         f"Published validated distribution: APKs={len(extensions)}, "
