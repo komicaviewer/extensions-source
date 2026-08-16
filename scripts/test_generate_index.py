@@ -185,6 +185,27 @@ class GenerateIndexTest(unittest.TestCase):
 
         self.assertEqual(before, snapshot(self.output_dir))
 
+    def test_publish_mode_preserves_baseline_for_changed_unversioned_payload(self):
+        baseline = build_distribution_tree(self.output_dir, self.catalog)
+        write_complete_apks(self.apk_dir, self.catalog)
+        baseline_bytes = {
+            item["pkg"]: (self.output_dir / "apk" / item["apkName"]).read_bytes()
+            for item in baseline
+        }
+        import zipfile
+
+        gamer_apk = next(self.apk_dir.glob("*gamer*.apk"))
+        with zipfile.ZipFile(gamer_apk, "a") as archive:
+            archive.writestr("assets/unreleased.txt", "not-for-this-release")
+
+        extensions = self.call_generate(preserve_unchanged_baseline=True)
+
+        for item in extensions:
+            self.assertEqual(
+                baseline_bytes[item["pkg"]],
+                (self.output_dir / "apk" / item["apkName"]).read_bytes(),
+            )
+
     def test_publish_error_rolls_back_all_managed_paths(self):
         self.write_existing_output()
         stage = Path(self.temporary.name) / "stage"

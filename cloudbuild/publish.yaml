@@ -330,7 +330,8 @@ steps:
         cp -a /workspace/distribution/. /workspace/baseline/
         python3 /workspace/source/scripts/validate_release_bundles.py /workspace/apks
         python3 /workspace/source/scripts/generate_index.py /workspace/apks /workspace/distribution \
-          --aapt "$${aapt}" --apksigner "$${apksigner}"
+          --aapt "$${aapt}" --apksigner "$${apksigner}" \
+          --preserve-unchanged-baseline
         python3 /workspace/source/scripts/validate_distribution.py /workspace/distribution \
           --baseline-dir /workspace/baseline --aapt "$${aapt}" --apksigner "$${apksigner}"
         rm -rf /workspace/trusted-metadata-output
