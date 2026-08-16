@@ -73,12 +73,31 @@ steps:
         python3 scripts/validate_source_manifests.py
         python3 -m unittest discover -s scripts -p 'test_*.py'
 
+  - id: preflight-distribution-policy
+    name: ${_OPS_BUILDER_IMAGE}
+    entrypoint: bash
+    timeout: 180s
+    waitFor: [validate-catalog-and-tools]
+    env:
+      - DISTRIBUTION_URL=${_DISTRIBUTION_URL}
+    args:
+      - -ceu
+      - |
+        rm -rf /workspace/preflight-distribution
+        git clone --no-tags --depth=1 "$${DISTRIBUTION_URL}" /workspace/preflight-distribution
+        test "$$(git -C /workspace/preflight-distribution rev-parse HEAD)" = \
+          "$$(git ls-remote "$${DISTRIBUTION_URL}" refs/heads/main | cut -f1)"
+        EXTENSIONS_REPO_DIR=/workspace/preflight-distribution \
+          PYTHONDONTWRITEBYTECODE=1 \
+          python3 -m unittest \
+            scripts.test_trusted_metadata_production.ProductionTrustedMetadataTest.test_destination_admission_policy_matches_merged_catalog_contract
+
   - id: build-unsigned
     name: ${_ANDROID_BUILDER_IMAGE}
     entrypoint: bash
     dir: source
     timeout: 1800s
-    waitFor: [validate-catalog-and-tools]
+    waitFor: [preflight-distribution-policy]
     args:
       - -ceu
       - |
