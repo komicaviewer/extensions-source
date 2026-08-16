@@ -39,7 +39,14 @@ internal class WtakoParser {
         val document = Jsoup.parse(html, threadUrl)
         val original = document.selectFirst("div.threadpost[id^=r]") ?: return emptyList()
         val posts = buildList {
-            add(parsePost(original, threadUrl, threadUrl))
+            add(
+                parsePost(
+                    element = original,
+                    baseUrl = threadUrl,
+                    canonicalUrl = threadUrl,
+                    extraContentRoots = boundedOriginalContentSiblings(original),
+                ),
+            )
             document.select("div.reply[id^=r]").forEach { reply ->
                 val id = postId(reply, null)
                 add(parsePost(reply, threadUrl, "$threadUrl#r$id"))
@@ -58,12 +65,21 @@ internal class WtakoParser {
         return posts
     }
 
-    private fun parsePost(element: Element, baseUrl: String, canonicalUrl: String): WtakoParsedPost {
+    private fun parsePost(
+        element: Element,
+        baseUrl: String,
+        canonicalUrl: String,
+        extraContentRoots: List<Element> = emptyList(),
+    ): WtakoParsedPost {
         val id = postId(element, canonicalUrl)
         val body = element.selectFirst("div.quote")
         val content = buildList {
             if (body != null) addAll(paragraphs(body, baseUrl))
             addAll(media(element, baseUrl))
+            extraContentRoots.forEach { root ->
+                root.selectFirst("div.quote")?.let { addAll(paragraphs(it, baseUrl)) }
+                addAll(media(root, baseUrl))
+            }
         }
         return WtakoParsedPost(
             id = id,
@@ -73,6 +89,19 @@ internal class WtakoParser {
             createdAt = parseDate(element.text()),
             content = content,
         )
+    }
+
+    /**
+     * Older Pixmicat themes close the OP header before rendering its media and quote. Keep the
+     * recovery strictly inside the gap before the first reply or next thread so reply content can
+     * never be attributed to the OP.
+     */
+    private fun boundedOriginalContentSiblings(original: Element): List<Element> = buildList {
+        var sibling = original.nextElementSibling()
+        while (sibling != null && !sibling.hasClass("reply") && !sibling.hasClass("threadpost")) {
+            add(sibling)
+            sibling = sibling.nextElementSibling()
+        }
     }
 
     private fun replyCount(original: Element): Int {
