@@ -89,6 +89,7 @@ steps:
         test "$$(git -C /workspace/preflight-distribution rev-parse HEAD)" = \
           "$$(git ls-remote "$${DISTRIBUTION_URL}" refs/heads/main | cut -f1)"
         EXTENSIONS_REPO_DIR=/workspace/preflight-distribution \
+          PYTHONPATH=/workspace/source/scripts \
           PYTHONDONTWRITEBYTECODE=1 \
           python3 -m unittest \
             scripts.test_trusted_metadata_production.ProductionTrustedMetadataTest.test_destination_admission_policy_matches_merged_catalog_contract

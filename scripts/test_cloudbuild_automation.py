@@ -191,6 +191,7 @@ class CloudBuildAutomationTest(unittest.TestCase):
         preflight = config[start:end]
         self.assertIn("dir: source", preflight)
         self.assertIn("EXTENSIONS_REPO_DIR=/workspace/preflight-distribution", preflight)
+        self.assertIn("PYTHONPATH=/workspace/source/scripts", preflight)
         self.assertIn(
             "test_destination_admission_policy_matches_merged_catalog_contract",
             preflight,
