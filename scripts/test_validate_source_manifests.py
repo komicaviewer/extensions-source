@@ -52,6 +52,21 @@ class SourceManifestValidationTest(unittest.TestCase):
             "legacy application metadata",
         )
 
+    def test_rejects_protocol_v1_service(self):
+        self._tamper(
+            'android:name="newshub.extension.protocol" android:value="2"',
+            'android:name="newshub.extension.protocol" android:value="1"',
+            "protocol must equal 2",
+        )
+
+    def test_rejects_legacy_login_service_metadata(self):
+        self._tamper(
+            '<meta-data android:name="newshub.extension.source_id"',
+            '<meta-data android:name="newshub.extension.needs_login" android:value="true" />\n'
+            '            <meta-data android:name="newshub.extension.source_id"',
+            "legacy login service metadata",
+        )
+
     def _tamper(self, old: str, new: str, error: str) -> None:
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory) / "AndroidManifest.xml"

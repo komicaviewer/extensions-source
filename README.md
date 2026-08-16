@@ -1,6 +1,6 @@
-# NewsHub Extensions 原始碼
+# NewsHub 官方 Extensions 維運原始碼
 
-本 repository 保存 [NewsHub](https://github.com/komicaviewer/NewsHub) 第三方 extensions 的原始碼，架構參考 [keiyoushi/extensions-source](https://github.com/keiyoushi/extensions-source)。
+本 repository 是 NewsHub 官方 extensions 的維運 monorepo，包含官方 Source 實作、七個 APK bundle、發佈 catalog、審核過的 network policies 與 production publication automation。它不是第三方 extension starter，也不應被 fork 後直接當成第三方 repository 範本；第三方開發者應使用 NewsHub 文件所指向的獨立 starter 與 repository generator。
 
 ## 架構
 
@@ -68,7 +68,7 @@ PTT 會把每篇文章保留為 `Post`，推文保留為 `Comment`。內部 page
     <intent-filter>
         <action android:name="tw.kevinzhang.newshub.extension.SERVICE" />
     </intent-filter>
-    <meta-data android:name="newshub.extension.protocol" android:value="1" />
+    <meta-data android:name="newshub.extension.protocol" android:value="2" />
     <meta-data android:name="newshub.extension.source_id" android:value="example" />
     <meta-data android:name="newshub.extension.source_name" android:value="Example" />
     <meta-data android:name="newshub.extension.source_lang" android:value="en" />
@@ -77,6 +77,8 @@ PTT 會把每篇文章保留為 `Post`，推文保留為 `Comment`。內部 page
 ```
 
 禁止使用舊 application marker `assets/newshub-extension.json`、`PathClassLoader` 或 extension direct networking。驗證流程會把 service metadata 與 `release-metadata/` 比對，拒絕任何 APK permission，也拒絕仍包含 legacy registry asset 的 APK。
+
+Protocol v2 的 runtime descriptor 由 `IsolatedSourceService` 在執行時從 `Source` 產生，包括 UI flags、登入描述與 WebView User-Agent。Manifest 不得宣告 `needs_login`、`login_url` 或 `login_hosts` 等 legacy login metadata；`AuthenticatedSource.authSpec` 與 `WebLoginUserAgentProvider` 才是唯一來源。
 
 ## 新增 Source
 
@@ -100,7 +102,7 @@ NEWSHUB_API_CHECKOUT=/absolute/path/to/pinned/NewsHub
   $(python3 scripts/release_catalog.py gradle-tasks)
 ```
 
-NewsHub checkout 與 JitPack dependency 必須固定為 commit `3d63cb87eeff9ab799152db0034ab3512656d83c`。此版本包含 isolation-era network protocol、Host policy v2 與 typed access failure；candidate、publish 與本機非 override 建置必須使用同一個 exact SHA。
+NewsHub checkout 與 JitPack dependency 必須固定為 commit `6a94c4879ebbf052007dc6fa6374deade2428e57`。此版本包含 protocol v2 runtime descriptor、Host policy v2、typed access failure 與 accepted artifact compatibility window；candidate、publish 與本機非 override 建置必須使用同一個 exact SHA。
 
 ## 使用 GCP Cloud Build 發布
 

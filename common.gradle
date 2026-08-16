@@ -50,12 +50,22 @@ dependencies {
                     "Build it first with: cd ${newshubDir} && ./gradlew :extension-api:assembleDebug"
             )
         }
+        def extensionApiInputs = fileTree("${newshubDir}/extension-api/src") {
+            include '**/*'
+        }.files + file("${newshubDir}/extension-api/build.gradle.kts")
+        def newestInput = extensionApiInputs.findAll { it.exists() }.max { it.lastModified() }
+        if (newestInput != null && extensionApiAar.lastModified() < newestInput.lastModified()) {
+            throw new GradleException(
+                "Local extension-api AAR is older than ${newestInput}. " +
+                    "Rebuild it first with: cd ${newshubDir} && ./gradlew :extension-api:assembleDebug"
+            )
+        }
         implementation files(extensionApiAar)
         testImplementation files(extensionApiAar)
     } else {
         // extension-api from the canonical NewsHub repository via JitPack
-        implementation 'com.github.komicaviewer.NewsHub:extension-api:3d63cb87eeff9ab799152db0034ab3512656d83c'
-        testImplementation 'com.github.komicaviewer.NewsHub:extension-api:3d63cb87eeff9ab799152db0034ab3512656d83c'
+        implementation 'com.github.komicaviewer.NewsHub:extension-api:6a94c4879ebbf052007dc6fa6374deade2428e57'
+        testImplementation 'com.github.komicaviewer.NewsHub:extension-api:6a94c4879ebbf052007dc6fa6374deade2428e57'
     }
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
     implementation 'com.squareup.okhttp3:logging-interceptor:4.12.0'

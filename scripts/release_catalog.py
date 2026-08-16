@@ -147,7 +147,7 @@ def load_catalog(path: str | os.PathLike[str] = DEFAULT_CATALOG_PATH) -> dict:
                 )
             for key in SOURCE_KEYS - {"protocol", "policyVersion", "exactHosts", "namedCapabilities"}:
                 _non_empty_string(source[key], f"{module}.sources[{source_index}].{key}")
-            if source["protocol"] != 1:
+            if source["protocol"] != 2:
                 raise ValueError(f"unsupported protocol for {source['id']}: {source['protocol']}")
             if source["policyVersion"] != 2:
                 raise ValueError(f"new release metadata requires policyVersion 2 for {source['id']}")

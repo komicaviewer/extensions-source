@@ -48,7 +48,7 @@ class ManualPolicyMaintenanceAdmissionTest(unittest.TestCase):
                         "lang": "en",
                         "baseUrl": "https://example.com",
                         "service": "tw.example.Service",
-                        "protocol": 1,
+                        "protocol": 2,
                         "policyHash": "b" * 64,
                     }],
                 }
