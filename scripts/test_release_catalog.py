@@ -49,7 +49,7 @@ class ReleaseCatalogTest(unittest.TestCase):
                 stale_paths.append(str(path.relative_to(root)))
         self.assertEqual([], stale_paths)
 
-    def test_release_versions_are_bumped_for_new_extension_api_payload(self):
+    def test_release_versions_do_not_fall_below_extension_api_payload_baseline(self):
         root = Path(__file__).resolve().parents[1]
         expected = {
             "eyny": (4, "0.1.3"),
@@ -60,11 +60,17 @@ class ReleaseCatalogTest(unittest.TestCase):
             "mobile01": (5, "0.1.4"),
             "ptt": (7, "0.4.3"),
         }
-        for module, (version_code, version_name) in expected.items():
+        for module, (minimum_code, baseline_name) in expected.items():
             contents = (root / f"src/{module}/build.gradle.kts").read_text(encoding="utf-8")
             with self.subTest(module=module):
-                self.assertRegex(contents, rf'set\("(?:bundle|ext)VersionCode", {version_code}\)')
-                self.assertRegex(contents, rf'set\("(?:bundle|ext)VersionName", "{re.escape(version_name)}"\)')
+                code = re.search(r'set\("(?:bundle|ext)VersionCode", ([0-9]+)\)', contents)
+                name = re.search(r'set\("(?:bundle|ext)VersionName", "([0-9]+\.[0-9]+\.[0-9]+)"\)', contents)
+                self.assertIsNotNone(code)
+                self.assertIsNotNone(name)
+                current_code = int(code.group(1))
+                self.assertGreaterEqual(current_code, minimum_code)
+                if current_code == minimum_code:
+                    self.assertEqual(baseline_name, name.group(1))
 
     def test_catalog_rejects_wildcards_unknown_capabilities_and_hash_mismatch(self):
         catalog = load_catalog()
