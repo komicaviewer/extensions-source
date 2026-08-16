@@ -15,7 +15,7 @@ from release_catalog import gradle_tasks, load_catalog
 class ReleaseCatalogTest(unittest.TestCase):
     def test_all_extension_api_dependencies_use_exact_isolated_service_protocol_pin(self):
         root = Path(__file__).resolve().parents[1]
-        expected_sha = "3d63cb87eeff9ab799152db0034ab3512656d83c"
+        expected_sha = "6a94c4879ebbf052007dc6fa6374deade2428e57"
         dependency_files = (
             root / "shared/broker-http/build.gradle",
             root / "common.gradle",
@@ -38,15 +38,20 @@ class ReleaseCatalogTest(unittest.TestCase):
             root / "README.md",
         ):
             self.assertIn(expected_sha, path.read_text(encoding="utf-8"))
-        old_sha = "53d421492614c13e2a5984" + "b4991513d993d44246"
+        stale_shas = {
+            "53d421492614c13e2a5984" + "b4991513d993d44246",
+            "3d63cb87eeff9ab799152db" + "0034ab3512656d83c",
+        }
         stale_paths = []
         for path in root.rglob("*"):
             if not path.is_file() or any(part in {".git", ".gradle", "build"} for part in path.parts):
                 continue
             if path.suffix not in {".gradle", ".kts", ".md", ".py", ".yaml", ".yml", ".json"}:
                 continue
-            if old_sha in path.read_text(encoding="utf-8", errors="ignore"):
-                stale_paths.append(str(path.relative_to(root)))
+            contents = path.read_text(encoding="utf-8", errors="ignore")
+            for stale_sha in stale_shas:
+                if stale_sha in contents:
+                    stale_paths.append(f"{path.relative_to(root)}:{stale_sha}")
         self.assertEqual([], stale_paths)
 
     def test_release_versions_do_not_fall_below_extension_api_payload_baseline(self):

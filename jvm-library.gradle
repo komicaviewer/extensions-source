@@ -52,8 +52,8 @@ dependencies {
         compileOnly extensionApiFiles
         testImplementation extensionApiFiles
     } else {
-        compileOnly 'com.github.komicaviewer.NewsHub:extension-api:3d63cb87eeff9ab799152db0034ab3512656d83c'
-        testImplementation 'com.github.komicaviewer.NewsHub:extension-api:3d63cb87eeff9ab799152db0034ab3512656d83c'
+        compileOnly 'com.github.komicaviewer.NewsHub:extension-api:6a94c4879ebbf052007dc6fa6374deade2428e57'
+        testImplementation 'com.github.komicaviewer.NewsHub:extension-api:6a94c4879ebbf052007dc6fa6374deade2428e57'
     }
 
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
