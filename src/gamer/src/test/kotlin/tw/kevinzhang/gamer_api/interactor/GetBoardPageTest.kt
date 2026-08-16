@@ -27,6 +27,17 @@ class GetBoardPageTest {
     }
 
     @Test
+    fun `board directory maps boards when data is an array`() = runBlocking {
+        val subject = GetBoardPage(jsonClient(BOARD_LIST_ARRAY_DATA_JSON) {})
+
+        val boards = subject.invoke(categoryCode = 94, page = 1)
+
+        assertEquals("新楓之谷", boards.single().name)
+        assertEquals("https://forum.gamer.com.tw/B.php?bsn=7650", boards.single().url)
+        assertEquals("角色扮演", boards.single().category)
+    }
+
+    @Test
     fun `search sends one character query and only keeps forum results`() = runBlocking {
         var requestedUrl = ""
         val subject = GetBoardPage(jsonClient(SEARCH_JSON) { requestedUrl = it })
@@ -57,6 +68,10 @@ class GetBoardPageTest {
     private companion object {
         val BOARD_LIST_JSON = """
             {"data":{"list":[{"bsn":7650,"title":"新楓之谷 ","category":"角色扮演"}]}}
+        """.trimIndent()
+
+        val BOARD_LIST_ARRAY_DATA_JSON = """
+            {"data":[{"bsn":"7650","title":"新楓之谷 ","category":"角色扮演"}]}
         """.trimIndent()
 
         val SEARCH_JSON = """

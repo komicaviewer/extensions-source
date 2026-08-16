@@ -38,7 +38,7 @@ class GamerSource : AuthenticatedSource {
     override val id = "tw.kevinzhang.newshub.extension.gamer"
     override val name = "Gamer 巴哈姆特"
     override val language = "zh-TW"
-    override val version = 6
+    override val version = 7
     override val iconUrl: String = "https://i2.bahamut.com.tw/apple-touch-icon-72x72.png"
     override val supportsCommentPagination: Boolean = false
     override val alwaysUseRawImage: Boolean = false
