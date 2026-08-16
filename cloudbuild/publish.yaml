@@ -76,6 +76,7 @@ steps:
   - id: preflight-distribution-policy
     name: ${_OPS_BUILDER_IMAGE}
     entrypoint: bash
+    dir: source
     timeout: 180s
     waitFor: [validate-catalog-and-tools]
     env:

@@ -184,6 +184,20 @@ class CloudBuildAutomationTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "outside the allowlist"):
             validate_staged_paths([".github/workflows/publish.yml"])
 
+    def test_distribution_policy_preflight_runs_from_exact_source_checkout(self):
+        config = (ROOT / "cloudbuild/publish.yaml").read_text(encoding="utf-8")
+        start = config.index("- id: preflight-distribution-policy")
+        end = config.index("- id: build-unsigned")
+        preflight = config[start:end]
+        self.assertIn("dir: source", preflight)
+        self.assertIn("EXTENSIONS_REPO_DIR=/workspace/preflight-distribution", preflight)
+        self.assertIn(
+            "test_destination_admission_policy_matches_merged_catalog_contract",
+            preflight,
+        )
+        build = config[end:config.index("- id: materialize-publisher-signing-bundle")]
+        self.assertIn("waitFor: [preflight-distribution-policy]", build)
+
     def test_distribution_status_is_exact_head_after_admission_and_before_merge(self):
         with tempfile.TemporaryDirectory() as temp:
             directory = Path(temp)
