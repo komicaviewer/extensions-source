@@ -27,6 +27,16 @@ VERIFIER_MAINTENANCE_PAIRS = (
     frozenset(("policy/trusted_metadata.py", "policy/test_trusted_metadata.py")),
 )
 VERIFIER_MAINTENANCE_PATHS = sorted(set().union(*VERIFIER_MAINTENANCE_PAIRS))
+PROTOCOL_V2_MIGRATION_BASE_SHA = "c7ae0e8ea87cc92ea497347e1912cff32cf21eb3"
+PROTOCOL_V2_MIGRATION_HEAD_SHA = "20b8fd21dfe9c724b1bdab518239142818bd94ca"
+PROTOCOL_V2_MIGRATION_HASHES = {
+    "README.md": "3e202776b7df0d8dac25a1ac582d18caf284945ce6b5242cd0f6cfd7c6d428a0",
+    "policy/README.md": "309f56a3f266935231fb5da6b9a20b64b6872b3c6994683314d70cf563f79fca",
+    "policy/admission_gate.py": "5905e8f59bcd1a963bd1776aa6e53c2d7a529ece84ee5d9b7988459769cba2ec",
+    "policy/admission_policy.json": "7b1a6d569c7df2ed7b7a39717af26fd95e3b5609d6c2762f226c97627435467f",
+    "policy/test_trusted_metadata.py": "492858eec02aacafe317eda6af3fe0f317b7fb30014431b0b364400d8a7289b2",
+    "policy/trusted_metadata.py": "646cf0f771d4cba2e1c539b36ad7c4accc00d017251896881b87be3282d0107f",
+}
 
 
 class AdmissionError(ValueError):
@@ -232,6 +242,52 @@ def validate_verifier_code(base: Path, candidate: Path) -> list[str]:
     return paths
 
 
+def git_head(root: Path) -> str:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=root,
+            check=True,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+    except subprocess.CalledProcessError as exc:
+        raise AdmissionError("protocol v2 migration input is not an exact git checkout") from exc
+    return result.stdout.strip()
+
+
+def validate_protocol_v2_migration(base: Path, candidate: Path) -> list[str]:
+    """Admit only the already-reviewed, exact protocol-v2 distribution migration."""
+    if git_head(base) != PROTOCOL_V2_MIGRATION_BASE_SHA:
+        raise AdmissionError("protocol v2 migration base SHA mismatch")
+    if git_head(candidate) != PROTOCOL_V2_MIGRATION_HEAD_SHA:
+        raise AdmissionError("protocol v2 migration head SHA mismatch")
+
+    paths = changed_paths(base, candidate)
+    if paths != sorted(PROTOCOL_V2_MIGRATION_HASHES):
+        raise AdmissionError(f"protocol v2 migration changed forbidden paths: {paths}")
+    for relative, expected in PROTOCOL_V2_MIGRATION_HASHES.items():
+        actual = hashlib.sha256((candidate / relative).read_bytes()).hexdigest()
+        if actual != expected:
+            raise AdmissionError(f"protocol v2 migration content mismatch: {relative}")
+
+    base_policy = load_json(base / "policy/admission_policy.json", "base policy")
+    candidate_policy = load_json(candidate / "policy/admission_policy.json", "candidate policy")
+    base_sources = policy_sources(base_policy)
+    candidate_sources = policy_sources(candidate_policy)
+    if set(base_sources) != set(candidate_sources):
+        raise AdmissionError("protocol v2 migration changed the Source set")
+    for source_id in sorted(base_sources):
+        before = dict(base_sources[source_id])
+        after = dict(candidate_sources[source_id])
+        if before.pop("protocol", None) != 1 or after.pop("protocol", None) != 2:
+            raise AdmissionError(f"protocol v2 migration is not exactly 1 to 2: {source_id}")
+        if before != after:
+            raise AdmissionError(f"protocol v2 migration changed other authority: {source_id}")
+    return paths
+
+
 def github_api(token: str, method: str, route: str, payload: dict | None = None) -> dict:
     data = None if payload is None else canonical(payload)
     request = urllib.request.Request(
@@ -285,6 +341,7 @@ def main() -> int:
     parser.add_argument("--head-sha")
     parser.add_argument("--post-status", action="store_true")
     parser.add_argument("--policy-code-maintenance", action="store_true")
+    parser.add_argument("--protocol-v2-migration", action="store_true")
     args = parser.parse_args()
     try:
         if args.post_status:
@@ -297,7 +354,12 @@ def main() -> int:
         else:
             if not args.base or not args.candidate:
                 raise AdmissionError("validation mode arguments are incomplete")
-            if args.policy_code_maintenance:
+            if args.protocol_v2_migration:
+                changed = validate_protocol_v2_migration(
+                    args.base.resolve(), args.candidate.resolve()
+                )
+                print("exact protocol v2 migration admitted for paths: " + ", ".join(changed))
+            elif args.policy_code_maintenance:
                 changed = validate_verifier_code(args.base.resolve(), args.candidate.resolve())
                 print("policy verifier maintenance admitted for paths: " + ", ".join(changed))
             else:

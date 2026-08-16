@@ -4,6 +4,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import manual_policy_maintenance_admission as admission
 
@@ -270,6 +271,88 @@ class ManualPolicyMaintenanceAdmissionTest(unittest.TestCase):
             candidate.write_text("new", encoding="utf-8")
         with self.assertRaisesRegex(admission.AdmissionError, "forbidden paths"):
             admission.validate_verifier_code(self.base, self.candidate)
+
+    def write_protocol_v2_migration(self):
+        base_policy = copy.deepcopy(self.base_policy)
+        candidate_policy = copy.deepcopy(self.base_policy)
+        base_policy["releases"]["tw.example.extension"]["sources"][0]["protocol"] = 1
+        candidate_policy["releases"]["tw.example.extension"]["sources"][0]["protocol"] = 2
+        files = {
+            "README.md": "candidate readme",
+            "policy/README.md": "candidate policy readme",
+            "policy/admission_gate.py": "candidate gate",
+            "policy/admission_policy.json": json.dumps(candidate_policy),
+            "policy/test_trusted_metadata.py": "candidate tests",
+            "policy/trusted_metadata.py": "candidate verifier",
+        }
+        for relative, content in files.items():
+            base_path = self.base / relative
+            candidate_path = self.candidate / relative
+            base_path.parent.mkdir(parents=True, exist_ok=True)
+            candidate_path.parent.mkdir(parents=True, exist_ok=True)
+            if relative == "policy/admission_policy.json":
+                base_path.write_text(json.dumps(base_policy), encoding="utf-8")
+            else:
+                base_path.write_text("base " + relative, encoding="utf-8")
+            candidate_path.write_text(content, encoding="utf-8")
+        hashes = {
+            relative: hashlib.sha256((self.candidate / relative).read_bytes()).hexdigest()
+            for relative in files
+        }
+        return candidate_policy, hashes
+
+    def test_accepts_only_exact_protocol_v2_migration(self):
+        _, hashes = self.write_protocol_v2_migration()
+        with (
+            mock.patch.object(admission, "PROTOCOL_V2_MIGRATION_HASHES", hashes),
+            mock.patch.object(admission, "git_head", side_effect=["base-sha", "head-sha"]),
+            mock.patch.object(admission, "PROTOCOL_V2_MIGRATION_BASE_SHA", "base-sha"),
+            mock.patch.object(admission, "PROTOCOL_V2_MIGRATION_HEAD_SHA", "head-sha"),
+        ):
+            self.assertEqual(
+                sorted(hashes),
+                admission.validate_protocol_v2_migration(self.base, self.candidate),
+            )
+
+    def test_protocol_v2_migration_rejects_wrong_head_and_content(self):
+        _, hashes = self.write_protocol_v2_migration()
+        patches = (
+            mock.patch.object(admission, "PROTOCOL_V2_MIGRATION_HASHES", hashes),
+            mock.patch.object(admission, "PROTOCOL_V2_MIGRATION_BASE_SHA", "base-sha"),
+            mock.patch.object(admission, "PROTOCOL_V2_MIGRATION_HEAD_SHA", "head-sha"),
+        )
+        with patches[0], patches[1], patches[2], mock.patch.object(
+            admission, "git_head", side_effect=["base-sha", "wrong-head"]
+        ):
+            with self.assertRaisesRegex(admission.AdmissionError, "head SHA mismatch"):
+                admission.validate_protocol_v2_migration(self.base, self.candidate)
+
+        (self.candidate / "README.md").write_text("tampered", encoding="utf-8")
+        with (
+            mock.patch.object(admission, "PROTOCOL_V2_MIGRATION_HASHES", hashes),
+            mock.patch.object(admission, "git_head", side_effect=["base-sha", "head-sha"]),
+            mock.patch.object(admission, "PROTOCOL_V2_MIGRATION_BASE_SHA", "base-sha"),
+            mock.patch.object(admission, "PROTOCOL_V2_MIGRATION_HEAD_SHA", "head-sha"),
+        ):
+            with self.assertRaisesRegex(admission.AdmissionError, "content mismatch"):
+                admission.validate_protocol_v2_migration(self.base, self.candidate)
+
+    def test_protocol_v2_migration_rejects_other_policy_authority_change(self):
+        candidate_policy, hashes = self.write_protocol_v2_migration()
+        candidate_policy["releases"]["tw.example.extension"]["sources"][0]["baseUrl"] = (
+            "https://evil.example"
+        )
+        policy_path = self.candidate / "policy/admission_policy.json"
+        policy_path.write_text(json.dumps(candidate_policy), encoding="utf-8")
+        hashes["policy/admission_policy.json"] = hashlib.sha256(policy_path.read_bytes()).hexdigest()
+        with (
+            mock.patch.object(admission, "PROTOCOL_V2_MIGRATION_HASHES", hashes),
+            mock.patch.object(admission, "git_head", side_effect=["base-sha", "head-sha"]),
+            mock.patch.object(admission, "PROTOCOL_V2_MIGRATION_BASE_SHA", "base-sha"),
+            mock.patch.object(admission, "PROTOCOL_V2_MIGRATION_HEAD_SHA", "head-sha"),
+        ):
+            with self.assertRaisesRegex(admission.AdmissionError, "other authority"):
+                admission.validate_protocol_v2_migration(self.base, self.candidate)
 
 
 if __name__ == "__main__":

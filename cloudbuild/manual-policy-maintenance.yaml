@@ -76,6 +76,14 @@ steps:
               --base /workspace/distribution-base \
               --candidate /workspace/distribution-candidate
             ;;
+          protocol-v2)
+            PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
+              -s /workspace/distribution-candidate/policy -p 'test_*.py' -v
+            python3 /workspace/source/scripts/manual_policy_maintenance_admission.py \
+              --protocol-v2-migration \
+              --base /workspace/distribution-base \
+              --candidate /workspace/distribution-candidate
+            ;;
           *)
             echo "unsupported policy maintenance kind" >&2
             exit 2
