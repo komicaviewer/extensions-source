@@ -1,7 +1,7 @@
 ext {
     set("extName", "NewsHub: Hacker News")
-    set("extVersionCode", 3)
-    set("extVersionName", "0.1.2")
+    set("extVersionCode", 4)
+    set("extVersionName", "0.1.3")
 }
 apply(from = "$rootDir/common.gradle")
 
