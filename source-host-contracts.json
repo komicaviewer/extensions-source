@@ -7,11 +7,11 @@
       "namedCapabilities": ["external_link", "eyny_challenge_proof", "resource_read"],
       "surfaces": {
         "request": {
-          "exactHttpsHosts": ["eyny.com", "www.eyny.com", "www53.eyny.com"],
+          "exactHttpsHosts": ["eyny.com", "www.eyny.com", "www52.eyny.com", "www53.eyny.com"],
           "blockedHttpHosts": [],
           "rules": [
             {
-              "exactHttpsHosts": ["eyny.com", "www.eyny.com", "www53.eyny.com"],
+              "exactHttpsHosts": ["eyny.com", "www.eyny.com", "www52.eyny.com", "www53.eyny.com"],
               "methods": ["GET"],
               "pathPrefixes": ["/"],
               "credentialed": true
@@ -24,17 +24,17 @@
           ]
         },
         "resource": {
-          "exactHttpsHosts": ["eyny.com", "www.eyny.com", "www53.eyny.com"],
+          "exactHttpsHosts": ["eyny.com", "www.eyny.com", "www52.eyny.com", "www53.eyny.com"],
           "dynamicFromContent": true,
           "evidence": ["src/eyny-source/src/main/kotlin/tw/kevinzhang/newshub/extension/eyny/EynyParser.kt"]
         },
         "external": {
-          "exactHttpsHosts": ["eyny.com", "www.eyny.com", "www53.eyny.com"],
+          "exactHttpsHosts": ["eyny.com", "www.eyny.com", "www52.eyny.com", "www53.eyny.com"],
           "dynamicFromContent": true,
           "evidence": ["src/eyny-source/src/main/kotlin/tw/kevinzhang/newshub/extension/eyny/EynyParser.kt"]
         },
         "auth": {
-          "exactHttpsHosts": ["eyny.com", "www.eyny.com", "www53.eyny.com"],
+          "exactHttpsHosts": ["eyny.com", "www.eyny.com", "www52.eyny.com", "www53.eyny.com"],
           "dynamicFromContent": false,
           "evidence": ["src/eyny-source/src/main/kotlin/tw/kevinzhang/newshub/extension/eyny/EynySource.kt"]
         }

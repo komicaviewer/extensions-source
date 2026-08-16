@@ -6,11 +6,15 @@ import okhttp3.Protocol
 import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.fail
 import org.junit.Test
 import tw.kevinzhang.extension_api.EynyChallengeProof
 import tw.kevinzhang.extension_api.NamedCookieCapability
+import tw.kevinzhang.extension_api.NetworkOperations
+import tw.kevinzhang.extension_api.SourceFailureCode
+import tw.kevinzhang.extension_api.SourceFailureException
 import java.io.IOException
 
 class EynyGatewayTest {
@@ -37,7 +41,7 @@ class EynyGatewayTest {
     }
 
     @Test
-    fun `observed www53 redirect is followed but unknown numbered host remains rejected`() = runBlocking {
+    fun `observed www52 redirect is followed but unknown numbered host remains rejected`() = runBlocking {
         val requestedHosts = mutableListOf<String>()
         val client = OkHttpClient.Builder().addInterceptor { chain ->
             requestedHosts += chain.request().url.host
@@ -47,7 +51,7 @@ class EynyGatewayTest {
                     .protocol(Protocol.HTTP_1_1)
                     .code(302)
                     .message("Found")
-                    .header("Location", "https://www53.eyny.com/")
+                    .header("Location", "https://www52.eyny.com/")
                     .body("".toResponseBody())
                     .build()
             } else {
@@ -64,9 +68,39 @@ class EynyGatewayTest {
         val gateway = EynyGateway(client, RecordingNamedCookies())
         gateway.get("https://eyny.com/")
 
-        assertEquals(listOf("eyny.com", "www53.eyny.com"), requestedHosts)
-        assertEquals("www53.eyny.com", gateway.activeHost)
+        assertEquals(listOf("eyny.com", "www52.eyny.com"), requestedHosts)
+        assertEquals("www52.eyny.com", gateway.activeHost)
         assertNull(EynyUrlPolicy.resolve("https://eyny.com/", "https://www54.eyny.com/"))
+    }
+
+    @Test
+    fun `unsafe redirect reports sanitized host policy evidence`() = runBlocking {
+        val client = OkHttpClient.Builder().addInterceptor { chain ->
+            Response.Builder()
+                .request(chain.request())
+                .protocol(Protocol.HTTP_1_1)
+                .code(302)
+                .message("Found")
+                .header("Location", "https://evil.example/private?session=secret")
+                .body("".toResponseBody())
+                .build()
+        }.build()
+
+        val error = try {
+            EynyGateway(client, RecordingNamedCookies()).get("https://eyny.com/")
+            fail("expected host policy failure")
+            throw AssertionError("unreachable")
+        } catch (error: SourceFailureException) {
+            error
+        }
+
+        assertEquals(SourceFailureCode.HOST_POLICY, error.failure.code)
+        assertEquals(NetworkOperations.SOURCE_READ, error.failure.operation)
+        assertEquals("evil.example", error.failure.observedHost)
+        assertEquals(EynyUrlPolicy.allowedHosts.sorted(), error.failure.allowedHosts)
+        assertFalse(error.failure.retryable)
+        assertFalse(error.toString().contains("private"))
+        assertFalse(error.toString().contains("secret"))
     }
 
     @Test

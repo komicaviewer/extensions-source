@@ -11,14 +11,14 @@ import tw.kevinzhang.extension_api.model.Post
 import tw.kevinzhang.extension_api.model.Paragraph
 import tw.kevinzhang.extension_api.model.Thread
 import tw.kevinzhang.extension_api.model.ThreadSummary
-import java.io.IOException
 import tw.kevinzhang.newshub.extension.runtime.brokerBackedHttpClient
+import tw.kevinzhang.newshub.extension.runtime.requireSourceSuccess
 
 class NagatoyukiSource : SessionAwareSource {
     override val id = NagatoyukiBoardCatalog.SOURCE_ID
     override val name = "Nagatoyuki"
     override val language = "zh-TW"
-    override val version = 2
+    override val version = 3
     override val iconUrl = "https://eclair.nagatoyuki.org/favicon.ico"
     override val supportsCommentPagination = false
     override val alwaysUseRawImage = true
@@ -38,7 +38,7 @@ class NagatoyukiSource : SessionAwareSource {
         val request = NagatoyukiRequestBuilder.summaries(board.url, page)
         val response = client.newCall(request).await()
         response.use {
-            if (!it.isSuccessful) throw IOException("HTTP ${it.code}: ${request.url}")
+            it.requireSourceSuccess()
             return parser.parseSummaries(it.body!!.string(), board.url).map { post -> post.toSummary(board) }
         }
     }
@@ -48,7 +48,7 @@ class NagatoyukiSource : SessionAwareSource {
         val request = NagatoyukiRequestBuilder.thread(summary.id)
         val response = client.newCall(request).await()
         response.use {
-            if (!it.isSuccessful) throw IOException("HTTP ${it.code}: ${request.url}")
+            it.requireSourceSuccess()
             val posts = parser.parseThread(it.body!!.string(), summary.id)
             return Thread(
                 id = summary.id,

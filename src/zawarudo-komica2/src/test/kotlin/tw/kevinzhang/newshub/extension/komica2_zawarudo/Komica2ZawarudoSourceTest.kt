@@ -16,7 +16,7 @@ import tw.kevinzhang.newshub.extension.runtime.asTestSourceRuntime
 
 class Komica2ZawarudoSourceTest {
     @Test
-    fun `Cloudflare challenge crosses extension boundary as site unavailable`() = runBlocking {
+    fun `Cloudflare challenge crosses extension boundary as access challenge`() = runBlocking {
         val source = Komica2ZawarudoSource().apply {
             onAttach(cloudflareChallengeClient().asTestSourceRuntime())
         }
@@ -32,7 +32,7 @@ class Komica2ZawarudoSourceTest {
         assertEquals(403, failure.statusCode)
         assertEquals(SourceSiteUnavailableReason.ACCESS_CHALLENGE, failure.reason)
         assertEquals(
-            SourceFailureCode.SITE_UNAVAILABLE,
+            SourceFailureCode.ACCESS_CHALLENGE,
             SourceFailures.fromThrowable(failure, "thread_summaries").code,
         )
     }

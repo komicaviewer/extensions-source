@@ -21,7 +21,7 @@ class Mobile01Source : SessionAwareSource {
     override val id: String = Mobile01BoardCatalog.SOURCE_ID
     override val name: String = "Mobile01"
     override val language: String = "zh-TW"
-    override val version: Int = 2
+    override val version: Int = 3
     override val iconUrl: String = "https://attach2.mobile01.com/images/touch/apple-touch-icon-180x180.png"
     override val supportsCommentPagination: Boolean = false
     override val alwaysUseRawImage: Boolean = false
@@ -88,12 +88,12 @@ class Mobile01Source : SessionAwareSource {
         response.use {
             val body = it.body?.string().orEmpty()
             Mobile01AccessClassifier.classify(it.code, body, it.header("Server"))?.let { failure ->
-                throw Mobile01AccessException(failure, it.code, request.url.toString())
+                throw Mobile01AccessException(failure)
             }
             if (!it.isSuccessful) {
-                throw Mobile01AccessException(Mobile01AccessFailure.HTTP_ERROR, it.code, request.url.toString())
+                throw Mobile01AccessException(Mobile01AccessFailure.HTTP_ERROR)
             }
-            if (body.isBlank()) throw IOException("Mobile01 returned an empty document: ${request.url}")
+            if (body.isBlank()) throw IOException("Mobile01 returned an empty document")
             return body
         }
     }

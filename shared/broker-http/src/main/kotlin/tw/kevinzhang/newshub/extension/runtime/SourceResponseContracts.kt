@@ -2,21 +2,30 @@ package tw.kevinzhang.newshub.extension.runtime
 
 import java.io.IOException
 import okhttp3.Response
+import tw.kevinzhang.extension_api.SourceFailure
+import tw.kevinzhang.extension_api.SourceFailureCode
+import tw.kevinzhang.extension_api.SourceFailureException
 
 /** Stable, non-secret reason for a website response that cannot be consumed by a Source. */
 enum class SourceSiteUnavailableReason {
     HTTP_ERROR,
     ACCESS_CHALLENGE,
+    ACCESS_DENIED,
 }
 
-/**
- * An upstream website failure, deliberately modelled as [IOException] so extension-api preserves
- * `SITE_UNAVAILABLE` across Binder instead of collapsing it into `EXTENSION_RUNTIME`.
- */
+/** An upstream website failure carrying only a stable typed reason across Binder. */
 class SourceSiteUnavailableException(
     val statusCode: Int,
     val reason: SourceSiteUnavailableReason,
-) : IOException("Source website unavailable: ${reason.name} (HTTP $statusCode)")
+) : SourceFailureException(
+    SourceFailure(
+        code = when (reason) {
+            SourceSiteUnavailableReason.HTTP_ERROR -> SourceFailureCode.SITE_UNAVAILABLE
+            SourceSiteUnavailableReason.ACCESS_CHALLENGE -> SourceFailureCode.ACCESS_CHALLENGE
+            SourceSiteUnavailableReason.ACCESS_DENIED -> SourceFailureCode.ACCESS_DENIED
+        },
+    ),
+)
 
 /**
  * A deterministic parser/schema mismatch. The extension protocol maps [IllegalArgumentException]
@@ -29,12 +38,11 @@ class SourceParserContractException(
 /** Closes a rejected response before raising its stable typed failure. */
 fun Response.requireSourceSuccess(): Response {
     if (isSuccessful) return this
-    val reason = if (
-        code == 403 && header("cf-mitigated").equals("challenge", ignoreCase = true)
-    ) {
-        SourceSiteUnavailableReason.ACCESS_CHALLENGE
-    } else {
-        SourceSiteUnavailableReason.HTTP_ERROR
+    val reason = when {
+        code == 403 && header("cf-mitigated").equals("challenge", ignoreCase = true) ->
+            SourceSiteUnavailableReason.ACCESS_CHALLENGE
+        code == 403 -> SourceSiteUnavailableReason.ACCESS_DENIED
+        else -> SourceSiteUnavailableReason.HTTP_ERROR
     }
     close()
     throw SourceSiteUnavailableException(code, reason)

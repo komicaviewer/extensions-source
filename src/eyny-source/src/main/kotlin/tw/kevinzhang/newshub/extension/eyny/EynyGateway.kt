@@ -9,6 +9,10 @@ import ru.gildor.coroutines.okhttp.await
 import java.io.IOException
 import tw.kevinzhang.extension_api.EynyChallengeProof
 import tw.kevinzhang.extension_api.NamedCookieCapability
+import tw.kevinzhang.extension_api.NetworkOperations
+import tw.kevinzhang.extension_api.SourceFailure
+import tw.kevinzhang.extension_api.SourceFailureCode
+import tw.kevinzhang.extension_api.SourceFailureException
 
 internal const val EYNY_USER_AGENT = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36"
 
@@ -42,7 +46,8 @@ internal class EynyGateway() {
                 if (it.isRedirect && location != null) {
                     redirects++
                     if (redirects > MAX_REDIRECTS) throw IOException("Too many EYNY redirects")
-                    val target = EynyUrlPolicy.resolve(requestUrl, location) ?: throw IOException("Unsafe EYNY redirect")
+                    val target = EynyUrlPolicy.resolve(requestUrl, location)
+                        ?: throw unsafeRedirect(requestUrl, location)
                     activeHost = requireNotNull(EynyUrlPolicy.trusted(target)).host
                     requestUrl = target
                     return@repeat
@@ -87,6 +92,16 @@ internal class EynyGateway() {
         ?.absUrl("href")
         ?.let(EynyUrlPolicy::trusted)
         ?.host
+
+    private fun unsafeRedirect(requestUrl: String, location: String) = SourceFailureException(
+        SourceFailure(
+            code = SourceFailureCode.HOST_POLICY,
+            operation = NetworkOperations.SOURCE_READ,
+            observedHost = EynyUrlPolicy.resolvedHost(requestUrl, location),
+            allowedHosts = EynyUrlPolicy.allowedHosts.sorted(),
+            retryable = false,
+        ).sanitized(),
+    )
 
     private companion object {
         const val MAX_REDIRECTS = 5

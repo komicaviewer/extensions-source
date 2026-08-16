@@ -13,6 +13,8 @@ import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import tw.kevinzhang.extension_api.model.ThreadSummary
+import tw.kevinzhang.extension_api.SourceFailureCode
+import tw.kevinzhang.extension_api.SourceFailureWire
 import tw.kevinzhang.newshub.extension.runtime.asTestSourceRuntime
 
 class Mobile01SourceTest {
@@ -81,6 +83,35 @@ class Mobile01SourceTest {
         assertThrows(IllegalArgumentException::class.java) {
             runBlocking { source.getThreadPage(summary, summary.id) }
         }
+    }
+
+    @Test
+    fun `access denial is typed and never exposes response evidence`() = runBlocking {
+        val secret = "session=private-cookie"
+        val source = Mobile01Source().apply {
+            onAttach(
+                OkHttpClient.Builder().addInterceptor { chain ->
+                    Response.Builder()
+                        .request(chain.request())
+                        .protocol(Protocol.HTTP_1_1)
+                        .code(403)
+                        .message("Forbidden $secret")
+                        .header("Server", "Akamai $secret")
+                        .body("<h1>Access Denied</h1>$secret".toResponseBody())
+                        .build()
+                }.build().asTestSourceRuntime(),
+            )
+        }
+        val board = source.getBoardPage(tw.kevinzhang.extension_api.model.BoardPageRequest()).boards.first()
+
+        val failure = assertThrows(Mobile01AccessException::class.java) {
+            runBlocking { source.getThreadSummaries(board, 1) }
+        }
+        val wire = SourceFailureWire.encode(failure.failure)
+
+        assertEquals(SourceFailureCode.ACCESS_DENIED, failure.failure.code)
+        org.junit.Assert.assertFalse(wire.contains(secret))
+        org.junit.Assert.assertFalse(failure.message.orEmpty().contains(secret))
     }
 
     private fun resource(name: String): String = requireNotNull(javaClass.classLoader.getResource("mobile01/$name"))
