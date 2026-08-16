@@ -7,13 +7,14 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 internal object EynyUrlPolicy {
     private const val ROOT = "eyny.com"
     private const val WWW = "www.eyny.com"
+    private const val WWW52 = "www52.eyny.com"
     private const val WWW53 = "www53.eyny.com"
-    private val ALLOWED_HOSTS = setOf(ROOT, WWW, WWW53)
+    val allowedHosts = setOf(ROOT, WWW, WWW52, WWW53)
     private val THREAD = Regex("/thread-(\\d+)-(\\d+)-([A-Za-z0-9_-]+)\\.html")
     private val BOARD = Regex("/forum-(\\d+)-(\\d+)\\.html")
     private val EXTRA = Regex("[A-Za-z0-9_-]{1,64}")
 
-    fun isAllowedHost(host: String): Boolean = host in ALLOWED_HOSTS
+    fun isAllowedHost(host: String): Boolean = host in allowedHosts
     fun canonicalBoard(fid: Int, page: Int = 1): String {
         require(fid > 0 && page > 0)
         return "https://$ROOT/forum-$fid-$page.html"
@@ -55,6 +56,7 @@ internal object EynyUrlPolicy {
         return EynyThreadUrl(tid, page, extra, canonicalThread(tid, page, extra))
     }
     fun resolve(base: String, href: String): String? = trusted(base)?.resolve(href)?.toString()?.let { trusted(it)?.toString() }
+    fun resolvedHost(base: String, href: String): String? = trusted(base)?.resolve(href)?.host
     fun resolveThread(base: String, href: String): EynyThreadUrl? = resolve(base, href)?.let(::thread)
     fun requestUrl(canonical: String, activeHost: String): String {
         require(isAllowedHost(activeHost))

@@ -1,15 +1,25 @@
 package tw.kevinzhang.newshub.extension.mobile01
 
 import java.io.IOException
+import tw.kevinzhang.extension_api.SourceFailure
+import tw.kevinzhang.extension_api.SourceFailureCode
+import tw.kevinzhang.extension_api.SourceFailureException
 
 internal enum class Mobile01AccessFailure { ACCESS_DENIED, RATE_LIMITED, BOT_CHALLENGE, HTTP_ERROR }
 
 /** Explicitly distinguishes access controls from parser changes; callers must not try to bypass them. */
 internal class Mobile01AccessException(
-    val failure: Mobile01AccessFailure,
-    statusCode: Int,
-    url: String,
-) : IOException("Mobile01 $failure (HTTP $statusCode): $url")
+    accessFailure: Mobile01AccessFailure,
+) : SourceFailureException(
+    SourceFailure(
+        when (accessFailure) {
+            Mobile01AccessFailure.ACCESS_DENIED -> SourceFailureCode.ACCESS_DENIED
+            Mobile01AccessFailure.BOT_CHALLENGE -> SourceFailureCode.ACCESS_CHALLENGE
+            Mobile01AccessFailure.RATE_LIMITED -> SourceFailureCode.RATE_LIMITED
+            Mobile01AccessFailure.HTTP_ERROR -> SourceFailureCode.SITE_UNAVAILABLE
+        },
+    ),
+)
 
 internal class Mobile01PageStructureException(page: String) :
     IOException("Mobile01 returned an unsupported $page document structure")

@@ -15,7 +15,7 @@ from release_catalog import gradle_tasks, load_catalog
 class ReleaseCatalogTest(unittest.TestCase):
     def test_all_extension_api_dependencies_use_exact_isolated_service_protocol_pin(self):
         root = Path(__file__).resolve().parents[1]
-        expected_sha = "d8d96cbbefa2d944757e8479c670423d5b93804f"
+        expected_sha = "3d63cb87eeff9ab799152db0034ab3512656d83c"
         dependency_files = (
             root / "shared/broker-http/build.gradle",
             root / "common.gradle",

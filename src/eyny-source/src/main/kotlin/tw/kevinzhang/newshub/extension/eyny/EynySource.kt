@@ -116,6 +116,6 @@ class EynySource : AuthenticatedSource, WebLoginUserAgentProvider {
     companion object {
         const val SOURCE_ID = "tw.kevinzhang.eyny"
 
-        private val AUTH_HOSTS = setOf("eyny.com", "www.eyny.com", "www53.eyny.com")
+        private val AUTH_HOSTS = setOf("eyny.com", "www.eyny.com", "www52.eyny.com", "www53.eyny.com")
     }
 }

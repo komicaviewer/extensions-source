@@ -88,12 +88,12 @@ class Mobile01Source : SessionAwareSource {
         response.use {
             val body = it.body?.string().orEmpty()
             Mobile01AccessClassifier.classify(it.code, body, it.header("Server"))?.let { failure ->
-                throw Mobile01AccessException(failure, it.code, request.url.toString())
+                throw Mobile01AccessException(failure)
             }
             if (!it.isSuccessful) {
-                throw Mobile01AccessException(Mobile01AccessFailure.HTTP_ERROR, it.code, request.url.toString())
+                throw Mobile01AccessException(Mobile01AccessFailure.HTTP_ERROR)
             }
-            if (body.isBlank()) throw IOException("Mobile01 returned an empty document: ${request.url}")
+            if (body.isBlank()) throw IOException("Mobile01 returned an empty document")
             return body
         }
     }
