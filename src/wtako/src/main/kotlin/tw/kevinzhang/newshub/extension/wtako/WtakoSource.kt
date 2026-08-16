@@ -18,7 +18,7 @@ class WtakoSource : SessionAwareSource {
     override val id = WtakoBoardCatalog.SOURCE_ID
     override val name = "Wtako"
     override val language = "zh-TW"
-    override val version = 2
+    override val version = 3
     override val iconUrl = "https://kemono.wtako.net/favicon.ico"
     override val supportsCommentPagination = false
     override val alwaysUseRawImage = true
