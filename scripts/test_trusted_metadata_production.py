@@ -20,6 +20,7 @@ from generate_trusted_metadata import (
     key_id,
 )
 from materialize_tuf_role_key import RoleKeyError, parse
+from manual_policy_maintenance_admission import catalog_hashes, policy_sources
 from release_catalog import load_catalog
 from release_catalog import metadata_for_release
 from source_host_contracts import DEFAULT_CONTRACT_PATH
@@ -36,13 +37,17 @@ def make_key(root: Path, name: str) -> Path:
     return path
 
 
-def load_destination_verifier():
-    destination = Path(
+def destination_root() -> Path:
+    return Path(
         os.environ.get(
             "EXTENSIONS_REPO_DIR",
             str(Path(__file__).resolve().parents[2] / "extensions"),
         )
     ).resolve()
+
+
+def load_destination_verifier():
+    destination = destination_root()
     verifier_path = destination / "policy" / "trusted_metadata.py"
     if not verifier_path.is_file():
         raise unittest.SkipTest(
@@ -59,6 +64,24 @@ def load_destination_verifier():
 
 
 class ProductionTrustedMetadataTest(unittest.TestCase):
+    def test_destination_admission_policy_matches_merged_catalog_contract(self) -> None:
+        destination = destination_root()
+        policy_path = destination / "policy" / "admission_policy.json"
+        if not policy_path.is_file():
+            raise unittest.SkipTest(
+                "destination policy checkout unavailable; set EXTENSIONS_REPO_DIR for cross-repo validation"
+            )
+        candidate = policy_sources(json.loads(policy_path.read_text(encoding="utf-8")))
+        expected = catalog_hashes(
+            json.loads(Path("release-catalog.json").read_text(encoding="utf-8")),
+            DEFAULT_CONTRACT_PATH,
+        )
+        self.assertEqual(set(expected), set(candidate))
+        self.assertEqual(
+            expected,
+            {source_id: source["policyHash"] for source_id, source in candidate.items()},
+        )
+
     def test_merged_catalog_contract_v2_targets_pass_destination_verifier(self) -> None:
         catalog = load_catalog()
         policies = catalog_network_policies(catalog, DEFAULT_CONTRACT_PATH)
