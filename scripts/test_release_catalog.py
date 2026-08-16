@@ -112,7 +112,10 @@ class ReleaseCatalogTest(unittest.TestCase):
         catalog = load_catalog()
 
         self.assertGreater(len(catalog["releases"]), 0)
-        self.assertGreater(sum(len(item["sources"]) for item in catalog["releases"]), 0)
+        sources = [source for release in catalog["releases"] for source in release["sources"]]
+        self.assertEqual(7, len(catalog["releases"]))
+        self.assertEqual(13, len(sources))
+        self.assertEqual({2}, {source["protocol"] for source in sources})
         icon_sources = [item["icon"]["source"] for item in catalog["releases"]]
         icon_names = [item["icon"]["name"] for item in catalog["releases"]]
         self.assertEqual(len(catalog["releases"]), len(set(icon_sources)))

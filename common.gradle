@@ -50,6 +50,16 @@ dependencies {
                     "Build it first with: cd ${newshubDir} && ./gradlew :extension-api:assembleDebug"
             )
         }
+        def extensionApiInputs = fileTree("${newshubDir}/extension-api/src") {
+            include '**/*'
+        }.files + file("${newshubDir}/extension-api/build.gradle.kts")
+        def newestInput = extensionApiInputs.findAll { it.exists() }.max { it.lastModified() }
+        if (newestInput != null && extensionApiAar.lastModified() < newestInput.lastModified()) {
+            throw new GradleException(
+                "Local extension-api AAR is older than ${newestInput}. " +
+                    "Rebuild it first with: cd ${newshubDir} && ./gradlew :extension-api:assembleDebug"
+            )
+        }
         implementation files(extensionApiAar)
         testImplementation files(extensionApiAar)
     } else {

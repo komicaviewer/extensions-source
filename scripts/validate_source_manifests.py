@@ -24,6 +24,11 @@ LEGACY_APPLICATION_KEYS = {
     "newshub.extension.registry",
     "newshub.extension.source_class",
 }
+LEGACY_SERVICE_KEYS = {
+    "newshub.extension.needs_login",
+    "newshub.extension.login_url",
+    "newshub.extension.login_hosts",
+}
 
 
 def _attr(element: ET.Element, name: str) -> str | None:
@@ -70,8 +75,13 @@ def validate_manifest(path: Path, expected_package: str, expected_sources: list[
             _attr(node, "name"): _attr(node, "value")
             for node in service.findall("meta-data")
         }
-        if values.get(PROTOCOL_KEY) != "1":
-            raise ValueError(f"Source service protocol must equal 1: {name}")
+        legacy_service_metadata = set(values) & LEGACY_SERVICE_KEYS
+        if legacy_service_metadata:
+            raise ValueError(
+                f"legacy login service metadata is forbidden: {sorted(legacy_service_metadata)}",
+            )
+        if values.get(PROTOCOL_KEY) != "2":
+            raise ValueError(f"Source service protocol must equal 2: {name}")
         descriptor = {field: values.get(key) for field, key in SOURCE_KEYS.items()}
         if any(not value for value in descriptor.values()):
             raise ValueError(f"Source service metadata is incomplete: {name}")

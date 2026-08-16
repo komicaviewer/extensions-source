@@ -11,7 +11,7 @@
             android:permission="tw.kevinzhang.newshub.permission.BIND_EXTENSION"
             android:process=":source_hackernews">
             <intent-filter><action android:name="tw.kevinzhang.newshub.extension.SERVICE" /></intent-filter>
-            <meta-data android:name="newshub.extension.protocol" android:value="1" />
+            <meta-data android:name="newshub.extension.protocol" android:value="2" />
             <meta-data android:name="newshub.extension.source_id" android:value="tw.kevinzhang.newshub.extension.hackernews" />
             <meta-data android:name="newshub.extension.source_name" android:value="Hacker News" />
             <meta-data android:name="newshub.extension.source_lang" android:value="en" />

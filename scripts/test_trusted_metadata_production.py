@@ -14,6 +14,7 @@ import unittest
 from bootstrap_production_root import bootstrap
 from generate_trusted_metadata import (
     MetadataBuildError,
+    accepted_artifacts_for_target,
     canonical,
     catalog_network_policies,
     generate,
@@ -64,6 +65,63 @@ def load_destination_verifier():
 
 
 class ProductionTrustedMetadataTest(unittest.TestCase):
+    def test_accepted_artifact_window_uses_only_verified_baseline_current(self) -> None:
+        previous = {
+            "length": 123,
+            "hashes": {"sha256": "ab" * 32},
+            "custom": {
+                "versionCode": 7,
+                "acceptedArtifacts": [{
+                    "versionCode": 6,
+                    "length": 100,
+                    "sha256": "cd" * 32,
+                }],
+            },
+        }
+
+        self.assertEqual(
+            [{"versionCode": 7, "length": 123, "sha256": "ab" * 32}],
+            accepted_artifacts_for_target(
+                current_version=8,
+                current_length=456,
+                current_sha256="ef" * 32,
+                baseline=previous,
+            ),
+        )
+        self.assertEqual(
+            previous["custom"]["acceptedArtifacts"],
+            accepted_artifacts_for_target(
+                current_version=7,
+                current_length=123,
+                current_sha256="ab" * 32,
+                baseline=previous,
+            ),
+        )
+        self.assertEqual(
+            [],
+            accepted_artifacts_for_target(
+                current_version=8,
+                current_length=456,
+                current_sha256="ef" * 32,
+                baseline=previous,
+                revoke=True,
+            ),
+        )
+
+    def test_accepted_artifact_window_rejects_replacement_without_version_bump(self) -> None:
+        previous = {
+            "length": 123,
+            "hashes": {"sha256": "ab" * 32},
+            "custom": {"versionCode": 7},
+        }
+        with self.assertRaisesRegex(MetadataBuildError, "does not advance"):
+            accepted_artifacts_for_target(
+                current_version=7,
+                current_length=124,
+                current_sha256="ef" * 32,
+                baseline=previous,
+            )
+
     def test_destination_admission_policy_matches_merged_catalog_contract(self) -> None:
         destination = destination_root()
         policy_path = destination / "policy" / "admission_policy.json"
@@ -195,7 +253,7 @@ class ProductionTrustedMetadataTest(unittest.TestCase):
             }]
             (distribution / "index.json").write_text(json.dumps(index))
             source = {
-                "id": "test", "service": "TestService", "protocol": 1,
+                "id": "test", "service": "TestService", "protocol": 2,
                 "policyHash": "cd" * 32, "name": "Test", "lang": "en",
                 "baseUrl": "https://example.com",
             }

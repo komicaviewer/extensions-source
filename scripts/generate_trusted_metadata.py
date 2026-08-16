@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import argparse
 import base64
+import copy
 import datetime as dt
 import hashlib
+import importlib.util
 import json
 from pathlib import Path
 import re
@@ -28,6 +30,7 @@ KNOWN_CAPABILITIES = {
     "ptt_adult_consent_status",
     "resource_read",
 }
+MAX_ACCEPTED_ARTIFACT_BYTES = 64 * 1024 * 1024
 
 
 class MetadataBuildError(ValueError):
@@ -183,6 +186,105 @@ def current_versions(metadata: Path) -> tuple[int, int, int]:
     return versions
 
 
+def load_verified_baseline_targets(
+    distribution: Path,
+    *,
+    now: dt.datetime | None = None,
+) -> dict[str, Any]:
+    """Verify the existing repository chain before trusting rollback-window inputs."""
+    verifier_path = distribution / "policy" / "trusted_metadata.py"
+    if not verifier_path.is_file():
+        raise MetadataBuildError("baseline trusted metadata verifier is missing")
+    spec = importlib.util.spec_from_file_location("baseline_trusted_metadata", verifier_path)
+    if spec is None or spec.loader is None:
+        raise MetadataBuildError("baseline trusted metadata verifier cannot be loaded")
+    verifier = importlib.util.module_from_spec(spec)
+    try:
+        spec.loader.exec_module(verifier)
+        original_check_target = verifier._check_target_custom
+
+        def check_migration_baseline(custom: dict[str, Any], relative: str) -> None:
+            sources = custom.get("sources") if isinstance(custom, dict) else None
+            protocols = {
+                source.get("protocol")
+                for source in sources
+                if isinstance(source, dict)
+            } if isinstance(sources, list) else set()
+            if protocols == {1}:
+                migrated = copy.deepcopy(custom)
+                for source in migrated["sources"]:
+                    source["protocol"] = 2
+                original_check_target(migrated, relative)
+            else:
+                original_check_target(custom, relative)
+
+        # The current signed baseline may be the final protocol-v1 release. Verify its
+        # complete TUF chain and APK bytes while relaxing only that one schema value;
+        # the extracted compatibility record contains no runtime Source authority.
+        verifier._check_target_custom = check_migration_baseline
+        try:
+            signed = verifier.verify_repository(
+                distribution / "policy" / "tuf" / "root.json",
+                distribution / "metadata",
+                distribution / "targets",
+                now=now,
+            )
+        finally:
+            verifier._check_target_custom = original_check_target
+    except Exception as exc:
+        raise MetadataBuildError("baseline trusted repository verification failed") from exc
+    targets = signed.get("targets") if isinstance(signed, dict) else None
+    if not isinstance(targets, dict) or not targets:
+        raise MetadataBuildError("verified baseline contains no targets")
+    return targets
+
+
+def accepted_artifacts_for_target(
+    *,
+    current_version: int,
+    current_length: int,
+    current_sha256: str,
+    baseline: dict[str, Any] | None,
+    revoke: bool = False,
+) -> list[dict[str, Any]]:
+    """Carry only explicitly authorized old APK bytes into the new target contract."""
+    if revoke or baseline is None:
+        return []
+    try:
+        custom = baseline["custom"]
+        previous = {
+            "versionCode": custom["versionCode"],
+            "length": baseline["length"],
+            "sha256": baseline["hashes"]["sha256"],
+        }
+    except (KeyError, TypeError) as exc:
+        raise MetadataBuildError("verified baseline target descriptor is incomplete") from exc
+    if (
+        not isinstance(previous["versionCode"], int)
+        or isinstance(previous["versionCode"], bool)
+        or previous["versionCode"] < 1
+        or not isinstance(previous["length"], int)
+        or isinstance(previous["length"], bool)
+        or not 1 <= previous["length"] <= MAX_ACCEPTED_ARTIFACT_BYTES
+        or not isinstance(previous["sha256"], str)
+        or not SHA256.fullmatch(previous["sha256"])
+    ):
+        raise MetadataBuildError("verified baseline target artifact is invalid")
+    current = {
+        "versionCode": current_version,
+        "length": current_length,
+        "sha256": current_sha256,
+    }
+    if current == previous:
+        accepted = custom.get("acceptedArtifacts", [])
+        if not isinstance(accepted, list) or len(accepted) > 2:
+            raise MetadataBuildError("verified baseline acceptedArtifacts is invalid")
+        return [dict(artifact) for artifact in accepted]
+    if current_version <= previous["versionCode"]:
+        raise MetadataBuildError("candidate artifact does not advance the baseline version")
+    return [previous]
+
+
 def root_role_ids(root: dict[str, Any], role: str) -> list[str]:
     try:
         role_policy = root["signed"]["roles"][role]
@@ -215,6 +317,7 @@ def generate(
     *,
     now: dt.datetime | None = None,
     signer_reader: Callable[[str, str], str] = read_signing_fingerprint,
+    revoke_accepted_artifacts: bool = False,
 ) -> None:
     if output.exists() and any(output.iterdir()):
         raise MetadataBuildError("trusted metadata output must be empty")
@@ -244,6 +347,16 @@ def generate(
     )
 
     old_targets, old_snapshot, old_timestamp = current_versions(distribution / "metadata")
+    baseline_targets = (
+        load_verified_baseline_targets(distribution, now=now)
+        if old_targets > 0 else {}
+    )
+    baseline_by_package: dict[str, dict[str, Any]] = {}
+    for baseline in baseline_targets.values():
+        package = baseline.get("custom", {}).get("packageName") if isinstance(baseline, dict) else None
+        if not isinstance(package, str) or not package or package in baseline_by_package:
+            raise MetadataBuildError("verified baseline package identity is invalid or duplicated")
+        baseline_by_package[package] = baseline
     targets_version, snapshot_version, timestamp_version = (
         old_targets + 1, old_snapshot + 1, old_timestamp + 1
     )
@@ -292,19 +405,30 @@ def generate(
                 )},
                 "networkPolicy": network_policy,
             })
+        artifact_sha256 = hashlib.sha256(value).hexdigest()
+        accepted_artifacts = accepted_artifacts_for_target(
+            current_version=item["versionCode"],
+            current_length=len(value),
+            current_sha256=artifact_sha256,
+            baseline=baseline_by_package.get(package),
+            revoke=revoke_accepted_artifacts,
+        )
+        custom = {
+            "packageName": package,
+            "versionCode": item["versionCode"],
+            "versionName": item["versionName"],
+            "name": release["name"],
+            "lang": item["lang"],
+            "lineageRootSha256": signer,
+            "apkSignerPins": pins,
+            "sources": sources,
+        }
+        if accepted_artifacts:
+            custom["acceptedArtifacts"] = accepted_artifacts
         target_descriptors[f"apk/{apk_name}"] = {
             "length": len(value),
-            "hashes": {"sha256": hashlib.sha256(value).hexdigest()},
-            "custom": {
-                "packageName": package,
-                "versionCode": item["versionCode"],
-                "versionName": item["versionName"],
-                "name": release["name"],
-                "lang": item["lang"],
-                "lineageRootSha256": signer,
-                "apkSignerPins": pins,
-                "sources": sources,
-            },
+            "hashes": {"sha256": artifact_sha256},
+            "custom": custom,
         }
 
     targets_signed = {
@@ -340,6 +464,11 @@ def main() -> int:
     parser.add_argument("--snapshot-key", type=Path, required=True)
     parser.add_argument("--timestamp-key", type=Path, required=True)
     parser.add_argument("--apksigner", default=None)
+    parser.add_argument(
+        "--revoke-accepted-artifacts",
+        action="store_true",
+        help="intentionally omit every old APK compatibility authorization",
+    )
     args = parser.parse_args()
     try:
         generate(
@@ -347,6 +476,7 @@ def main() -> int:
             args.root.resolve(), args.catalog.resolve(), args.targets_key,
             args.snapshot_key, args.timestamp_key,
             args.apksigner or find_tool("APKSIGNER", ("apksigner",)),
+            revoke_accepted_artifacts=args.revoke_accepted_artifacts,
         )
     except (OSError, subprocess.SubprocessError, MetadataBuildError, ValueError) as exc:
         print(f"trusted metadata generation failed: {exc}", file=sys.stderr)

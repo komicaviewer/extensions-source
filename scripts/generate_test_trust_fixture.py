@@ -12,6 +12,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from generate_trusted_metadata import catalog_network_policies
 from release_catalog import load_catalog, metadata_for_release, releases_by_module
 from validate_distribution import find_tool, read_apk_metadata, read_signing_fingerprint
 from validate_release_bundles import module_from_apk_name
@@ -84,6 +85,34 @@ def descriptor(raw: bytes, version: int) -> dict:
     return {"version": version, "length": len(raw), "hashes": {"sha256": hashlib.sha256(raw).hexdigest()}}
 
 
+def fixture_source_descriptors(
+    release: dict,
+    release_metadata: dict,
+    network_policies: dict[str, dict],
+) -> list[dict]:
+    """Build the same complete v2 Source descriptors as production metadata."""
+    display_by_id = {source["id"]: source for source in release_metadata["sources"]}
+    descriptors = []
+    for source in release["sources"]:
+        source_id = source["id"]
+        policy = network_policies.get(source_id)
+        if policy is None:
+            raise ValueError(f"missing reviewed network policy: {source_id}")
+        if hashlib.sha256(canonical(policy)).hexdigest() != source["policyHash"]:
+            raise ValueError(f"network policy hash mismatch: {source_id}")
+        descriptors.append({
+            "id": source_id,
+            "service": source["service"],
+            "protocol": source["protocol"],
+            "policyHash": source["policyHash"],
+            "name": display_by_id[source_id]["name"],
+            "lang": display_by_id[source_id]["lang"],
+            "baseUrl": display_by_id[source_id]["baseUrl"],
+            "networkPolicy": policy,
+        })
+    return descriptors
+
+
 def generate(apk_dir: Path, output: Path, *, aapt: str, apksigner: str, reuse_keys: bool = False) -> None:
     if output.exists() and any(output.iterdir()) and not reuse_keys:
         raise ValueError(f"fixture output must be empty: {output}")
@@ -95,6 +124,7 @@ def generate(apk_dir: Path, output: Path, *, aapt: str, apksigner: str, reuse_ke
     targets.mkdir(parents=True, exist_ok=reuse_keys)
     keys = FixtureKeys(output / "keys", reuse=reuse_keys)
     catalog = load_catalog()
+    network_policies = catalog_network_policies(catalog)
     releases = releases_by_module(catalog)
     target_descriptors = {}
     seen_modules = set()
@@ -110,7 +140,6 @@ def generate(apk_dir: Path, output: Path, *, aapt: str, apksigner: str, reuse_ke
         if apk_metadata["pkg"] != release["package"]:
             raise ValueError(f"package mismatch: {module}")
         release_metadata = metadata_for_release(catalog, release)
-        display_by_id = {source["id"]: source for source in release_metadata["sources"]}
         languages = {source["lang"] for source in release_metadata["sources"]}
         target_descriptors[f"apk/{apk.name}"] = {
             "length": len(value),
@@ -123,15 +152,11 @@ def generate(apk_dir: Path, output: Path, *, aapt: str, apksigner: str, reuse_ke
                 "lang": next(iter(languages)) if len(languages) == 1 else "",
                 "lineageRootSha256": signer,
                 "apkSignerPins": [signer],
-                "sources": [{
-                    "id": source["id"],
-                    "service": source["service"],
-                    "protocol": source["protocol"],
-                    "policyHash": source["policyHash"],
-                    "name": display_by_id[source["id"]]["name"],
-                    "lang": display_by_id[source["id"]]["lang"],
-                    "baseUrl": display_by_id[source["id"]]["baseUrl"],
-                } for source in release["sources"]],
+                "sources": fixture_source_descriptors(
+                    release,
+                    release_metadata,
+                    network_policies,
+                ),
             },
         }
     if seen_modules != set(releases):
