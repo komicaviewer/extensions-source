@@ -8,7 +8,8 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 internal object WtakoRequestBuilder {
     fun boardPage(boardUrl: String, page: Int): Request {
         require(page >= 0) { "page must be non-negative" }
-        val endpoint = pixmicatEndpoint(WtakoUrlPolicy.canonicalize(boardUrl.toHttpUrl())).newBuilder()
+        val board = WtakoUrlPolicy.canonicalize(boardUrl.toHttpUrl())
+        val endpoint = boardPageEndpoint(board, page).newBuilder()
             .removeAllQueryParameters("page_num")
             .apply { if (page > 1) addQueryParameter("page_num", page.toString()) }
             .build()
@@ -29,11 +30,23 @@ internal object WtakoRequestBuilder {
 
     fun threadUrl(boardUrl: String, postId: String): String = thread(boardUrl, postId).url.toString()
 
+    private fun boardPageEndpoint(board: HttpUrl, page: Int): HttpUrl {
+        // rthost's page-one PHP endpoint currently redirects back to plain HTTP. Request the
+        // equivalent static HTTPS page directly so the Host never has to accept a downgrade.
+        if (board.host == "rthost.win" && page <= 1) {
+            return normalizedBoard(board).resolve("index.htm")!!
+        }
+        return pixmicatEndpoint(board)
+    }
+
     private fun pixmicatEndpoint(board: HttpUrl): HttpUrl {
-        val normalized = board.newBuilder().apply {
-            if (!board.encodedPath.endsWith("/")) addPathSegment("")
-        }.build()
+        val normalized = normalizedBoard(board)
         return if (normalized.pathSegments.lastOrNull() == "pixmicat.php") normalized
         else normalized.resolve("pixmicat.php")!!
     }
+
+    private fun normalizedBoard(board: HttpUrl): HttpUrl =
+        board.newBuilder().apply {
+            if (!board.encodedPath.endsWith("/")) addPathSegment("")
+        }.build()
 }

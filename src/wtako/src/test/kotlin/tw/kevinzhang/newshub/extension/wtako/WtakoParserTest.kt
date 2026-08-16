@@ -42,6 +42,41 @@ class WtakoParserTest {
     }
 
     @Test
+    fun `thread parser recovers OP quote and media rendered as bounded siblings`() {
+        val posts = parser.parseThread(RTHOST_THREAD, "https://rthost.win/sd/pixmicat.php?res=341282")
+        val original = posts.first()
+
+        assertTrue(original.content.filterIsInstance<Paragraph.Text>().any { it.content == "首文內容" })
+        val image = original.content.filterIsInstance<Paragraph.ImageInfo>().single()
+        assertEquals("https://rthost.win/sd/src/op.png", image.raw)
+        assertEquals("https://rthost.win/sd/thumb/ops.jpg", image.thumb)
+    }
+
+    @Test
+    fun `OP sibling recovery stops before the first reply`() {
+        val posts = parser.parseThread(RTHOST_THREAD, "https://rthost.win/sd/pixmicat.php?res=341282")
+        val original = posts.first()
+
+        assertTrue(original.content.none { paragraph ->
+            paragraph is Paragraph.Text && paragraph.content.contains("回覆限定內容")
+        })
+        assertTrue(original.content.filterIsInstance<Paragraph.ImageInfo>().none {
+            it.raw.endsWith("/reply.png")
+        })
+        assertTrue(posts[1].content.filterIsInstance<Paragraph.Text>().any {
+            it.content == "回覆限定內容"
+        })
+    }
+
+    @Test
+    fun `live shaped thread keeps every post structurally non-empty`() {
+        val posts = parser.parseThread(RTHOST_THREAD, "https://rthost.win/sd/pixmicat.php?res=341282")
+
+        assertEquals(listOf("341282", "466547"), posts.map { it.id })
+        assertTrue(posts.all { it.content.isNotEmpty() })
+    }
+
+    @Test
     fun `parser resolves relative WTako attachment URLs`() {
         val post = parser.parseSummaries(WTAKO_LIST, "https://kemono.wtako.net/kemono").single()
         val image = post.content.filterIsInstance<Paragraph.ImageInfo>().single()
@@ -75,6 +110,19 @@ class WtakoParserTest {
               <a href="https://example.org/info">外部連結</a></div>
               <a href="/sw/src/1770076508178.jpg"><img class="img" src="/sw/thumb/1770076508178s.jpg"></a>
               <a href="/sw/src/movie.webm">影片</a></div>
+            </div>
+        """.trimIndent()
+
+        val RTHOST_THREAD = """
+            <div id="threads">
+              <div class="threadpost" id="r341282"><span class="title">首文</span>
+              名稱: <span class="name">無名氏</span> [14/05/08(四)14:33 ID:op]</div>
+              <a href="//rthost.win/sd/src/op.png"><img class="img" src="//rthost.win/sd/thumb/ops.jpg"></a>
+              <div class="quote">首文內容</div>
+              <div class="reply" id="r466547"><span class="title">回覆</span>
+              名稱: <span class="name">無名氏</span> [25/04/17(四)10:12 ID:reply]
+              <a href="//rthost.win/sd/src/reply.png"><img class="img" src="//rthost.win/sd/thumb/replys.jpg"></a>
+              <div class="quote">回覆限定內容</div></div>
             </div>
         """.trimIndent()
 

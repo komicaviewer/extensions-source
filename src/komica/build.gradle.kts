@@ -1,7 +1,7 @@
 ext {
     set("bundleName", "NewsHub: Komica")
-    set("bundleVersionCode", 8)
-    set("bundleVersionName", "0.3.5")
+    set("bundleVersionCode", 9)
+    set("bundleVersionName", "0.3.6")
 }
 apply(from = "$rootDir/bundle.gradle")
 
