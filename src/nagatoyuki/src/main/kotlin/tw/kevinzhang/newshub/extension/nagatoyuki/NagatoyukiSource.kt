@@ -18,7 +18,7 @@ class NagatoyukiSource : SessionAwareSource {
     override val id = NagatoyukiBoardCatalog.SOURCE_ID
     override val name = "Nagatoyuki"
     override val language = "zh-TW"
-    override val version = 2
+    override val version = 3
     override val iconUrl = "https://eclair.nagatoyuki.org/favicon.ico"
     override val supportsCommentPagination = false
     override val alwaysUseRawImage = true

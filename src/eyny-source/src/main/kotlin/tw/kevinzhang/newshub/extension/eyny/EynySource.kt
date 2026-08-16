@@ -23,7 +23,7 @@ class EynySource : AuthenticatedSource, WebLoginUserAgentProvider {
     override val id = SOURCE_ID
     override val name = "EYNY 伊莉討論區"
     override val language = "zh-TW"
-    override val version = 2
+    override val version = 3
     override val iconUrl = "https://eyny.com/favicon.ico"
     override val supportsCommentPagination = false
     override val alwaysUseRawImage = false

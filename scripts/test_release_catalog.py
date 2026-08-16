@@ -52,13 +52,13 @@ class ReleaseCatalogTest(unittest.TestCase):
     def test_release_versions_do_not_fall_below_extension_api_payload_baseline(self):
         root = Path(__file__).resolve().parents[1]
         expected = {
-            "eyny": (4, "0.1.3"),
-            "gamer": (8, "0.0.8"),
-            "hackernews": (4, "0.1.3"),
-            "komica": (8, "0.3.5"),
-            "komica2": (9, "0.4.5"),
-            "mobile01": (5, "0.1.4"),
-            "ptt": (7, "0.4.3"),
+            "eyny": (5, "0.1.4"),
+            "gamer": (9, "0.0.9"),
+            "hackernews": (5, "0.1.4"),
+            "komica": (10, "0.3.7"),
+            "komica2": (10, "0.4.6"),
+            "mobile01": (6, "0.1.5"),
+            "ptt": (8, "0.4.4"),
         }
         for module, (minimum_code, baseline_name) in expected.items():
             contents = (root / f"src/{module}/build.gradle.kts").read_text(encoding="utf-8")
