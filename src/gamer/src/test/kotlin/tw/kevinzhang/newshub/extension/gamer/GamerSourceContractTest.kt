@@ -5,6 +5,6 @@ import tw.kevinzhang.newshub.extension.runtime.assertSourceDescriptorContract
 
 class GamerSourceContractTest {
     @Test fun `protocol v2 descriptor fields stay stable`() = assertSourceDescriptorContract(
-        GamerSource(), "tw.kevinzhang.newshub.extension.gamer", "Gamer 巴哈姆特", "zh-TW", 6, false,
+        GamerSource(), "tw.kevinzhang.newshub.extension.gamer", "Gamer 巴哈姆特", "zh-TW", 7, false,
     )
 }

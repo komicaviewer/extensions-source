@@ -1,6 +1,7 @@
 package tw.kevinzhang.gamer_api.interactor
 
 import com.google.gson.Gson
+import com.google.gson.JsonParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -40,7 +41,15 @@ class GetBoardPage(
             check(it.isSuccessful) { "Bahamut board directory failed with HTTP ${it.code}" }
             val body = it.body?.charStream()
                 ?: error("Bahamut board directory returned an empty response")
-            return gson.fromJson(body, BoardListResponse::class.java).data.list
+            val data = JsonParser.parseReader(body).asJsonObject.get("data")
+                ?: error("Bahamut board directory response did not contain data")
+            val items = when {
+                data.isJsonArray -> data.asJsonArray
+                data.isJsonObject -> data.asJsonObject.getAsJsonArray("list")
+                else -> null
+            } ?: error("Bahamut board directory response did not contain a board list")
+            return items
+                .map { item -> gson.fromJson(item, BoardListItem::class.java) }
                 .filter { item -> item.type == null || item.type == "forum" }
                 .map { item ->
                     GBoard(
@@ -52,8 +61,6 @@ class GetBoardPage(
         }
     }
 
-    private data class BoardListResponse(val data: BoardListData)
-    private data class BoardListData(val list: List<BoardListItem>)
     private data class BoardListItem(
         val bsn: Int,
         val title: String,
