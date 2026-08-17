@@ -38,7 +38,7 @@ class GamerSource : AuthenticatedSource {
     override val id = "tw.kevinzhang.newshub.extension.gamer"
     override val name = "Gamer 巴哈姆特"
     override val language = "zh-TW"
-    override val version = 6
+    override val version = 7
     override val iconUrl: String = "https://i2.bahamut.com.tw/apple-touch-icon-72x72.png"
     override val supportsCommentPagination: Boolean = false
     override val alwaysUseRawImage: Boolean = false
@@ -75,8 +75,7 @@ class GamerSource : AuthenticatedSource {
             }
         } ?: ALL_BOARDS_CATEGORY_CODE
         val result = if (query.isEmpty()) {
-            val parsed = gamerApi.getBoardPage(categoryCode, page)
-            if (categoryCode == ALL_BOARDS_CATEGORY_CODE) emptyList() else parsed
+            gamerApi.getBoardPage(categoryCode, page)
         } else {
             gamerApi.searchBoards(query, page)
         }

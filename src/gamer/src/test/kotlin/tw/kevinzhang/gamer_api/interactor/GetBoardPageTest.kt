@@ -40,6 +40,17 @@ class GetBoardPageTest {
         assertEquals(listOf("新楓之谷"), boards.map { it.name })
     }
 
+    @Test
+    fun `board directory accepts boards directly in data after response shape drift`() = runBlocking {
+        val subject = GetBoardPage(jsonClient(DIRECT_DATA_BOARD_LIST_JSON) {})
+
+        val boards = subject.invoke(categoryCode = 21, page = 1)
+
+        assertEquals(listOf("新楓之谷"), boards.map { it.name })
+        assertEquals("https://forum.gamer.com.tw/B.php?bsn=7650", boards.single().url)
+        assertEquals("角色扮演", boards.single().category)
+    }
+
     private fun jsonClient(json: String, recordUrl: (String) -> Unit): OkHttpClient =
         OkHttpClient.Builder()
             .addInterceptor(Interceptor { chain ->
@@ -64,6 +75,10 @@ class GetBoardPageTest {
               {"type":"forum","bsn":7650,"title":"新楓之谷 ","category":"角色扮演"},
               {"type":"acg","bsn":999,"title":"不是哈啦板","category":"作品"}
             ]}}
+        """.trimIndent()
+
+        val DIRECT_DATA_BOARD_LIST_JSON = """
+            {"data":[{"bsn":7650,"title":"新楓之谷 ","category":"角色扮演"}]}
         """.trimIndent()
     }
 }
