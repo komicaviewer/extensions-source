@@ -7,9 +7,11 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 internal object EynyUrlPolicy {
     private const val ROOT = "eyny.com"
     private const val WWW = "www.eyny.com"
+    private const val WWW51 = "www51.eyny.com"
     private const val WWW52 = "www52.eyny.com"
     private const val WWW53 = "www53.eyny.com"
-    val allowedHosts = setOf(ROOT, WWW, WWW52, WWW53)
+    private const val WWW54 = "www54.eyny.com"
+    val allowedHosts = setOf(ROOT, WWW, WWW51, WWW52, WWW53, WWW54)
     private val THREAD = Regex("/thread-(\\d+)-(\\d+)-([A-Za-z0-9_-]+)\\.html")
     private val BOARD = Regex("/forum-(\\d+)-(\\d+)\\.html")
     private val EXTRA = Regex("[A-Za-z0-9_-]{1,64}")

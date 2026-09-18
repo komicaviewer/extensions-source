@@ -67,12 +67,12 @@ class SourceHostContractTest(unittest.TestCase):
     def test_source_ids_are_bound_to_their_reviewed_request_hosts(self) -> None:
         catalog = self.contract["_catalogSources"]
         self.assertEqual(
-            ["eyny.com", "www.eyny.com", "www52.eyny.com", "www53.eyny.com"],
+            ["eyny.com", "www.eyny.com", "www51.eyny.com", "www52.eyny.com", "www53.eyny.com", "www54.eyny.com"],
             catalog["tw.kevinzhang.eyny"]["exactHosts"],
         )
         eyny = next(source for source in self.contract["sources"] if source["id"] == "tw.kevinzhang.eyny")
         self.assertEqual(
-            "9cbfa85fd151858f5443d64b2a9d2762879d30cd54ebf4bbd3d775ac26f4839c",
+            "50b0cfb205cbd9e658e176a91e5ba92ea4abd97a088427e5d1db0f1300efdf51",
             policy_sha256(eyny),
         )
         self.assertEqual(
