@@ -15,7 +15,7 @@ from release_catalog import gradle_tasks, load_catalog
 class ReleaseCatalogTest(unittest.TestCase):
     def test_all_extension_api_dependencies_use_exact_isolated_service_protocol_pin(self):
         root = Path(__file__).resolve().parents[1]
-        expected_sha = "6a94c4879ebbf052007dc6fa6374deade2428e57"
+        expected_sha = "7c2d23ec9ec27e161a1a70fca84c9da00d9763cd"
         dependency_files = (
             root / "shared/broker-http/build.gradle",
             root / "common.gradle",
@@ -57,7 +57,7 @@ class ReleaseCatalogTest(unittest.TestCase):
     def test_release_versions_do_not_fall_below_extension_api_payload_baseline(self):
         root = Path(__file__).resolve().parents[1]
         expected = {
-            "eyny": (6, "0.1.5"),
+            "eyny": (7, "0.1.6"),
             "gamer": (10, "0.0.10"),
             "hackernews": (6, "0.1.5"),
             "komica": (11, "0.3.8"),

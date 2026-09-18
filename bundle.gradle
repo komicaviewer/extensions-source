@@ -48,7 +48,7 @@ dependencies {
         }
         implementation files(extensionApiAar)
     } else {
-        implementation 'com.github.komicaviewer.NewsHub:extension-api:6a94c4879ebbf052007dc6fa6374deade2428e57'
+        implementation 'com.github.komicaviewer.NewsHub:extension-api:7c2d23ec9ec27e161a1a70fca84c9da00d9763cd'
     }
     implementation 'com.google.code.gson:gson:2.10.1'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
