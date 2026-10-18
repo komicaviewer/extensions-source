@@ -47,17 +47,23 @@ class Mobile01Source : SessionAwareSource {
 
     override suspend fun getBoardPage(request: BoardPageRequest): BoardPage {
         catalogEpoch = request.contextEpoch
+        if (request.query.text.isBlank() && request.query.categoryId == null) {
+            val refreshed = if (request.refresh) loadCatalog(true) else null
+            val seeds = Mobile01BoardCatalog.page(BoardPageRequest(pageSize = 100)).boards
+            val recommendations = CatalogSnapshot(seeds, "mobile01-recommendations-v1", 0L, BoardCatalogCoverage.UNKNOWN)
+            return BoardCatalogPaging.page(seeds, request, recommendations).copy(
+                catalogInfo = refreshed?.info()?.copy(coverage = BoardCatalogCoverage.UNKNOWN, contextEpoch = request.contextEpoch)
+                    ?: tw.kevinzhang.extension_api.model.BoardCatalogInfo(
+                    tw.kevinzhang.extension_api.model.BoardCatalogMode.CATALOG,
+                    coverage = BoardCatalogCoverage.UNKNOWN, contextEpoch = request.contextEpoch))
+        }
         val snapshot = loadCatalog(request.refresh)
         val text = request.query.text.trim()
         val filtered = snapshot.value.filter {
             (request.query.categoryId == null || it.description == request.query.categoryId) &&
                 (text.isBlank() || it.name.contains(text, true) || it.description.orEmpty().contains(text, true))
         }
-        val visible = if (text.isBlank() && request.query.categoryId == null) {
-            val preferred = Mobile01BoardCatalog.page(BoardPageRequest(pageSize = 100)).boards.map { it.url }.toSet()
-            filtered.filter { it.url in preferred }.ifEmpty { filtered.take(16) }
-        } else filtered
-        return BoardCatalogPaging.page(visible, request, snapshot)
+        return BoardCatalogPaging.page(filtered, request, snapshot)
     }
 
     private suspend fun loadCatalog(refresh: Boolean): CatalogSnapshot<List<Board>> = catalogCache.get(catalogEpoch, refresh) { budget ->

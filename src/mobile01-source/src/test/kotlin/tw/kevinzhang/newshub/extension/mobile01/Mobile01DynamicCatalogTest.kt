@@ -9,6 +9,22 @@ import tw.kevinzhang.extension_api.model.*
 import tw.kevinzhang.newshub.extension.runtime.asTestSourceRuntime
 
 class Mobile01DynamicCatalogTest {
+    @Test fun `refreshed recommendation continuation remains valid without repeating refresh`() = runBlocking {
+        val source = Mobile01Source().apply { onAttach(OkHttpClient.Builder().addInterceptor { chain ->
+            Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1).code(200).message("OK")
+                .body("""<section><a href="topiclist.php?f=350">電腦螢幕</a><a href="topiclist.php?f=383">iPhone</a></section>""".toResponseBody()).build()
+        }.build().asTestSourceRuntime()) }
+        val request = BoardPageRequest(pageSize = 1, refresh = true, contextEpoch = "public")
+        val first = source.getBoardPage(request)
+        val next = source.getBoardPage(request.copy(refresh = false, pageToken = first.nextPageToken))
+        assertNotEquals(first.boards.single().url, next.boards.single().url)
+    }
+    @Test fun `recommendations remain usable before a remote catalog is available`() = runBlocking {
+        val page = Mobile01Source().getBoardPage(BoardPageRequest(contextEpoch = "public"))
+        assertEquals(16, page.boards.size)
+        assertEquals(BoardCatalogCoverage.UNKNOWN, page.catalogInfo?.coverage)
+        assertNull(page.catalogInfo?.updatedAtMillis)
+    }
     @Test fun `directory discovers non curated boards and excludes external and trading links`() {
         val parsed = Mobile01CatalogParser().parse("""
             <section><h2>數位科技</h2>
