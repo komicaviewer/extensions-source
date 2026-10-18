@@ -1,5 +1,11 @@
 package tw.kevinzhang.newshub.extension.eyny
 
+import kotlinx.coroutines.CancellationException
+import tw.kevinzhang.newshub.extension.runtime.BoardCatalogSnapshotCache
+import tw.kevinzhang.newshub.extension.runtime.CatalogSnapshot
+import tw.kevinzhang.newshub.extension.runtime.BoardCatalogPaging
+import tw.kevinzhang.extension_api.model.BoardCatalogCoverage
+import tw.kevinzhang.extension_api.SourceFailureException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import tw.kevinzhang.extension_api.AuthSpec
@@ -43,26 +49,26 @@ class EynySource : AuthenticatedSource, WebLoginUserAgentProvider {
     private var authentication: AuthenticationSession? = null
     private val parser = EynyParser()
     private val gateway = EynyGateway()
-    private val catalogMutex = Mutex()
-    private var catalog: EynyCatalog? = null
+    private val catalogCache = BoardCatalogSnapshotCache<EynyCatalog>()
+    private var catalogEpoch: String? = null
 
     override fun onAttach(runtime: SourceRuntime) {
         gateway.updateRuntime(runtime.brokerBackedHttpClient(), runtime.namedCookies)
         authentication = runtime.authentication
     }
 
-    override suspend fun getBoardCategories(): List<BoardCategory> = loadCatalog().categories
+    override suspend fun getBoardCategories(): List<BoardCategory> = loadCatalog(false).value.categories
     override suspend fun getBoardPage(request: BoardPageRequest): BoardPage {
-        val loaded = loadCatalog()
+        catalogEpoch = request.contextEpoch
+        val snapshot = loadCatalog(request.refresh)
+        val loaded = snapshot.value
         val query = request.query.text.trim()
         val selected = loaded.boards.asSequence().filter { request.query.categoryId == null || it.categoryId == request.query.categoryId }
             .filter { query.isBlank() || it.board.name.contains(query, true) || it.board.description.orEmpty().contains(query, true) }
-            .map { it.board }.toList().let { if (query.isBlank()) popular(it) else it }
-        val offset = request.pageToken?.toIntOrNull() ?: 0
-        require(offset >= 0) { "Invalid EYNY board page token" }
-        val values = selected.drop(offset).take(request.pageSize)
-        return BoardPage(values, (offset + values.size).takeIf { it < selected.size }?.toString())
+            .map { it.board }.toList().let { if (query.isBlank() && request.query.categoryId == null) popular(it) else it }
+        return BoardCatalogPaging.page(selected, request, snapshot)
     }
+
     override suspend fun getThreadSummaries(board: Board, page: Int): List<ThreadSummary> {
         require(board.sourceId == id && page > 0)
         val parsed = requireNotNull(EynyUrlPolicy.board(board.url)) { "Untrusted EYNY board" }
@@ -92,28 +98,39 @@ class EynySource : AuthenticatedSource, WebLoginUserAgentProvider {
     } catch (_: AuthenticationRequiredException) { false }
     override suspend fun getWebUrl(summary: ThreadSummary): String? = EynyUrlPolicy.thread(summary.id)?.url
 
-    private suspend fun loadCatalog(): EynyCatalog = catalogMutex.withLock {
-        catalog?.let { return@withLock it }
-        val home = parser.parseCatalog(gateway.get("https://eyny.com/"))
-        val emptyCategories = home.categories.filter { category -> home.boards.none { it.categoryId == category.id } }
-        val expanded = emptyCategories.flatMap { category ->
-            try {
-                parser.parseCategoryBoards(gateway.get(EynyUrlPolicy.canonicalCategory(category.id)), category)
-            } catch (_: IOException) {
-                emptyList()
-            }
-        }
-        home.copy(boards = (home.boards + expanded).distinctBy { it.board.url }).also {
-            if (it.boards.isEmpty()) throw IOException("EYNY catalog contains no visible boards")
-            catalog = it
+    private suspend fun loadCatalog(refresh: Boolean): CatalogSnapshot<EynyCatalog> = catalogCache.get(catalogEpoch, refresh) { budget ->
+        try {
+            val home = parser.parseCatalog(gateway.get("https://eyny.com/", budget))
+            val categories = home.categories.filterNot { EXCLUDED.containsMatchIn(it.name) }
+            val allowed = categories.map { it.id }.toSet()
+            val homeBoards = home.boards.filter { it.categoryId in allowed && !EXCLUDED.containsMatchIn(it.board.name) }
+            val emptyCategories = categories.filter { category -> homeBoards.none { it.categoryId == category.id } }
+            var partial = false
+            val expanded = emptyCategories.flatMap { category ->
+                try {
+                    parser.parseCategoryBoards(gateway.get(EynyUrlPolicy.canonicalCategory(category.id), budget), category)
+                        .also { if (it.isEmpty()) partial = true }
+                } catch (error: CancellationException) { throw error }
+                catch (error: EynyLockedException) { throw error }
+                catch (error: SourceFailureException) { throw error }
+                catch (_: IOException) { partial = true; emptyList() }
+            }.filterNot { EXCLUDED.containsMatchIn(it.board.name) }
+            val loaded = EynyCatalog(categories, (homeBoards + expanded).distinctBy { it.board.url })
+            if (loaded.boards.isEmpty()) throw IOException("EYNY catalog contains no visible boards")
+            CatalogSnapshot(loaded, updatedAtMillis = System.currentTimeMillis(),
+                coverage = if (partial) BoardCatalogCoverage.PARTIAL else BoardCatalogCoverage.AVAILABLE)
+        } catch (error: EynyLockedException) {
+            authentication?.markExpired()
+            throw AuthenticationRequiredException()
         }
     }
-    private suspend fun clearCatalog() = catalogMutex.withLock { catalog = null }
+    private suspend fun clearCatalog() = catalogCache.invalidate()
     private fun popular(all: List<Board>): List<Board> {
         val ids = listOf(27, 16, 205, 26, 447, 491, 1743)
-        return ids.mapNotNull { fid -> all.firstOrNull { EynyUrlPolicy.board(it.url)?.fid == fid } }.ifEmpty { all }
+        return ids.mapNotNull { fid -> all.firstOrNull { EynyUrlPolicy.board(it.url)?.fid == fid } }.ifEmpty { all.take(16) }
     }
     companion object {
+        private val EXCLUDED = Regex("交易|二手|商城|市集|拍賣", RegexOption.IGNORE_CASE)
         const val SOURCE_ID = "tw.kevinzhang.eyny"
 
         private val AUTH_HOSTS = setOf("eyny.com", "www.eyny.com", "www51.eyny.com", "www52.eyny.com", "www53.eyny.com", "www54.eyny.com")
