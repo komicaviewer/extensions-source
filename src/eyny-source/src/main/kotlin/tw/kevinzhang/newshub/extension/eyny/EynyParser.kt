@@ -20,6 +20,7 @@ internal data class EynyThreadPageResult(val posts: List<Post>, val nextToken: S
 internal class EynyParser {
     fun parseCatalog(html: String): EynyCatalog {
         val document = Jsoup.parse(html, "https://eyny.com/")
+        if (requiresLogin(document) || requiresAccountSecurity(document)) throw EynyLockedException()
         val gids = document.select("a[href*=forum.php?gid]").mapNotNull { link ->
             val id = Regex("(?:[?&]gid=)(\\d+)").find(link.attr("href"))?.groupValues?.get(1) ?: return@mapNotNull null
             val name = link.attr("title").clean()
@@ -39,12 +40,13 @@ internal class EynyParser {
                 EynyCatalogBoard(categoryId.ifBlank { "all" }, Board(EynySource.SOURCE_ID, EynyUrlPolicy.canonicalBoard(board.fid), a.text().clean(), a.parent()?.text()?.clean()?.takeIf { it != a.text().clean() }))
             }
         }.filter { it.board.name.isNotBlank() }.distinctBy { it.board.url }
-        val categories = categoryIds.map { id -> BoardCategory(id, gids[id].orEmpty().ifBlank { CATEGORY_NAMES[id].orEmpty() }.ifBlank { id }) }
+        val categories = (categoryIds + gids.keys).distinct().map { id -> BoardCategory(id, gids[id].orEmpty().ifBlank { CATEGORY_NAMES[id].orEmpty() }.ifBlank { id }) }
         return EynyCatalog(categories, groups)
     }
 
     fun parseCategoryBoards(html: String, category: BoardCategory): List<EynyCatalogBoard> {
         val document = Jsoup.parse(html, EynyUrlPolicy.canonicalCategory(category.id))
+        if (requiresLogin(document) || requiresAccountSecurity(document)) throw EynyLockedException()
         return document.select("#ct .fl_tb a[href]").mapNotNull { link ->
             val name = link.text().clean().ifBlank { return@mapNotNull null }
             val board = EynyUrlPolicy.resolve(document.location(), link.attr("href"))?.let(EynyUrlPolicy::board)

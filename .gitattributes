@@ -1,0 +1,2 @@
+# Keep downloaded SVG originals byte-exact for the recorded source SHA-256.
+release-icons/*.svg -text

@@ -102,7 +102,8 @@ class Mobile01SourceTest {
                 }.build().asTestSourceRuntime(),
             )
         }
-        val board = source.getBoardPage(tw.kevinzhang.extension_api.model.BoardPageRequest()).boards.first()
+        val board = tw.kevinzhang.extension_api.model.Board(source.id,
+            "https://www.mobile01.com/topiclist.php?f=350", "電腦螢幕", null)
 
         val failure = assertThrows(Mobile01AccessException::class.java) {
             runBlocking { source.getThreadSummaries(board, 1) }

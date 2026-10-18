@@ -1,9 +1,16 @@
 package tw.kevinzhang.newshub.extension.mobile01
 
 import okhttp3.Request
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 /** Deliberately modest headers: this extension never impersonates a browser or solves challenges. */
 internal object Mobile01RequestBuilder {
+    fun catalog(url: String = "https://www.mobile01.com/forumlist.php"): Request {
+        val parsed = url.toHttpUrlOrNull()
+        require(parsed != null && parsed.isHttps && parsed.host == "www.mobile01.com" && parsed.port == 443 &&
+            parsed.username.isEmpty() && parsed.password.isEmpty() && parsed.encodedPath == "/forumlist.php")
+        return request(parsed.toString())
+    }
     fun board(boardId: Int, page: Int): Request = request(Mobile01UrlPolicy.boardUrl(boardId, page.takeIf { it > 1 }))
 
     fun thread(url: String): Request = request(

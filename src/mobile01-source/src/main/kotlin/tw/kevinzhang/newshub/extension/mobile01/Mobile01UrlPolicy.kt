@@ -44,6 +44,7 @@ internal object Mobile01UrlPolicy {
 
     fun trusted(value: String): HttpUrl? = value.toHttpUrlOrNull()?.takeIf {
         it.scheme == "https" && it.host == HOST && it.port == 443 &&
+            it.username.isEmpty() && it.password.isEmpty() &&
             (it.encodedPath == "/topiclist.php" || it.encodedPath == "/topicdetail.php")
     }
 

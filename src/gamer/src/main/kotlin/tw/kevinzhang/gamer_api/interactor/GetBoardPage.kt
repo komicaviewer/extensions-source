@@ -10,12 +10,15 @@ import okhttp3.Request
 import ru.gildor.coroutines.okhttp.await
 import tw.kevinzhang.gamer_api.model.GBoard
 
+data class GBoardDirectoryPage(val boards: List<GBoard>, val itemCount: Int)
+
 /** Loads one 30-item page from the board directory used by the official Bahamut app. */
 class GetBoardPage(
     private val client: OkHttpClient,
     private val gson: Gson = Gson(),
 ) {
-    suspend fun invoke(categoryCode: Int, page: Int): List<GBoard> = withContext(Dispatchers.IO) {
+    suspend fun invoke(categoryCode: Int, page: Int): List<GBoard> = invokePage(categoryCode, page).boards
+    suspend fun invokePage(categoryCode: Int, page: Int): GBoardDirectoryPage = withContext(Dispatchers.IO) {
         require(page > 0) { "page must be positive" }
         val url = BOARD_LIST_URL.toHttpUrl().newBuilder()
             .addQueryParameter("c", categoryCode.toString())
@@ -24,7 +27,8 @@ class GetBoardPage(
         execute(url.toString())
     }
 
-    suspend fun search(query: String, page: Int): List<GBoard> = withContext(Dispatchers.IO) {
+    suspend fun search(query: String, page: Int): List<GBoard> = searchPage(query, page).boards
+    suspend fun searchPage(query: String, page: Int): GBoardDirectoryPage = withContext(Dispatchers.IO) {
         require(query.isNotBlank()) { "query must not be blank" }
         require(page > 0) { "page must be positive" }
         val url = BOARD_SEARCH_URL.toHttpUrl().newBuilder()
@@ -35,7 +39,7 @@ class GetBoardPage(
         execute(url.toString())
     }
 
-    private suspend fun execute(url: String): List<GBoard> {
+    private suspend fun execute(url: String): GBoardDirectoryPage {
         val response = client.newCall(Request.Builder().url(url).get().build()).await()
         response.use {
             check(it.isSuccessful) { "Bahamut board directory failed with HTTP ${it.code}" }
@@ -48,7 +52,7 @@ class GetBoardPage(
                 data.isJsonObject -> data.asJsonObject.getAsJsonArray("list")
                 else -> null
             } ?: error("Bahamut board directory response did not contain a board list")
-            return items
+            val boards = items
                 .map { item -> gson.fromJson(item, BoardListItem::class.java) }
                 .filter { item -> item.type == null || item.type == "forum" }
                 .map { item ->
@@ -58,6 +62,7 @@ class GetBoardPage(
                         category = item.category,
                     )
                 }
+            return GBoardDirectoryPage(boards, items.size())
         }
     }
 

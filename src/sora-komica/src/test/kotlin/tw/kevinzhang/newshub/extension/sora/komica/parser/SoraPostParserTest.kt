@@ -75,6 +75,33 @@ class SoraPostParserTest {
         )
     }
 
+    @Test
+    fun `image click tracking link uses expanded original URL`() {
+        assertTrackedImage("data-expanded-image-url", "")
+    }
+
+    @Test
+    fun `synced original URL is used when expanded URL is absent`() {
+        assertTrackedImage("", "data-sync-original")
+    }
+
+    private fun assertTrackedImage(linkAttribute: String, imageAttribute: String) {
+        val raw = "https://gita-pix.komica1.org/src/1792303599669.png"
+        val thumb = "https://gita-pix.komica1.org/thumb/1792303599669s.jpg"
+        val linkOriginal = if (linkAttribute.isEmpty()) "" else "$linkAttribute=\"$raw\""
+        val imageOriginal = if (imageAttribute.isEmpty()) "" else "$imageAttribute=\"$raw\""
+        val html = Jsoup.parse("""
+            <div class="post" id="r31199820"><div class="quote">test</div>
+            <a href="thumb_click.php?img=1792303599669.png&amp;url=https%3A%2F%2Fgita-pix.komica1.org%2Fsrc%2F1792303599669.png" $linkOriginal>
+            <img class="img sync-image" src="$thumb" $imageOriginal></a></div>
+        """.trimIndent())
+        val post = createParser().parse(
+            html.toResponseBody(),
+            Request.Builder().url("https://gita.komica1.org/00b/pixmicat.php?res=31199820#r31199820").build(),
+        )
+        assertEquals(Paragraph.ImageInfo(thumb, raw), post.content.filterIsInstance<Paragraph.ImageInfo>().single())
+    }
+
     private fun createParser(): SoraPostParser =
         SoraPostParser(SoraUrlParser(), SoraPostHeadParser())
 }

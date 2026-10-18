@@ -101,8 +101,11 @@ internal class SoraPostParser(
 
     private fun setPicture(source: Element, host: String) {
         source.select("a").forEach { link ->
-            val href = link.attr("href")
             val img = link.selectFirst("img.img")
+            // Synced boards wrap originals in a relative click-counting page.
+            val href = link.attr("data-expanded-image-url")
+                .ifEmpty { img?.attr("data-sync-original").orEmpty() }
+                .ifEmpty { link.attr("href") }
 
             if (img != null && href.isNotEmpty()) {
                 if (href.isImageUrl()) {

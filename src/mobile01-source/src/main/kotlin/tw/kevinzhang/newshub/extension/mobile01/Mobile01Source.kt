@@ -15,13 +15,18 @@ import tw.kevinzhang.extension_api.model.ThreadPageMetadata
 import tw.kevinzhang.extension_api.model.ThreadSummary
 import java.io.IOException
 import tw.kevinzhang.newshub.extension.runtime.brokerBackedHttpClient
+import tw.kevinzhang.newshub.extension.runtime.BoardCatalogSnapshotCache
+import tw.kevinzhang.newshub.extension.runtime.BoardCatalogPaging
+import tw.kevinzhang.newshub.extension.runtime.CatalogSnapshot
+import tw.kevinzhang.extension_api.model.BoardCatalogCoverage
+import kotlinx.coroutines.CancellationException
 
 /** Public, anonymous, read-only Mobile01 source. It deliberately declines access-control challenges. */
 class Mobile01Source : SessionAwareSource {
     override val id: String = Mobile01BoardCatalog.SOURCE_ID
     override val name: String = "Mobile01"
     override val language: String = "zh-TW"
-    override val version: Int = 3
+    override val version: Int = 4
     override val iconUrl: String = "https://attach2.mobile01.com/images/touch/apple-touch-icon-180x180.png"
     override val supportsCommentPagination: Boolean = false
     override val alwaysUseRawImage: Boolean = false
@@ -29,14 +34,63 @@ class Mobile01Source : SessionAwareSource {
 
     private lateinit var client: OkHttpClient
     private val parser = Mobile01Parser()
+    private val catalogParser = Mobile01CatalogParser()
+    private val catalogCache = BoardCatalogSnapshotCache<List<Board>>()
+    private var catalogEpoch: String? = null
 
     override fun onAttach(runtime: SourceRuntime) {
         client = runtime.brokerBackedHttpClient().withMobile01NetworkPolicy()
     }
 
-    override suspend fun getBoardCategories(): List<BoardCategory> = Mobile01BoardCatalog.categories()
+    override suspend fun getBoardCategories(): List<BoardCategory> = loadCatalog(false).value
+        .mapNotNull { it.description }.distinct().map { BoardCategory(it, it) }
 
-    override suspend fun getBoardPage(request: BoardPageRequest): BoardPage = Mobile01BoardCatalog.page(request)
+    override suspend fun getBoardPage(request: BoardPageRequest): BoardPage {
+        catalogEpoch = request.contextEpoch
+        if (request.query.text.isBlank() && request.query.categoryId == null) {
+            val refreshed = if (request.refresh) loadCatalog(true) else null
+            val seeds = Mobile01BoardCatalog.page(BoardPageRequest(pageSize = 100)).boards
+            val recommendations = CatalogSnapshot(seeds, "mobile01-recommendations-v1", 0L, BoardCatalogCoverage.UNKNOWN)
+            return BoardCatalogPaging.page(seeds, request, recommendations).copy(
+                catalogInfo = refreshed?.info()?.copy(coverage = BoardCatalogCoverage.UNKNOWN, contextEpoch = request.contextEpoch)
+                    ?: tw.kevinzhang.extension_api.model.BoardCatalogInfo(
+                    tw.kevinzhang.extension_api.model.BoardCatalogMode.CATALOG,
+                    coverage = BoardCatalogCoverage.UNKNOWN, contextEpoch = request.contextEpoch))
+        }
+        val snapshot = loadCatalog(request.refresh)
+        val text = request.query.text.trim()
+        val filtered = snapshot.value.filter {
+            (request.query.categoryId == null || it.description == request.query.categoryId) &&
+                (text.isBlank() || it.name.contains(text, true) || it.description.orEmpty().contains(text, true))
+        }
+        return BoardCatalogPaging.page(filtered, request, snapshot)
+    }
+
+    private suspend fun loadCatalog(refresh: Boolean): CatalogSnapshot<List<Board>> = catalogCache.get(catalogEpoch, refresh) { budget ->
+        val pending = java.util.ArrayDeque<String>()
+        val visited = linkedSetOf<String>()
+        val boards = linkedMapOf<String, Board>()
+        pending.add("https://www.mobile01.com/forumlist.php")
+        var partial = false
+        while (pending.isNotEmpty() && visited.size < 50) {
+            val url = pending.removeFirst()
+            if (!visited.add(url)) continue
+            try {
+                val document = catalogParser.parse(budget.fetch { requestText(Mobile01RequestBuilder.catalog(url)) }, url)
+                document.boards.forEach { boards.putIfAbsent(it.url, it) }
+                document.categoryUrls.filterNot { it in visited }.forEach(pending::add)
+                if (document.boards.isEmpty() && document.categoryUrls.isEmpty()) partial = true
+            } catch (error: CancellationException) { throw error }
+            catch (error: Mobile01AccessException) { throw error }
+            catch (error: IOException) {
+                if (boards.isEmpty()) throw error
+                partial = true
+            }
+        }
+        if (boards.isEmpty()) throw Mobile01PageStructureException("catalog")
+        CatalogSnapshot(boards.values.toList(), updatedAtMillis = System.currentTimeMillis(),
+            coverage = if (partial || pending.isNotEmpty()) BoardCatalogCoverage.PARTIAL else BoardCatalogCoverage.AVAILABLE)
+    }
 
     override suspend fun getThreadSummaries(board: Board, page: Int): List<ThreadSummary> {
         require(page >= 1) { "Mobile01 listing pages are 1-based" }

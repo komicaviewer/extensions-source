@@ -13,6 +13,7 @@ import tw.kevinzhang.extension_api.NetworkOperations
 import tw.kevinzhang.extension_api.SourceFailure
 import tw.kevinzhang.extension_api.SourceFailureCode
 import tw.kevinzhang.extension_api.SourceFailureException
+import tw.kevinzhang.newshub.extension.runtime.CatalogRefreshBudget
 
 internal const val EYNY_USER_AGENT = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36"
 
@@ -34,12 +35,14 @@ internal class EynyGateway() {
         namedCookies = capability
     }
 
-    suspend fun get(canonicalUrl: String): String {
+    suspend fun get(canonicalUrl: String, budget: CatalogRefreshBudget? = null): String {
         var requestUrl = EynyUrlPolicy.requestUrl(canonicalUrl, activeHost)
         var solved = 0
         var redirects = 0
         repeat(MAX_EXCHANGES) {
-            val response = client.newCall(Request.Builder().url(requestUrl).header("User-Agent", EYNY_USER_AGENT).build()).await()
+            val request = Request.Builder().url(requestUrl).header("User-Agent", EYNY_USER_AGENT).build()
+            val response = if (budget == null) client.newCall(request).await()
+                else budget.fetch { client.newCall(request).await() }
             response.use {
                 val body = it.body?.string().orEmpty()
                 val location = it.header("Location")
@@ -52,6 +55,8 @@ internal class EynyGateway() {
                     requestUrl = target
                     return@repeat
                 }
+                if (it.code == 429 || it.code == 403) throw SourceFailureException(SourceFailure(
+                    if (it.code == 429) SourceFailureCode.RATE_LIMITED else SourceFailureCode.ACCESS_DENIED))
                 if (!it.isSuccessful) throw IOException("EYNY HTTP ${it.code}")
                 val challenge = try {
                     EynyChallengeSolver.parse(body)
