@@ -60,7 +60,6 @@ internal object Mobile01BoardCatalog {
         require(board.sourceId == SOURCE_ID) { "Board belongs to a different source" }
         val id = Mobile01UrlPolicy.boardId(board.url)
             ?: throw IllegalArgumentException("Untrusted Mobile01 board URL: ${board.url}")
-        require(entries.any { it.id == id }) { "Mobile01 board is not in the public catalog: $id" }
         return id
     }
 

@@ -241,7 +241,7 @@
           "policyVersion": 2,
           "exactHosts": ["www.mobile01.com"],
           "namedCapabilities": ["external_link", "resource_read"],
-          "policyHash": "1518d8988d341cfdae51de7ca17535726d840f94cb52c3ba09d80d164804eee7"
+          "policyHash": "6d5f1c025d40a396d73b793ce4a3ff0a23f9495531b7163d2d271b7c5f9e0cdf"
         }
       ]
     },

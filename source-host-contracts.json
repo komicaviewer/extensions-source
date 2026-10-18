@@ -430,7 +430,7 @@
         "request": {
           "exactHttpsHosts": ["www.mobile01.com"],
           "blockedHttpHosts": [],
-          "rules": [{"exactHttpsHosts": ["www.mobile01.com"], "methods": ["GET"], "pathPrefixes": ["/topicdetail.php", "/topiclist.php"], "credentialed": false}],
+          "rules": [{"exactHttpsHosts": ["www.mobile01.com"], "methods": ["GET"], "pathPrefixes": ["/forumlist.php", "/topicdetail.php", "/topiclist.php"], "credentialed": false}],
           "dynamicFromContent": false,
           "evidence": [
             "src/mobile01-source/src/main/kotlin/tw/kevinzhang/newshub/extension/mobile01/Mobile01RequestBuilder.kt",
