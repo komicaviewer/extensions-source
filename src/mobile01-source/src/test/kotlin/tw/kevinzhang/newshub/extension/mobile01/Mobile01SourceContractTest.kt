@@ -5,6 +5,6 @@ import tw.kevinzhang.newshub.extension.runtime.assertSourceDescriptorContract
 
 class Mobile01SourceContractTest {
     @Test fun `protocol v2 descriptor fields stay stable`() = assertSourceDescriptorContract(
-        Mobile01Source(), "tw.kevinzhang.mobile01", "Mobile01", "zh-TW", 3, false,
+        Mobile01Source(), "tw.kevinzhang.mobile01", "Mobile01", "zh-TW", 4, false,
     )
 }

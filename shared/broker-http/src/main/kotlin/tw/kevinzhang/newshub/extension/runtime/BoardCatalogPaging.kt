@@ -27,6 +27,7 @@ object BoardCatalogPaging {
         require(offset <= boards.size) { "Catalog continuation is out of range" }
         val values = boards.drop(offset).take(request.pageSize)
         val next = offset + values.size
-        return BoardPage(values, if (next < boards.size) token(request, snapshot.version, next) else null, snapshot.info())
+        return BoardPage(values, if (next < boards.size) token(request, snapshot.version, next) else null,
+            snapshot.info().copy(contextEpoch = request.contextEpoch))
     }
 }
