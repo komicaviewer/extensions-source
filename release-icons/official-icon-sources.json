@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "icons": [
+    {
+      "module": "eyny",
+      "sourceUrl": "https://www.eyny.com/static/image/common/logo.gif",
+      "retrievedOn": "2026-10-18",
+      "originalFile": "eyny.gif",
+      "originalSha256": "e6a5bb3ab7c8080ea1c2173682afac47729f189554f31af08ae82831084a96d5",
+      "pngFile": "eyny.png",
+      "pngSha256": "bd06aa592d0ae4a9f176baf647913a3e28ec5b59c3e45d92c1c530da3919a40d",
+      "conversion": "Single-frame official GIF converted to RGBA PNG without cropping or recoloring."
+    },
+    {
+      "module": "gamer",
+      "sourceUrl": "https://i2.bahamut.com.tw/apple-touch-icon-144x144.png",
+      "retrievedOn": "2026-10-18",
+      "originalFile": "gamer.png",
+      "originalSha256": "ebb62903b75b472d5e060a10222f4a679807d7dbc8bde95f94c6167da1d79d04",
+      "pngFile": "gamer.png",
+      "pngSha256": "ebb62903b75b472d5e060a10222f4a679807d7dbc8bde95f94c6167da1d79d04",
+      "conversion": "Original artwork preserved; ICO decoded to RGBA, 16px pixel icons enlarged to 128px with nearest-neighbor; SVG rasterized to 256px."
+    },
+    {
+      "module": "hackernews",
+      "sourceUrl": "https://news.ycombinator.com/y18.svg",
+      "retrievedOn": "2026-10-18",
+      "originalFile": "hackernews.svg",
+      "originalSha256": "e1b6622b6ea15f1f48dfda6e720265cd426981d2a7ae1f9d7ddeb8409897c6ff",
+      "pngFile": "hackernews.png",
+      "pngSha256": "05b86e53a9fccedd8ec226618cc47ca0e57477643919629191ab6e4e1e2992b9",
+      "conversion": "Original artwork preserved; ICO decoded to RGBA, 16px pixel icons enlarged to 128px with nearest-neighbor; SVG rasterized to 256px."
+    },
+    {
+      "module": "komica",
+      "sourceUrl": "https://komica1.org/favicon.ico?v=2",
+      "retrievedOn": "2026-10-18",
+      "originalFile": "komica.ico",
+      "originalSha256": "a5de2b8138d67e98c7f5cee8397a296ea90bf1395c12d2c97e892ff610e7e2eb",
+      "pngFile": "komica.png",
+      "pngSha256": "42a6afe0f45e9bb94b1b169ee68271ee86bc8384182ae81fb2c4944b6bd31fde",
+      "conversion": "Original artwork preserved; ICO decoded to RGBA, 16px pixel icons enlarged to 128px with nearest-neighbor; SVG rasterized to 256px."
+    },
+    {
+      "module": "komica2",
+      "sourceUrl": "https://komica1.org/favicon.ico?v=2",
+      "retrievedOn": "2026-10-18",
+      "originalFile": "komica.ico",
+      "originalSha256": "a5de2b8138d67e98c7f5cee8397a296ea90bf1395c12d2c97e892ff610e7e2eb",
+      "pngFile": "komica2.png",
+      "pngSha256": "42a6afe0f45e9bb94b1b169ee68271ee86bc8384182ae81fb2c4944b6bd31fde",
+      "verificationUrl": "https://www.google.com/s2/favicons?domain_url=https%3A%2F%2Fkomica2.cc&sz=128",
+      "note": "Komica2 HTTPS timed out. Its cached site favicon is pixel-identical to the directly downloaded Komica official favicon; the directly downloaded artwork is reused.",
+      "conversion": "Original artwork preserved; ICO decoded to RGBA, 16px pixel icons enlarged to 128px with nearest-neighbor; SVG rasterized to 256px."
+    },
+    {
+      "module": "mobile01",
+      "sourceUrl": "https://www.mobile01.com/favicon.ico",
+      "retrievedOn": "2026-10-18",
+      "originalFile": "mobile01.ico",
+      "originalSha256": "dd499ef3b8d51038b7b4766e0c5c96920e85c4932c6bb28d8fbb7609f52cb4f8",
+      "pngFile": "mobile01.png",
+      "pngSha256": "5cc26c9a1a75becbe994d64078e1217c1ff1addd23be0a79581b7829662620f7",
+      "conversion": "Original artwork preserved; ICO decoded to RGBA, 16px pixel icons enlarged to 128px with nearest-neighbor; SVG rasterized to 256px."
+    },
+    {
+      "module": "ptt",
+      "sourceUrl": "https://images.ptt.cc/favicon.svg?v=1",
+      "retrievedOn": "2026-10-18",
+      "originalFile": "ptt.svg",
+      "originalSha256": "2bc1f8d775b44f682c8e7294bc77391ec175c22a96c254662cf2447f2e490cce",
+      "pngFile": "ptt.png",
+      "pngSha256": "c83534291b3e1f6e1fc6a85f54799bf878a6922d5892f058ff4f6df848c2412e",
+      "conversion": "Original artwork preserved; ICO decoded to RGBA, 16px pixel icons enlarged to 128px with nearest-neighbor; SVG rasterized to 256px."
+    }
+  ]
+}
