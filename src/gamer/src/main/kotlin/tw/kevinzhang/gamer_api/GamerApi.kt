@@ -23,6 +23,10 @@ class GamerApi (
     suspend fun searchBoards(query: String, page: Int) =
         GetBoardPage(client).search(query, page)
 
+    suspend fun getBoardDirectoryPage(categoryCode: Int, query: String, page: Int) =
+        if (query.isBlank()) GetBoardPage(client).invokePage(categoryCode, page)
+        else GetBoardPage(client).searchPage(query, page)
+
     suspend fun getThreadSummaries(req: Request): List<GThreadSummary> {
         return GetThreadSummaries(client).invoke(req)
     }

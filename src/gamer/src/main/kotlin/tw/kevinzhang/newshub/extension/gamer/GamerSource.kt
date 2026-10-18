@@ -65,34 +65,19 @@ class GamerSource : AuthenticatedSource {
 
     override suspend fun getBoardCategories(): List<BoardCategory> = GAMER_CATEGORIES
 
+    private val boardPager = GamerBoardPager(id)
+
     override suspend fun getBoardPage(request: BoardPageRequest): BoardPage {
-        val page = request.pageToken?.toIntOrNull() ?: 1
-        require(page > 0) { "Invalid board page token: ${request.pageToken}" }
         val query = request.query.text.trim()
-        val categoryCode = request.query.categoryId?.let { categoryId ->
-            requireNotNull(GAMER_CATEGORY_CODES[categoryId]) {
-                "Unknown Gamer board category: $categoryId"
-            }
+        if (query.isNotEmpty() && request.query.categoryId != null) {
+            throw UnsupportedOperationException("Gamer remote search does not support a category filter")
+        }
+        val category = request.query.categoryId?.let {
+            requireNotNull(GAMER_CATEGORY_CODES[it]) { "Unknown Gamer board category" }
         } ?: ALL_BOARDS_CATEGORY_CODE
-        val result = if (query.isEmpty()) {
-            gamerApi.getBoardPage(categoryCode, page)
-        } else {
-            gamerApi.searchBoards(query, page)
+        return boardPager.page(request, if (query.isBlank()) BOARD_API_PAGE_SIZE else SEARCH_API_PAGE_SIZE) { page ->
+            gamerApi.getBoardDirectoryPage(category, query, page)
         }
-        val boards = result.take(request.pageSize).map { gBoard ->
-            Board(
-                sourceId = id,
-                url = gBoard.url,
-                name = gBoard.name,
-                description = gBoard.category,
-            )
-        }
-        return BoardPage(
-            boards = boards,
-            nextPageToken = (page + 1).toString().takeIf {
-                result.size >= if (query.isEmpty()) BOARD_API_PAGE_SIZE else SEARCH_API_PAGE_SIZE
-            },
-        )
     }
 
     override suspend fun getThreadSummaries(board: Board, page: Int): List<ThreadSummary> = withAuthenticationExpiry {
