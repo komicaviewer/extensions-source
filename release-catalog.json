@@ -127,7 +127,7 @@
           "policyVersion": 2,
           "exactHosts": ["fenrisulfr.org", "gaia.komica1.org", "gita.komica1.org", "iris.komica1.org", "komica.dbfoxtw.me", "msgirls.boguspix.com", "pixmicat.alica.idv.tw", "sister.boguspix.com", "storysol.boguspix.com", "travel.voidfactory.com", "www.karlsland.net"],
           "namedCapabilities": ["external_link", "resource_read"],
-          "policyHash": "bb1286c07671815139a69081e1356b865e1236e789f6b62511e6a1d9b568eb7f"
+          "policyHash": "114604b2aaa52b81b28f2351a712ca7a3d77a82173ac3400cf701099dd3b1255"
         },
         {
           "module": "akraft",

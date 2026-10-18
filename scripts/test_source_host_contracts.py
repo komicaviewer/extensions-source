@@ -8,7 +8,7 @@ import tempfile
 import unittest
 
 from release_catalog import load_catalog
-from source_host_contracts import DEFAULT_CATALOG_PATH, audit, load_contract, policy_sha256
+from source_host_contracts import DEFAULT_CATALOG_PATH, audit, load_contract, network_policy, policy_sha256
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -107,6 +107,19 @@ class SourceHostContractTest(unittest.TestCase):
     def test_retired_http_boards_leave_no_policy_findings(self) -> None:
         findings = self.findings()
         self.assertEqual({}, findings)
+
+    def test_sora_image_cdn_is_authorized_only_for_resources(self) -> None:
+        sora = next(source for source in self.contract["sources"]
+                    if source["id"] == "tw.kevinzhang.komica.sora")
+        policy = network_policy(sora)
+        host = "gita-pix.komica1.org"
+        self.assertIn(host, policy["resource"]["exactHosts"])
+        for rule in policy["request"]["rules"]:
+            self.assertNotIn(host, rule["exactHosts"])
+        self.assertNotIn(host, policy["auth"]["exactHosts"])
+        self.assertNotIn(host, policy["external"]["exactHosts"])
+        self.assertEqual(self.contract["_catalogSources"][sora["id"]]["policyHash"],
+                         policy_sha256(sora))
 
     def test_resource_or_external_literal_never_becomes_request_authority(self) -> None:
         changed = copy.deepcopy(self.contract)
