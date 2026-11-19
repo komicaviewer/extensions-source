@@ -207,6 +207,32 @@ def test_republishing_one_module_keeps_other_targets_and_bumps_versions(tmp_path
     assert (out / "metadata" / "1.snapshot.json").exists()
 
 
+@pytest.mark.parametrize("code", [1, 0])
+def test_rejects_version_code_that_does_not_increase(tmp_path, tool_readers, code):
+    keys, out = tmp_path / "keys", tmp_path / "out"
+    dev.init_repository(out, keys, now=NOW)
+    publish([make_apk(tmp_path / "apks", tool_readers, "ptt", version="1.0.0", code=1)], out, keys)
+    before = (out / "metadata" / "timestamp.json").read_bytes()
+    # Same versionName with different bytes must not overwrite, and a lower code must not roll back.
+    stale = make_apk(tmp_path / "apks2", tool_readers, "ptt", version="1.0.0", code=code)
+    stale.write_bytes(b"different-bytes")
+
+    with pytest.raises(ValueError, match="versionCode"):
+        publish([stale], out, keys, now=NOW + dt.timedelta(hours=1))
+    assert (out / "metadata" / "timestamp.json").read_bytes() == before
+    assert (out / "targets" / "apk" / stale.name).read_bytes() != b"different-bytes"
+
+
+def test_missing_timestamp_with_numbered_metadata_fails(tmp_path, tool_readers):
+    keys, out = tmp_path / "keys", tmp_path / "out"
+    dev.init_repository(out, keys, now=NOW)
+    publish([make_apk(tmp_path / "apks", tool_readers, "ptt")], out, keys)
+    (out / "metadata" / "timestamp.json").unlink()
+
+    with pytest.raises(ValueError, match="timestamp"):
+        publish([make_apk(tmp_path / "apks", tool_readers, "gamer")], out, keys)
+
+
 def test_rejects_tampered_existing_chain(tmp_path, tool_readers):
     keys, out = tmp_path / "keys", tmp_path / "out"
     dev.init_repository(out, keys, now=NOW)

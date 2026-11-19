@@ -118,7 +118,9 @@ def _existing_state(metadata: Path) -> tuple[int, dict]:
     ]
     timestamp_path = metadata / "timestamp.json"
     if not timestamp_path.is_file():
-        return max(numbered, default=0), {}
+        if numbered:
+            raise ValueError(f"timestamp.json is missing but numbered metadata exists: {metadata}")
+        return 0, {}
     timestamp = json.loads(timestamp_path.read_bytes())["signed"]
     snapshot = _read_descriptor_target(metadata, "snapshot.json", timestamp["meta"]["snapshot.json"])
     targets = _read_descriptor_target(metadata, "targets.json", snapshot["meta"]["targets.json"])
@@ -186,6 +188,18 @@ def publish(
 
     previous_version, previous_targets = _existing_state(metadata)
     replaced_packages = {entry["custom"]["packageName"] for _, _, entry in built.values()}
+    # A strictly higher versionCode keeps clients from rolling back and stops a same-name overwrite.
+    published_codes = {
+        entry["custom"]["packageName"]: int(entry["custom"]["versionCode"])
+        for entry in previous_targets.values()
+    }
+    for name, _, entry in built.values():
+        package = entry["custom"]["packageName"]
+        code = int(entry["custom"]["versionCode"])
+        if package in published_codes and code <= published_codes[package]:
+            raise ValueError(
+                f"versionCode must increase for {package}: {code} <= {published_codes[package]} ({name})"
+            )
     targets_map = {
         path: entry for path, entry in previous_targets.items()
         if entry["custom"]["packageName"] not in replaced_packages
