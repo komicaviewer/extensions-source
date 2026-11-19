@@ -11,7 +11,17 @@ from release_catalog import DEFAULT_CATALOG_PATH, load_catalog, metadata_for_rel
 
 ANDROID = "{http://schemas.android.com/apk/res/android}"
 ACTION = "tw.kevinzhang.newshub.extension.SERVICE"
-BIND_PERMISSION = "tw.kevinzhang.newshub.permission.BIND_EXTENSION"
+BIND_PERMISSION_PLACEHOLDER = "${newshubBindPermission}"
+ENVIRONMENTS = {
+    "prod": {
+        "bind_permission": "tw.kevinzhang.newshub.permission.BIND_EXTENSION",
+        "package_suffix": "",
+    },
+    "dev": {
+        "bind_permission": "tw.kevinzhang.newshub.debug.permission.BIND_EXTENSION",
+        "package_suffix": ".debug",
+    },
+}
 PROTOCOL_KEY = "newshub.extension.protocol"
 SOURCE_KEYS = {
     "id": "newshub.extension.source_id",
@@ -35,7 +45,22 @@ def _attr(element: ET.Element, name: str) -> str | None:
     return element.get(ANDROID + name)
 
 
-def validate_manifest(path: Path, expected_package: str, expected_sources: list[dict]) -> None:
+def validate_manifest(
+    path: Path,
+    expected_package: str,
+    expected_sources: list[dict],
+    env: str = "prod",
+    application_id: str | None = None,
+) -> None:
+    if env not in ENVIRONMENTS:
+        raise ValueError(f"unknown env: {env}")
+    policy = ENVIRONMENTS[env]
+    expected_application_id = expected_package + policy["package_suffix"]
+    if (application_id or expected_application_id) != expected_application_id:
+        raise ValueError(
+            f"{env} env requires package suffix {policy['package_suffix']!r}: "
+            f"{application_id} != {expected_application_id}",
+        )
     root = ET.parse(path).getroot()
     permissions = [_attr(node, "name") for node in root.findall("uses-permission")]
     if permissions:
@@ -67,7 +92,10 @@ def validate_manifest(path: Path, expected_package: str, expected_sources: list[
             raise ValueError(f"Source service must be exported: {name}")
         if _attr(service, "isolatedProcess") != "true":
             raise ValueError(f"Source service must use isolatedProcess: {name}")
-        if _attr(service, "permission") != BIND_PERMISSION:
+        permission = _attr(service, "permission")
+        if permission == BIND_PERMISSION_PLACEHOLDER:
+            permission = policy["bind_permission"]
+        if permission != policy["bind_permission"]:
             raise ValueError(f"Source service must require host signature permission: {name}")
         if not process or not process.startswith(":") or process in processes:
             raise ValueError(f"Source service process must be unique and private: {process}")
@@ -108,7 +136,7 @@ def validate_manifest(path: Path, expected_package: str, expected_sources: list[
         )
 
 
-def validate_all(catalog: dict) -> None:
+def validate_all(catalog: dict, env: str = "prod") -> None:
     root = Path(catalog["_root"])
     for release in catalog["releases"]:
         manifest = root / "src" / release["module"] / "src/main/AndroidManifest.xml"
@@ -120,15 +148,16 @@ def validate_all(catalog: dict) -> None:
             {**metadata_by_id[source["id"]], **source}
             for source in release["sources"]
         ]
-        validate_manifest(manifest, release["package"], expected_sources)
+        validate_manifest(manifest, release["package"], expected_sources, env=env)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--catalog", default=str(DEFAULT_CATALOG_PATH))
+    parser.add_argument("--env", choices=sorted(ENVIRONMENTS), default="prod")
     args = parser.parse_args()
     catalog = load_catalog(args.catalog)
-    validate_all(catalog)
+    validate_all(catalog, env=args.env)
     print(
         "Source manifest validation passed: "
         f"APKs={len(catalog['releases'])}, "

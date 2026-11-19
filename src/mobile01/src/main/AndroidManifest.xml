@@ -8,7 +8,7 @@
             android:name=".Mobile01ExtensionService"
             android:exported="true"
             android:isolatedProcess="true"
-            android:permission="tw.kevinzhang.newshub.permission.BIND_EXTENSION"
+            android:permission="${newshubBindPermission}"
             android:process=":source_mobile01">
             <intent-filter><action android:name="tw.kevinzhang.newshub.extension.SERVICE" /></intent-filter>
             <meta-data android:name="newshub.extension.protocol" android:value="2" />
