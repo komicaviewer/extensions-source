@@ -4,6 +4,16 @@ apply plugin: 'kotlin-android'
 assert bundleName != null : "bundleName is not set in build.gradle.kts"
 assert bundleVersionCode != null : "bundleVersionCode is not set in build.gradle.kts"
 
+def newshubEnv = (findProperty('newshubEnv') ?: 'prod').toString()
+def newshubEnvironments = [
+    prod: [suffix: '', bindPermission: 'tw.kevinzhang.newshub.permission.BIND_EXTENSION'],
+    dev : [suffix: '.debug', bindPermission: 'tw.kevinzhang.newshub.debug.permission.BIND_EXTENSION'],
+]
+if (!newshubEnvironments.containsKey(newshubEnv)) {
+    throw new GradleException("Unknown newshubEnv '${newshubEnv}'; expected one of ${newshubEnvironments.keySet()}")
+}
+def newshubEnvConfig = newshubEnvironments[newshubEnv]
+
 android {
     compileSdk 34
     namespace "tw.kevinzhang.newshub.extension.${project.name.replace('-', '_')}"
@@ -15,8 +25,12 @@ android {
         versionCode bundleVersionCode
         versionName bundleVersionName ?: "1.0"
 
+        // 後綴只加在 applicationId；namespace 不變，Service 類別名稱仍解析自原 namespace。
+        applicationIdSuffix newshubEnvConfig.suffix
+
         manifestPlaceholders = [
             bundleName: bundleName,
+            newshubBindPermission: newshubEnvConfig.bindPermission,
         ]
     }
 

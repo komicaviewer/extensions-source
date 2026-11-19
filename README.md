@@ -63,7 +63,7 @@ PTT 會把每篇文章保留為 `Post`，推文保留為 `Comment`。內部 page
     android:name=".ExampleExtensionService"
     android:exported="true"
     android:isolatedProcess="true"
-    android:permission="tw.kevinzhang.newshub.permission.BIND_EXTENSION"
+    android:permission="${newshubBindPermission}"
     android:process=":source_example">
     <intent-filter>
         <action android:name="tw.kevinzhang.newshub.extension.SERVICE" />

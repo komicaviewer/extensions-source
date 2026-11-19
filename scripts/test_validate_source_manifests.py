@@ -39,10 +39,43 @@ class SourceManifestValidationTest(unittest.TestCase):
 
     def test_rejects_missing_host_permission(self):
         self._tamper(
-            'android:permission="tw.kevinzhang.newshub.permission.BIND_EXTENSION"',
+            'android:permission="${newshubBindPermission}"',
             'android:permission="android.permission.INTERNET"',
             "signature permission",
         )
+
+    def test_accepts_all_release_manifests_for_dev_env(self):
+        validate_all(self.catalog, env="dev")
+
+    def test_dev_env_requires_debug_bind_permission(self):
+        self._tamper(
+            'android:permission="${newshubBindPermission}"',
+            'android:permission="tw.kevinzhang.newshub.permission.BIND_EXTENSION"',
+            "signature permission",
+            env="dev",
+        )
+
+    def test_prod_env_rejects_debug_bind_permission(self):
+        self._tamper(
+            'android:permission="${newshubBindPermission}"',
+            'android:permission="tw.kevinzhang.newshub.debug.permission.BIND_EXTENSION"',
+            "signature permission",
+            env="prod",
+        )
+
+    def test_dev_env_requires_debug_package_suffix(self):
+        with self.assertRaisesRegex(ValueError, "package suffix"):
+            validate_manifest(
+                self.manifest,
+                self.release["package"],
+                self.expected,
+                env="dev",
+                application_id=self.release["package"],
+            )
+
+    def test_rejects_unknown_env(self):
+        with self.assertRaisesRegex(ValueError, "unknown env"):
+            validate_manifest(self.manifest, self.release["package"], self.expected, env="staging")
 
     def test_rejects_legacy_application_marker(self):
         self._tamper(
@@ -67,14 +100,14 @@ class SourceManifestValidationTest(unittest.TestCase):
             "legacy login service metadata",
         )
 
-    def _tamper(self, old: str, new: str, error: str) -> None:
+    def _tamper(self, old: str, new: str, error: str, env: str = "prod") -> None:
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory) / "AndroidManifest.xml"
             contents = self.manifest.read_text(encoding="utf-8")
             self.assertIn(old, contents)
             target.write_text(contents.replace(old, new, 1), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, error):
-                validate_manifest(target, self.release["package"], self.expected)
+                validate_manifest(target, self.release["package"], self.expected, env=env)
 
 
 if __name__ == "__main__":
