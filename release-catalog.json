@@ -188,9 +188,9 @@
           "service": "tw.kevinzhang.newshub.extension.komica2.TwocatExtensionService",
           "protocol": 2,
           "policyVersion": 2,
-          "exactHosts": ["2cat.org"],
+          "exactHosts": ["2cat.org", "2cat.uk"],
           "namedCapabilities": ["external_link", "resource_read"],
-          "policyHash": "692ca4fc6068b2aaec7375ab7e819d51c7a218f92402b77568ea9fd1ffd317a5"
+          "policyHash": "4fd2baf55301a827c21c3be45e8d10e7057ebbd6ae92f0b9e47e91f73e0d2ac9"
         },
         {
           "module": "sora-komica2",

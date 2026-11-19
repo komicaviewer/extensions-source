@@ -331,13 +331,17 @@
       "namedCapabilities": ["external_link", "resource_read"],
       "surfaces": {
         "request": {
-          "exactHttpsHosts": ["2cat.org"],
+          "exactHttpsHosts": ["2cat.org", "2cat.uk"],
           "blockedHttpHosts": [],
-          "rules": [{"exactHttpsHosts": ["2cat.org"], "methods": ["GET"], "pathPrefixes": ["/touhoux/"], "credentialed": false}],
+          "rules": [
+            {"exactHttpsHosts": ["2cat.org"], "methods": ["GET"], "pathPrefixes": ["/hiso/", "/touhoux/", "/~futa/", "/~gifura/", "/~hanime/", "/~know/", "/~toy/"], "credentialed": false},
+            {"exactHttpsHosts": ["2cat.uk"], "methods": ["GET"], "pathPrefixes": ["/"], "credentialed": true}
+          ],
           "dynamicFromContent": false,
           "evidence": [
             "src/twocat-komica2/src/main/kotlin/tw/kevinzhang/newshub/extension/twocat/komica2/Komica2TwocatSource.kt",
-            "src/twocat-komica2/src/main/kotlin/tw/kevinzhang/newshub/extension/twocat/komica2/model/Komica2TwocatBoards.kt"
+            "src/twocat-komica2/src/main/kotlin/tw/kevinzhang/newshub/extension/twocat/komica2/model/Komica2TwocatBoards.kt",
+            "src/twocat-komica2/src/main/kotlin/tw/kevinzhang/newshub/extension/twocat/komica2/session/TwocatBoardSession.kt"
           ]
         },
         "resource": {
