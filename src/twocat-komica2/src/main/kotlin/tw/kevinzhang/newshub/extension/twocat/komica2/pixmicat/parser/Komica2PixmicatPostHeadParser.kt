@@ -26,7 +26,7 @@ internal class Komica2PixmicatPostHeadParser : PostHeadParser {
                 ?: throw IllegalArgumentException("找不到包含日期和ID的文字節點")
 
             // 提取 [日期時間 ID:xxx] 格式
-            val pattern = """\[(.+?)\s+ID:.+?\]""".toRegex()
+            val pattern = """\[([^\[\]]+?)\s+ID:[^\]]+\]""".toRegex()
             val matchResult = pattern.find(dateTimeText)
                 ?: throw IllegalArgumentException("無法解析日期時間: $dateTimeText")
 
