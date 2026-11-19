@@ -36,7 +36,7 @@ internal class PixmicatThreadParser(
     private fun parseReplies(source: Element, url: HttpUrl): List<ParsedPost> {
         val threadsRoot = requireNotNull(source.selectFirst("#threads")) { "Missing #threads" }
         val threads = threadsRoot.installThreadTag().select("div.thread")
-        val posts = threads.select("div.reply").map { reply_ele ->
+        val posts = threads.select("div.reply:not(.threadpost)").map { reply_ele ->
             val fragment = reply_ele.attr("id") // r12345678
             val postId = fragment.substring(1)
             val req = threadReqBuilder.setUrl(url).setFragment("r$postId").build()

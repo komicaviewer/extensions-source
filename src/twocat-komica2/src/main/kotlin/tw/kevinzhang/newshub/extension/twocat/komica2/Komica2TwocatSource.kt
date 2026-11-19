@@ -16,6 +16,11 @@ import tw.kevinzhang.extension_api.model.ThreadSummary
 import tw.kevinzhang.extension_api.model.Paragraph
 import tw.kevinzhang.newshub.extension.twocat.komica2.pixmicat.Komica2PixmicatEngine
 import tw.kevinzhang.newshub.extension.twocat.komica2.model.Komica2TwocatBoards
+import tw.kevinzhang.newshub.extension.twocat.komica2.model.TwocatGatedBoard
+import tw.kevinzhang.newshub.extension.twocat.komica2.session.TwocatBoardSession
+import tw.kevinzhang.newshub.extension.twocat.komica2.session.summariesUrl
+import tw.kevinzhang.newshub.extension.twocat.komica2.session.threadUrl
+import okhttp3.Request
 import tw.kevinzhang.extension_api.model.Board as ExtBoard
 import tw.kevinzhang.newshub.extension.runtime.brokerBackedHttpClient
 import tw.kevinzhang.newshub.extension.runtime.requireSourceSuccess
@@ -24,17 +29,19 @@ class Komica2TwocatSource : SessionAwareSource {
     override val id = Komica2TwocatBoards.SOURCE_ID
     override val name = "Komica2 Twocat"
     override val language = "zh-TW"
-    override val version = 4
+    override val version = 5
     override val iconUrl = "https://2cat.uk/futaba.ico"
     override val supportsCommentPagination = false
     override val alwaysUseRawImage = true
     override val needsLogin = false
 
     private lateinit var client: OkHttpClient
+    private lateinit var session: TwocatBoardSession
     private val engine = Komica2PixmicatEngine()
 
     override fun onAttach(runtime: SourceRuntime) {
         client = runtime.brokerBackedHttpClient()
+        session = TwocatBoardSession(client)
     }
 
     override suspend fun getBoardCategories(): List<BoardCategory> = emptyList()
@@ -55,18 +62,23 @@ class Komica2TwocatSource : SessionAwareSource {
         page: Int,
     ): List<ThreadSummary> = withContext(Dispatchers.IO) {
         val supportedBoard = Komica2TwocatBoards.all.first { it.url == board.url }
-        val req = engine.createThreadSummariesRequestBuilder(supportedBoard)
-            .setPage(page)
-            .build()
-        val response = client.newCall(req).await()
-        response.requireSourceSuccess()
+        val gated = Komica2TwocatBoards.gated(supportedBoard.url)
+        val (req, response) = if (gated == null) {
+            val req = engine.createThreadSummariesRequestBuilder(supportedBoard)
+                .setPage(page)
+                .build()
+            req to client.newCall(req).await().requireSourceSuccess()
+        } else {
+            fetchGated(gated) { decoy -> gated.summariesUrl(decoy, page) }
+        }
 
         val parser = engine.createThreadSummariesParser(engine.createUrlParser())
         parser.parse(response.body!!, req).map { post ->
             ThreadSummary(
                 sourceId = id,
                 boardUrl = engine.normalizeUrl(board.url.toHttpUrl()),
-                id = engine.normalizeUrl(post.url.toHttpUrl()),
+                id = gated?.let { "https://2cat.uk/${it.slug}/?res=${post.id}" }
+                    ?: engine.normalizeUrl(post.url.toHttpUrl()),
                 title = post.title,
                 author = post.poster,
                 createdAt = post.createdAt,
@@ -81,11 +93,15 @@ class Komica2TwocatSource : SessionAwareSource {
 
     override suspend fun getThread(summary: ThreadSummary): Thread = withContext(Dispatchers.IO) {
         val supportedBoard = Komica2TwocatBoards.all.first { it.url == summary.boardUrl }
-        val req = engine.createThreadRequestBuilder(supportedBoard)
-            .setUrl(summary.id.toHttpUrl())
-            .build()
-        val response = client.newCall(req).await()
-        response.requireSourceSuccess()
+        val gated = Komica2TwocatBoards.gated(supportedBoard.url)
+        val (req, response) = if (gated == null) {
+            val req = engine.createThreadRequestBuilder(supportedBoard)
+                .setUrl(summary.id.toHttpUrl())
+                .build()
+            req to client.newCall(req).await().requireSourceSuccess()
+        } else {
+            fetchGated(gated) { decoy -> gated.threadUrl(decoy, summary.id) }
+        }
 
         val parser = engine.createThreadParser(engine.createUrlParser())
         val posts = parser.parse(response.body!!, req)
@@ -107,5 +123,20 @@ class Komica2TwocatSource : SessionAwareSource {
         )
     }
 
-    override suspend fun getWebUrl(summary: ThreadSummary): String = summary.id
+    /** Gated threads only open inside a bound 2cat.uk session, so the browser gets the board entry. */
+    override suspend fun getWebUrl(summary: ThreadSummary): String =
+        if (Komica2TwocatBoards.gated(summary.boardUrl) != null) summary.boardUrl else summary.id
+
+    private suspend fun fetchGated(
+        board: TwocatGatedBoard,
+        url: (decoy: String) -> okhttp3.HttpUrl,
+    ): Pair<Request, okhttp3.Response> {
+        var request: Request? = null
+        val response = session.withBoard(board) { decoy ->
+            Request.Builder().url(url(decoy)).build()
+                .also { request = it }
+                .let { client.newCall(it).await() }
+        }
+        return checkNotNull(request) to response
+    }
 }
