@@ -8,7 +8,7 @@ import tw.kevinzhang.newshub.extension.twocat.komica2.model.Komica2TwocatBoards
 
 class Komica2TwocatRequestTest {
     private val engine = Komica2PixmicatEngine()
-    private val board = Komica2TwocatBoards.all.single()
+    private val board = Komica2TwocatBoards.all.first()
 
     @Test
     fun `page number and referer follow Komica2 Pixmicat rules`() {

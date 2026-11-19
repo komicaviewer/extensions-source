@@ -12,7 +12,7 @@ class TouhouxParserTest {
     @Test
     fun `summary parser reads a local touhoux Pixmicat thread`() {
         val engine = Komica2PixmicatEngine()
-        val request = engine.createThreadSummariesRequestBuilder(Komica2TwocatBoards.all.single())
+        val request = engine.createThreadSummariesRequestBuilder(Komica2TwocatBoards.all.first())
             .setPage(1)
             .build()
 

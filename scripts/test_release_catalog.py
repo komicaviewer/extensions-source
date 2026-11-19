@@ -61,7 +61,7 @@ class ReleaseCatalogTest(unittest.TestCase):
             "gamer": (10, "0.0.10"),
             "hackernews": (6, "0.1.5"),
             "komica": (11, "0.3.8"),
-            "komica2": (11, "0.4.7"),
+            "komica2": (12, "0.4.8"),
             "mobile01": (7, "0.1.6"),
             "ptt": (9, "0.4.5"),
         }
