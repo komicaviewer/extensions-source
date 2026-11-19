@@ -15,9 +15,9 @@ class BoardCatalogSnapshotCacheTest {
         assertEquals("v1", retained.version)
     }
     @Test fun `deadline cancels an active request and prevents another request`() = runBlocking {
-        val budget = CatalogRefreshBudget(timeoutMillis = 10)
+        val budget = CatalogRefreshBudget(timeoutMillis = 500)
         var calls = 0
-        assertThrows(IOException::class.java) { runBlocking { budget.fetch { calls++; delay(1000) } } }
+        assertThrows(IOException::class.java) { runBlocking { budget.fetch { calls++; delay(5_000) } } }
         assertThrows(IOException::class.java) { runBlocking { budget.fetch { calls++ } } }
         assertEquals(1, calls)
     }
