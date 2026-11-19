@@ -16,7 +16,7 @@ import tw.kevinzhang.newshub.extension.runtime.SourceSiteUnavailableException
 import tw.kevinzhang.newshub.extension.runtime.SourceSiteUnavailableReason
 
 class Komica2TwocatSourceTest {
-    private val board = Komica2TwocatBoards.all.single()
+    private val board = Komica2TwocatBoards.all.first()
 
     @Test
     fun `source version is incremented and board catalog has no categories`() = runBlocking {
@@ -24,7 +24,7 @@ class Komica2TwocatSourceTest {
 
         assertEquals(4, source.version)
         assertEquals(emptyList<Any>(), source.getBoardCategories())
-        assertEquals(listOf(board), source.getBoardPage(BoardPageRequest()).boards)
+        assertEquals(Komica2TwocatBoards.all, source.getBoardPage(BoardPageRequest(pageSize = 50)).boards)
         assertEquals(listOf(board), source.getBoardPage(BoardPageRequest(BoardQuery(text = "東方"))).boards)
         assertEquals(emptyList<Any>(), source.getBoardPage(BoardPageRequest(BoardQuery(text = "不存在"))).boards)
         assertEquals(emptyList<Any>(), source.getBoardPage(BoardPageRequest(BoardQuery(categoryId = "anime"))).boards)
