@@ -110,6 +110,23 @@ class Komica2TwocatSourceTest {
     }
 
     @Test
+    fun `summary reply count excludes the head post`() = runBlocking {
+        val fake = hanimeFake()
+        val source = Komica2TwocatSource().apply { onAttach(fake.client.asTestSourceRuntime()) }
+
+        assertEquals(listOf(1, 3), source.getThreadSummaries(hanime, page = 1).map { it.commentCount })
+    }
+
+    @Test
+    fun `gated thread url is the board entry`() = runBlocking {
+        val fake = hanimeFake()
+        val source = Komica2TwocatSource().apply { onAttach(fake.client.asTestSourceRuntime()) }
+        val summary = source.getThreadSummaries(hanime, page = 1).first()
+
+        assertEquals("https://2cat.org/~hanime/", source.getThread(summary).url)
+    }
+
+    @Test
     fun `web url for gated thread is board entry`() = runBlocking {
         val fake = hanimeFake()
         val source = Komica2TwocatSource().apply { onAttach(fake.client.asTestSourceRuntime()) }

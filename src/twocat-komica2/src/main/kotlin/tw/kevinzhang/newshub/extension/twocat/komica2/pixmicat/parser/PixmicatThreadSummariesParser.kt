@@ -42,7 +42,7 @@ internal class PixmicatThreadSummariesParser(
                 ?.replace("\\D".toRegex(), "")
                 ?.toIntOrNull()
                 ?: 0
-            replyCount += thread.getElementsByClass("reply").size
+            replyCount += thread.select(".reply:not(.threadpost)").size
             return replyCount
         }
     }

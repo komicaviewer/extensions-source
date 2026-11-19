@@ -107,7 +107,7 @@ class Komica2TwocatSource : SessionAwareSource {
         val posts = parser.parse(response.body!!, req)
         Thread(
             id = summary.id,
-            url = summary.id,
+            url = if (gated != null) summary.boardUrl else summary.id,
             title = summary.title,
             posts = posts.map { post ->
                 Post(
