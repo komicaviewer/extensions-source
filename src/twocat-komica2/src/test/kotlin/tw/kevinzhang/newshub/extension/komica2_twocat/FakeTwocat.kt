@@ -21,7 +21,7 @@ internal class FakeTwocat(
 ) : Interceptor {
     var decoy = "/granblue/"
     var shellIframeSrc: String? = null
-    var entryLocation: ((String) -> String?) = { slug -> "https://2cat.uk/~$slug/" }
+    var shellStatus = 200
     var alwaysMismatch = false
     var pages: (slug: String, path: String) -> String? = { _, _ -> null }
 
@@ -42,14 +42,10 @@ internal class FakeTwocat(
         val path = url.encodedPath
         val slug = Regex("^/~([a-z]+)/$").find(path)?.groupValues?.get(1)
         return when {
-            url.host == "2cat.org" && slug != null -> {
+            url.host == "2cat.uk" && slug != null -> {
                 entryCount++
                 entryReferers += request.header("Referer")
-                val location = entryLocation(slug)
-                if (location == null) respond(request, 200, "<html></html>")
-                else respond(request, 302, "", "Location" to location)
-            }
-            url.host == "2cat.uk" && slug != null -> {
+                if (shellStatus != 200) return respond(request, shellStatus, "")
                 current = slug
                 val src = shellIframeSrc ?: decoy
                 respond(request, 200, "<html><body><iframe allowTransparency='1' src='$src' frameborder='0' id='main'></iframe></body></html>")

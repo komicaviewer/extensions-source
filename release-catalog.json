@@ -190,7 +190,7 @@
           "policyVersion": 2,
           "exactHosts": ["2cat.org", "2cat.uk"],
           "namedCapabilities": ["external_link", "resource_read"],
-          "policyHash": "4fd2baf55301a827c21c3be45e8d10e7057ebbd6ae92f0b9e47e91f73e0d2ac9"
+          "policyHash": "f01538a6417e0632004f3a08c6cc1800e9acc84be0dc261ecf98195633a0ec42"
         },
         {
           "module": "sora-komica2",

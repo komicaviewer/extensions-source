@@ -81,7 +81,7 @@ class Komica2TwocatSourceTest {
             summaries.map { it.id },
         )
         assertEquals(setOf("https://2cat.org/~hanime/"), summaries.map { it.boardUrl }.toSet())
-        assertEquals("https://2cat.uk/granblue/pixmicat.php", fake.requests.last())
+        assertEquals("https://2cat.uk/granblue/", fake.requests.last())
     }
 
     @Test

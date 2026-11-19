@@ -334,7 +334,7 @@
           "exactHttpsHosts": ["2cat.org", "2cat.uk"],
           "blockedHttpHosts": [],
           "rules": [
-            {"exactHttpsHosts": ["2cat.org"], "methods": ["GET"], "pathPrefixes": ["/hiso/", "/touhoux/", "/~futa/", "/~gifura/", "/~hanime/", "/~know/", "/~toy/"], "credentialed": false},
+            {"exactHttpsHosts": ["2cat.org"], "methods": ["GET"], "pathPrefixes": ["/hiso/", "/touhoux/"], "credentialed": false},
             {"exactHttpsHosts": ["2cat.uk"], "methods": ["GET"], "pathPrefixes": ["/"], "credentialed": true}
           ],
           "dynamicFromContent": false,

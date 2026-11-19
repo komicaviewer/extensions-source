@@ -55,12 +55,9 @@ internal class TwocatBoardSession(private val client: OkHttpClient) {
     private suspend fun activate(board: TwocatGatedBoard) {
         activeSlug = null
         decoy = null
-        val expectedLocation = "https://2cat.uk/~${board.slug}/"
-        val location = get("https://2cat.org/~${board.slug}/").use { entry ->
-            entry.header("Location").takeIf { entry.code in 301..302 }
-        }
-        if (location != expectedLocation) fail()
-        val shell = get(expectedLocation).use { response ->
+        // 2cat.uk binds the board on this same-origin entry; 2cat.org's redirect hop adds nothing
+        // but an extra request to a host that throttles bursts.
+        val shell = get("https://2cat.uk/~${board.slug}/").use { response ->
             if (!response.isSuccessful) fail(response.code)
             response.body!!.string()
         }
@@ -78,9 +75,10 @@ internal class TwocatBoardSession(private val client: OkHttpClient) {
 internal fun parseDecoyPath(shellHtml: String): String? =
     Jsoup.parse(shellHtml).selectFirst("iframe#main[src]")?.attr("src")?.takeIf(DECOY_PATH::matches)
 
+/** Gated boards page with the board index's 0-based `page`; `pixmicat.php?page_num` is ignored there. */
 internal fun TwocatGatedBoard.summariesUrl(decoy: String, page: Int): HttpUrl =
-    "https://2cat.uk${decoy}pixmicat.php".toHttpUrl().newBuilder().apply {
-        if (page > 1) setQueryParameter("page_num", (page - 1).toString())
+    "https://2cat.uk$decoy".toHttpUrl().newBuilder().apply {
+        if (page > 1) setQueryParameter("page", (page - 1).toString())
     }.build()
 
 internal fun TwocatGatedBoard.threadUrl(decoy: String, threadId: String): HttpUrl {

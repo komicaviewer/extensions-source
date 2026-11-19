@@ -35,8 +35,8 @@ class TwocatBoardSessionTest {
 
     @Test
     fun `summariesUrl and threadUrl rewrite to decoy`() {
-        assertEquals("https://2cat.uk/granblue/pixmicat.php", hanime.summariesUrl("/granblue/", 1).toString())
-        assertEquals("https://2cat.uk/granblue/pixmicat.php?page_num=2", hanime.summariesUrl("/granblue/", 3).toString())
+        assertEquals("https://2cat.uk/granblue/", hanime.summariesUrl("/granblue/", 1).toString())
+        assertEquals("https://2cat.uk/granblue/?page=2", hanime.summariesUrl("/granblue/", 3).toString())
         assertEquals(
             "https://2cat.uk/granblue/?res=18426",
             hanime.threadUrl("/granblue/", "https://2cat.uk/hanime/?res=18426").toString(),
@@ -88,12 +88,18 @@ class TwocatBoardSessionTest {
     }
 
     @Test
-    fun `entry without expected Location fails`() = runBlocking {
-        listOf<(String) -> String?>({ null }, { "https://evil.example/" }).forEach { location ->
-            val fake = FakeTwocat().apply { entryLocation = location }
-            expectSiteUnavailable { TwocatBoardSession(fake.client).fetchIndex(fake, hanime) }
-            assertTrue(fake.requests.none { it.startsWith("https://2cat.uk/") || it.startsWith("https://evil") })
-        }
+    fun `activation talks only to 2cat uk`() = runBlocking {
+        val fake = FakeTwocat()
+        TwocatBoardSession(fake.client).fetchIndex(fake, hanime)
+        assertEquals("https://2cat.uk/~hanime/", fake.requests.first())
+        assertTrue(fake.requests.all { it.startsWith("https://2cat.uk/") })
+    }
+
+    @Test
+    fun `shell error fails activation without fetching`() = runBlocking {
+        val fake = FakeTwocat().apply { shellStatus = 503 }
+        expectSiteUnavailable { TwocatBoardSession(fake.client).fetchIndex(fake, hanime) }
+        assertEquals(listOf("https://2cat.uk/~hanime/"), fake.requests)
     }
 
     @Test
